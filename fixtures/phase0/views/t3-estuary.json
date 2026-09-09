@@ -1,0 +1,299 @@
+{
+  "fixture_version": 1,
+  "viewer": "estuary",
+  "recorded_at_cutoff": "2030-04-03T23:00:00Z",
+  "records": [
+    {
+      "id": "scenario-v1",
+      "kind": "scenario",
+      "game_id": "harbor-relief",
+      "branch_id": "main",
+      "effective_turn": 1,
+      "recorded_at": "2030-04-01T08:00:00Z",
+      "source_refs": [],
+      "body": {
+        "title": "Harbor Relief",
+        "description": "Two civilian governments coordinate recovery after flood damage. No military movements or combat are resolved.",
+        "teams": [
+          "estuary",
+          "upland"
+        ],
+        "actors": {
+          "estuary": "Estuary Council",
+          "upland": "Upland Council"
+        },
+        "users": {
+          "estuary-lead": {
+            "team": "estuary",
+            "role": "submitter"
+          },
+          "estuary-member": {
+            "team": "estuary",
+            "role": "member"
+          },
+          "upland-lead": {
+            "team": "upland",
+            "role": "submitter"
+          },
+          "upland-member": {
+            "team": "upland",
+            "role": "member"
+          },
+          "reviewer": {
+            "role": "adjudicator"
+          }
+        },
+        "turns": [
+          {
+            "number": 1,
+            "simulated_days": 7,
+            "submission_deadline": "2030-04-01T12:00:00Z"
+          },
+          {
+            "number": 2,
+            "simulated_days": 7,
+            "submission_deadline": "2030-04-02T12:00:00Z"
+          },
+          {
+            "number": 3,
+            "simulated_days": 7,
+            "submission_deadline": "2030-04-03T12:00:00Z"
+          },
+          {
+            "number": 4,
+            "simulated_days": 7,
+            "submission_deadline": "2030-04-04T12:00:00Z"
+          }
+        ],
+        "rules": [
+          "The joint civilian recovery fund has 10 credits available in Turn 4; it cannot be overspent.",
+          "Funding requests do not reserve or spend credits until an adjudicator approves an allocation.",
+          "Joint announcements require an explicit shared coordination record and consent of both councils.",
+          "Rulings approve effects; release of feedback is a separate decision."
+        ],
+        "initial_state": {
+          "joint_fund_turn4_credits": 10,
+          "customs_window": "standard",
+          "export_guarantee": "not issued"
+        }
+      }
+    },
+    {
+      "id": "estuary-t1-v1",
+      "kind": "submission",
+      "game_id": "harbor-relief",
+      "branch_id": "main",
+      "effective_turn": 1,
+      "recorded_at": "2030-04-01T12:00:00Z",
+      "source_refs": [],
+      "body": {
+        "player_id": "estuary",
+        "author_id": "estuary-lead",
+        "content_version": 1,
+        "version": 1,
+        "status": "submitted",
+        "overall_intention": "Keep civilian trade moving while supporting inland recovery.",
+        "actions": [
+          {
+            "action_id": "e-pledge",
+            "Title": "Offer bridge finance",
+            "Description": "We commit to seek six credits from the joint recovery fund in Turn 4 for bridge repairs.",
+            "Intent of Action": "Restore access to markets.",
+            "Anticipated reaction": "Upland will welcome our support."
+          }
+        ]
+      }
+    },
+    {
+      "id": "commitment-1",
+      "kind": "commitment",
+      "game_id": "harbor-relief",
+      "branch_id": "main",
+      "effective_turn": 1,
+      "recorded_at": "2030-04-01T13:00:00Z",
+      "source_refs": [
+        "estuary-t1-v1"
+      ],
+      "body": {
+        "text": "Estuary explicitly commits to seek six credits in Turn 4; no allocation has been approved.",
+        "status": "active"
+      }
+    },
+    {
+      "id": "estuary-t2-v1",
+      "kind": "submission",
+      "game_id": "harbor-relief",
+      "branch_id": "main",
+      "effective_turn": 2,
+      "recorded_at": "2030-04-02T12:00:00Z",
+      "source_refs": [],
+      "body": {
+        "player_id": "estuary",
+        "author_id": "estuary-lead",
+        "content_version": 1,
+        "version": 1,
+        "status": "submitted",
+        "overall_intention": "Reduce delays for civilian trade.",
+        "actions": [
+          {
+            "action_id": "e-customs",
+            "Title": "Extend customs hours",
+            "Description": "Extend civilian customs desk hours starting in Turn 4.",
+            "Intent of Action": "Reduce administrative delays.",
+            "Anticipated reaction": "Traders will use the longer opening window."
+          }
+        ]
+      }
+    },
+    {
+      "id": "ruling-customs",
+      "kind": "ruling",
+      "game_id": "harbor-relief",
+      "branch_id": "main",
+      "effective_turn": 2,
+      "recorded_at": "2030-04-02T13:00:00Z",
+      "source_refs": [
+        "estuary-t2-v1"
+      ],
+      "body": {
+        "authority": "reviewer",
+        "decision": "Approve extended civilian customs hours beginning Turn 4."
+      }
+    },
+    {
+      "id": "effect-customs-scheduled",
+      "kind": "effect",
+      "game_id": "harbor-relief",
+      "branch_id": "main",
+      "effective_turn": 4,
+      "recorded_at": "2030-04-02T13:00:00Z",
+      "source_refs": [
+        "ruling-customs"
+      ],
+      "body": {
+        "status": "delayed",
+        "change": "customs_window becomes extended in Turn 4",
+        "authority_ref": "ruling-customs"
+      }
+    },
+    {
+      "id": "ruling-guarantee",
+      "kind": "ruling",
+      "game_id": "harbor-relief",
+      "branch_id": "main",
+      "effective_turn": 2,
+      "recorded_at": "2030-04-02T13:00:00Z",
+      "source_refs": [],
+      "body": {
+        "authority": "reviewer",
+        "decision": "Approve a guarantee starting Turn 4, subject to cancellation before activation."
+      }
+    },
+    {
+      "id": "effect-guarantee-scheduled",
+      "kind": "effect",
+      "game_id": "harbor-relief",
+      "branch_id": "main",
+      "effective_turn": 4,
+      "recorded_at": "2030-04-02T13:00:00Z",
+      "source_refs": [
+        "ruling-guarantee"
+      ],
+      "body": {
+        "status": "delayed",
+        "change": "export_guarantee becomes issued in Turn 4"
+      }
+    },
+    {
+      "id": "estuary-t3-v1",
+      "kind": "submission",
+      "game_id": "harbor-relief",
+      "branch_id": "main",
+      "effective_turn": 3,
+      "recorded_at": "2030-04-03T12:00:00Z",
+      "source_refs": [],
+      "body": {
+        "player_id": "estuary",
+        "author_id": "estuary-lead",
+        "content_version": 1,
+        "version": 1,
+        "status": "submitted",
+        "overall_intention": "Prepare a joint recovery announcement.",
+        "actions": [
+          {
+            "action_id": "e-invite",
+            "Title": "Invite coordination",
+            "Description": "Invite Upland to coordinate a Turn 4 announcement.",
+            "Intent of Action": "Communicate a common recovery objective.",
+            "Anticipated reaction": "Upland will negotiate shared wording."
+          }
+        ]
+      }
+    },
+    {
+      "id": "ruling-cancel",
+      "kind": "ruling",
+      "game_id": "harbor-relief",
+      "branch_id": "main",
+      "effective_turn": 3,
+      "recorded_at": "2030-04-03T13:00:00Z",
+      "source_refs": [
+        "ruling-guarantee"
+      ],
+      "body": {
+        "authority": "reviewer",
+        "decision": "Cancel the guarantee before activation."
+      }
+    },
+    {
+      "id": "effect-guarantee-cancelled",
+      "kind": "effect",
+      "game_id": "harbor-relief",
+      "branch_id": "main",
+      "effective_turn": 3,
+      "recorded_at": "2030-04-03T13:00:00Z",
+      "source_refs": [
+        "effect-guarantee-scheduled",
+        "ruling-cancel"
+      ],
+      "body": {
+        "status": "cancelled",
+        "supersedes_ref": "effect-guarantee-scheduled",
+        "change": "export_guarantee remains not issued"
+      }
+    },
+    {
+      "id": "coordination-1",
+      "kind": "coordination",
+      "game_id": "harbor-relief",
+      "branch_id": "main",
+      "effective_turn": 3,
+      "recorded_at": "2030-04-03T14:00:00Z",
+      "source_refs": [
+        "estuary-t3-v1"
+      ],
+      "body": {
+        "participants": [
+          "estuary",
+          "upland"
+        ],
+        "text": "Both councils consent to a joint Turn 4 announcement. Publish only after both announcement actions are approved. This shares this record only.",
+        "status": "confirmed"
+      }
+    },
+    {
+      "id": "claim-open",
+      "kind": "claim",
+      "game_id": "harbor-relief",
+      "branch_id": "main",
+      "effective_turn": 3,
+      "recorded_at": "2030-04-03T15:00:00Z",
+      "source_refs": [],
+      "body": {
+        "text": "The trade association claims all civilian cargo permits are valid.",
+        "status": "unverified",
+        "source": "Trade association public bulletin"
+      }
+    }
+  ]
+}

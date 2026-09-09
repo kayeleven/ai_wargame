@@ -11,6 +11,12 @@ The platform has two related purposes:
 
 Initial adjudication accuracy is secondary to usefulness as a starting point for human review. Accuracy, coherence, and information handling still constrain whether assistance is useful. Automated AI-v-AI experiments are supported, but operational games retain human authority over rulings and state publication.
 
+## Initial action scope and submission baseline
+
+The initial build covers non-military DIME-FIL actions. Military movements and combat are submitted separately to an M&S tool and adjudicated there. Military submission, adjudication, and M&S integration are a separate task.
+
+Each player submits one overall free-text intention for the turn and a variable-length collection of actions. Each action has four free-text fields: **Title**, **Description**, **Intent of Action**, and **Anticipated reaction**. There is no fixed game-level action limit; the Phase 0 baseline permits an intention-only submission. Preserve the original text. Structured resources, targets, timing, and classifications may be separately interpreted for review but are not mandatory player-authored fields. Anticipated reactions are expectations, not observations. See the [Phase 0 contract](docs/phase0/contracts.md).
+
 ## Game configuration and participation
 
 | ID | Requirement | Acceptance evidence |
@@ -25,7 +31,7 @@ Initial adjudication accuracy is secondary to usefulness as a starting point for
 
 | ID | Requirement | Acceptance evidence |
 | --- | --- | --- |
-| PLAY-01 | Create, revise, review, and submit versioned actions with timing, intent, targets, resources, and supporting material as applicable. | Reviewers can recover the exact submitted version despite later draft changes. |
+| PLAY-01 | Create, revise, review, and submit versioned turn packages containing overall intention and actions in the baseline free-text structure. Preserve timing, targets, resources, and supporting material where supplied; keep derived interpretations separate. | Reviewers can recover the exact submitted version despite later draft changes. |
 | PLAY-02 | Provide integrated intra-team collaboration: shared drafts, discussion, comments, ownership, revision history, and submission authority. | Multiple teammates collaborate without silent overwrites or unauthorized submission. |
 | PLAY-03 | Support permitted coordination of effects within and across teams, including linked actions and explicit commitments. | Participants can inspect a shared coordination record without gaining access to unrelated private material. |
 | PLAY-04 | Let players query their current and historical view of the game, submit RFIs, and receive meaningful turn feedback. | Answers and feedback reference information available to that player; unauthorized facts are excluded. |

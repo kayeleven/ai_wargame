@@ -10,6 +10,8 @@ Begin with a modular application rather than requiring many independently deploy
 
 The game core must operate when inference is unavailable. AI outputs are proposals. Operational authority comes from recorded human decisions; an experiment may explicitly select automated decisions.
 
+The initial slice handles non-military DIME-FIL actions. Military movement/combat submission and adjudication remain in the separate M&S workflow; its integration is outside this build. The [Phase 0 contracts](phase0/contracts.md) define the initial submission and review baseline.
+
 ## Living memory
 
 Living memory combines preserved source material, structured facts and relationships, temporal history, and derived retrieval views. A narrative summary is a convenience, not the sole record of truth.
@@ -20,7 +22,7 @@ Living memory combines preserved source material, structured facts and relations
 | Branch | Parent, divergence point, changes, and downstream replay policy. |
 | User / team / actor / controller | Identity, collaboration membership, represented entity, and who supplies its actions. |
 | Turn | Simulated interval, wall-clock deadlines, status, and state version. |
-| Submission / action version | Original text, structured intent, author, controller, resources, timing, and submission status. |
+| Turn submission / action version | Overall free-text turn intention and variable-length actions with Title, Description, Intent of Action, and Anticipated reaction; immutable submitted package versions, stable action IDs, author/controller, and submission status. Derived resources, targets, and timing are separate source-linked interpretations. |
 | Coordination record | Participants, shared purpose, linked actions, explicit commitments, and visibility. |
 | Review issue | Decision needed, related actions, evidence, information gaps, and suggested alternatives. |
 | Adjudication run | Method configuration, frozen inputs, retrievals, outputs, validation, timing, and review edits. |
@@ -44,7 +46,7 @@ Derived summaries and indexes must identify their source versions and be refresh
 
 ## Turn and review workflow
 
-Proposed default: simultaneous submission followed by joint review. Sequential resolution remains configurable and the initial policy needs a recorded decision.
+Phase 0 default: simultaneous submission followed by joint review, with versioned amendments accepted by the adjudicator before ruling. Sequential resolution is a future configurable policy, not part of the initial fixture. See decision B-02.
 
 1. Players draft actions and coordinate under team/sharing permissions.
 2. Submission captures a stable version. Subsequent amendments are explicit.
@@ -71,7 +73,7 @@ Treat imported text and player submissions as game data, not trusted instruction
 
 Apply authorization before retrieval and AI context construction, not only when rendering a final answer. Enforce it consistently on source documents, graph traversal, search, attachments, caches, generated summaries, and exported records.
 
-Team-shared knowledge and individual access may differ; the exact policy is open. Cross-team coordination shares specific records, not entire team histories. Preserve what was actually disclosed so historical player views can be reconstructed after later revelations.
+The initial baseline shares knowledge across team members and designates submission authority. Individual information compartments remain a possible later policy, not part of the initial fixture (B-02). Cross-team coordination shares specific records, not entire team histories. Preserve what was actually disclosed so historical player views can be reconstructed after later revelations.
 
 ## Replay and AI participation
 

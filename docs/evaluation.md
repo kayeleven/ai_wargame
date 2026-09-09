@@ -30,6 +30,10 @@ Initial preparation methods:
 
 Compare batching by player, geography, domain, objective, and linked action group as distinct variants. Keep an all-action index available for reconciliation and measure links lost at batch boundaries. Later experiments may compare probability-based proposals, independent adjudicators with reconciliation, and rule/AI hybrids, but human review support remains the primary objective.
 
+## Phase 0 baseline
+
+The [acceptance package](phase0/README.md) supplies the initial non-military case, role/time snapshots, source-linked expected results, and [reviewer protocol](phase0/walkthrough.md). Human execution is pending. Record effort and substantive corrections before setting comparative improvement thresholds; the static model examples are not research results. Free-text turn intentions and anticipated reactions must remain distinguishable from adjudicated outcomes.
+
 ## Cases and controls
 
 Start with constructed fixtures containing known relevant facts and links. Include a three-turn-old commitment, resource conflict between two players, delayed effect, cancellation, coordinated action, contradictory claim, unanswered RFI, late answer, hidden observation, and irrelevant distractor actions. Add larger volumes to expose overwhelm.

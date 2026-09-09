@@ -1,0 +1,145 @@
+{
+  "contract_version": 1,
+  "static_example": true,
+  "generated_by_model": false,
+  "input": {
+    "game_id": "harbor-relief",
+    "branch_id": "main",
+    "turn": 4,
+    "audience": "adjudicator",
+    "recorded_at_cutoff": "2030-04-04T14:00:00Z",
+    "method": "single_pass",
+    "configuration": {
+      "model_provider": "unselected",
+      "model_identity": "unselected",
+      "settings": {}
+    },
+    "authorized_context_artifact": "views/review-adjudicator.json",
+    "record_refs": [
+      "scenario-v1",
+      "estuary-t1-v1",
+      "commitment-1",
+      "upland-t1-v1",
+      "estuary-t2-v1",
+      "ruling-customs",
+      "effect-customs-scheduled",
+      "upland-t2-v1",
+      "ruling-guarantee",
+      "effect-guarantee-scheduled",
+      "estuary-t3-v1",
+      "upland-t3-v1",
+      "ruling-cancel",
+      "effect-guarantee-cancelled",
+      "coordination-1",
+      "claim-open",
+      "observation-permits",
+      "effect-customs-active",
+      "estuary-t4-v1",
+      "upland-t4-v1",
+      "import-invoices",
+      "rfi-permits",
+      "review-invoices"
+    ],
+    "submitted_version_refs": [
+      "estuary-t4-v1",
+      "upland-t4-v1"
+    ],
+    "rules_ref": "scenario-v1"
+  },
+  "output": {
+    "status": "proposal",
+    "issues": [
+      {
+        "issue_id": "fund-contention",
+        "summary": "Two six-credit requests exceed the ten-credit joint fund.",
+        "action_ids": [
+          "e-bridge",
+          "u-clinics"
+        ],
+        "evidence_refs": [
+          "scenario-v1",
+          "estuary-t4-v1",
+          "upland-t4-v1",
+          "commitment-1"
+        ],
+        "alternatives": [
+          "Seek a versioned amendment.",
+          "Approve reduced allocations totaling at most ten.",
+          "Defer one request."
+        ],
+        "assumptions": []
+      },
+      {
+        "issue_id": "invoice-context",
+        "summary": "Staffing and execution date are unspecified.",
+        "action_ids": [
+          "u-inspect"
+        ],
+        "evidence_refs": [
+          "import-invoices",
+          "upland-t4-v1"
+        ],
+        "alternatives": [
+          "Request clarification before assessing feasibility."
+        ],
+        "assumptions": []
+      }
+    ],
+    "proposed_relationships": [
+      {
+        "type": "resource_contention",
+        "action_ids": [
+          "e-bridge",
+          "u-clinics"
+        ],
+        "status": "proposed",
+        "evidence_refs": [
+          "scenario-v1",
+          "estuary-t4-v1",
+          "upland-t4-v1"
+        ]
+      }
+    ],
+    "unresolved_questions": [
+      {
+        "question": "How many staff and which execution date are intended?",
+        "evidence_refs": [
+          "import-invoices"
+        ]
+      }
+    ],
+    "proposed_effects": [],
+    "proposed_disclosures": []
+  },
+  "failure_examples": [
+    {
+      "status": "unavailable",
+      "reason": "Local model endpoint cannot be reached.",
+      "recoverable": true,
+      "expected_behavior": "Preserve the frozen input reference and failure; allow retry or manual adjudication without applying effects."
+    },
+    {
+      "status": "invalid_output",
+      "raw_output": {
+        "issues": [
+          {
+            "evidence_refs": [
+              "nonexistent-record"
+            ]
+          }
+        ]
+      },
+      "validation_errors": [
+        "Evidence reference is outside the authorized input/retrieval set."
+      ],
+      "expected_behavior": "Retain raw output and error for authorized diagnostics; do not present as validated evidence or apply effects."
+    },
+    {
+      "status": "stale",
+      "input_submission_ref": "estuary-t4-v1",
+      "accepted_submission_ref": "estuary-t4-v2",
+      "trigger_ref": "amendment-accepted",
+      "expected_behavior": "Keep the old result as historical; reassess fund contention against the accepted revision before ruling."
+    }
+  ]
+}

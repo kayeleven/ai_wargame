@@ -4,6 +4,8 @@ Status: proposed delivery sequence, 2026-09-09. Phases are ordered by dependenci
 
 ## Phase 0 — Define executable acceptance cases
 
+The [Phase 0 package](docs/phase0/README.md) now specifies the non-military scenario, free-text turn/action contract, review policies, source fixtures, and acceptance oracle. “Executable” at this stage means a scripted human walkthrough; automated acceptance tests follow in Phase 1. Human execution is pending, so this phase is not complete. Military movements/combat and M&S integration are excluded from this build.
+
 Turn the planning baseline into a small fixture scenario and review tasks. Include a three-turn-old commitment, cross-player resource conflict, delayed effect, coordinated action, RFI, hidden information, and imported move.
 
 Decide an initial turn-resolution policy, action schema, team permissions, deployment assumptions, and model interface. Define reviewer tasks and initial usability/performance targets. Record decisions rather than implying that preliminary proposals are settled.
@@ -13,6 +15,8 @@ Exit gate: a human can walk through the fixture and identify expected memory ret
 Coverage: GAME-01–02, MEM-01–05, EXP-03; resolves initial items in the decision log.
 
 ## Phase 1 — Playable human workflow and durable memory
+
+Use the Phase 0 turn package baseline: one overall free-text intention and a variable-length list of four-field free-text actions. Keep system metadata and derived interpretations separate.
 
 Build a browser-based vertical slice: configure a small game; create users and teams; collaborate on versioned drafts; submit actions; coordinate a linked effect; ask and answer RFIs; review issues; record rulings; apply approved effects; release player feedback.
 

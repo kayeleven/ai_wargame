@@ -1,0 +1,14 @@
+{
+  "fixture_version": 1,
+  "base_fixture": "source.json",
+  "purpose": "Configuration-only variant; base acceptance outcomes do not apply unchanged.",
+  "scenario_overrides": {
+    "joint_fund_turn4_credits": 14,
+    "simulated_days_per_turn": 3
+  },
+  "expected_differences": [
+    "The two original six-credit requests total 12 and fit within 14; competition for insufficient funds must not be asserted.",
+    "Wall-clock submission deadlines remain unchanged despite shorter simulated turns."
+  ],
+  "use": "Apply to the initial scenario and pre-ruling review checkpoint only; do not reuse the base fixture’s later fund ruling or remaining-balance effect."
+}

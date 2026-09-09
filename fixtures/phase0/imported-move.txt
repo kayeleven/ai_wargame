@@ -1,0 +1,4 @@
+Title: Inspect civilian invoices
+Description: We will inspect suspect trade invoices soon using available staff.
+Intent of Action: Identify potential civilian invoice fraud.
+Anticipated reaction: Firms may request explanations.
