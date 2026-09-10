@@ -10,3 +10,12 @@ button { margin-top: 1rem; padding: .7rem 1.2rem; font: inherit; color: white; b
 [role=status] { padding: .7rem; background: #dbefdf; }
 .skip { position: fixed; top: -10rem; left: 1rem; z-index: 10; padding: .5rem; background: white; }
 .skip:focus { top: 1rem; }
+
+select { padding: .6rem; font: inherit; max-width: 100%; }
+.memory-record { background: white; border: 1px solid #c8d3d9; padding: 1.2rem; margin: 1.5rem 0; border-radius: .3rem; }
+.memory-record h2 { margin-top: 0; overflow-wrap: anywhere; }
+dt { font-weight: 600; margin-top: .7rem; }
+dd { margin-left: 0; }
+.authored { white-space: pre-wrap; overflow-wrap: anywhere; }
+.record-meta { color: #425b66; }
+.action { border-left: 3px solid #316477; padding: .2rem 1rem; margin: 1rem 0; }

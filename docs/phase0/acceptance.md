@@ -29,3 +29,24 @@ At t3, no Turn 4 record is visible, including the customs activation, even thoug
 ## Coverage limits
 
 This package specifies roadmap Phase 0 coverage (GAME-01–02, MEM-01–05, EXP-03), plus concrete Phase 1/2 acceptance seeds listed above. C01/C12 are partial GAME-01 evidence; C09 does not execute concurrent writes; C13 does not test a real model. Full requirements remain unverified until exercised in implementation. No Phase 0 case claims 150-user capacity, replay branching, M&S integration, or comparative AI usefulness.
+
+## Fixture version 2 — Phase 1B revision
+
+Version 1 retains its accepted Phase 0 completion under B-05. Version 2 revises
+release expectations; the earlier AI walkthrough is not evidence for these changes.
+The nine version 2 snapshots are independently maintained application test oracles.
+
+- Estuary's pledge is explicitly shared; Upland's funding request remains private.
+  A council may reason from facts disclosed to it. Such deductions never authorize
+  retrieving a private submission, ruling, RFI, or evidence source.
+- `commitment-1-updated` records the four-credit approved bridge allocation at
+  16:00 and supersedes the original six-credit request. The adjudicator sees it
+  immediately; both councils receive this expressly shared update at 19:00.
+  Only the adjudicator may follow its `ruling-fund` reference. C09/C10 require
+  this update at release, preservation of the earlier pledge, and no earlier leak.
+- Announcement approval is deliberately pending at the release checkpoint.
+  Neither consent nor submitted announcement actions establish publication.
+  C05/C10 continue to prohibit invented announcement success.
+- The variant remains an initial-review-only exercise; model examples remain
+  static examples, excluded from the explorer. No new AI or human efficacy claim
+  follows from this fixture revision.

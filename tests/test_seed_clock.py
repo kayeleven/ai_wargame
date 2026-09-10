@@ -22,7 +22,7 @@ def test_package_preservation_and_validation(tmp_path):
     shutil.copytree(ROOT / "fixtures/phase0", tmp_path / "package")
     directory = tmp_path / "package"
     version, checksum, contents = read_package(directory)
-    assert version == 1
+    assert version == 2
     assert len([k for k in contents if k.startswith("views/")]) == 9
     assert contents["imported-move.txt"] == (directory / "imported-move.txt").read_text()
     assert read_package(directory)[1] == checksum

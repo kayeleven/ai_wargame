@@ -131,3 +131,20 @@ runs separately from interactive processes, budgets and transactions.
 ## Maintaining the log
 
 For a consequential decision, record the date, status, problem, chosen approach, alternatives, evidence, and consequences. Link affected requirements and verification. Mark superseded decisions rather than deleting the history. Track optional niceties separately until their value and scope are established.
+
+### B-09 — Phase 1B fixture clarification and development explorer
+
+Status: owner-authorized implementation plan, 2026-09-10. Preserve explicit
+asymmetric sharing: Estuary's pledge is public to both councils; Upland's request
+is private. Deductions from permitted facts do not grant private source access.
+Append a four-credit commitment revision at the 16:00 ruling and disclose it to
+both councils at 19:00; retain the prior pledge. Announcement approval deliberately
+remains pending. Alternative: symmetric or private pledges, or completing the
+announcement storyline. The owner chose clarification of the existing continuation.
+
+Version 2 revises the nine release/cutoff oracles without recharacterizing the
+accepted version 1 AI walkthrough. The development explorer loads shared source
+records from an explicitly selected staged checksum. Fixed identity selection is
+an authorization simulation, not authentication. The read-only routes are absent
+outside development. Temporary persistence is replaceable behind typed read models
+in 1C-core. Requirements: MEM-01/04/05, PLAY-01/05; C01–C10 retrieval evidence.

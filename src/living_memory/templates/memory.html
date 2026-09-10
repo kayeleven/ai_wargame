@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Memory explorer · Living Memory{% endblock %}
+{% block content %}
+<h1>Memory explorer</h1>
+<p>Read-only development identity simulation. Selecting an identity demonstrates its access; it is not a login.</p>
+<form method="get" action="/dev/memory">
+  <label for="identity">Development identity</label>
+  <select id="identity" name="identity">{% for item in identities %}<option{% if item == identity %} selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+  <button type="submit">Switch identity</button>
+</form>
+<form method="get" action="/dev/memory" class="filters">
+  <input type="hidden" name="identity" value="{{ identity }}">
+  <label for="dataset">Dataset</label><select id="dataset" name="dataset">{% for item in datasets %}<option value="{{ item.id }}"{% if item.id == dataset %} selected{% endif %}>{{ item.label }}</option>{% endfor %}</select>
+  <label for="audience">Audience</label><select id="audience" name="audience">{% for item in audiences %}<option{% if item == audience %} selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+  <label for="checkpoint">Checkpoint</label><select id="checkpoint" name="checkpoint">{% for item in ['t3', 'review', 'release'] %}<option{% if item == checkpoint %} selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+  <label for="task">Task view</label><select id="task" name="task">{% for item in tasks %}<option{% if item == task %} selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+  <button type="submit"{% if not datasets %} disabled{% endif %}>Show memory</button>
+</form>
+{% if view %}
+<p>Known at {{ view.known_at.isoformat() }} · {{ audience }} · {{ records|length }} records in this view.</p>
+{% if detail %}<p><a href="{{ link() }}">Back to task view</a></p>{% endif %}
+{% for record in records %}{% include 'memory_record.html' %}{% else %}<p>No records are available in this view.</p>{% endfor %}
+{% else %}<p>No timeline has been loaded. Stage a fixture and run the development timeline loader.</p>{% endif %}
+{% endblock %}

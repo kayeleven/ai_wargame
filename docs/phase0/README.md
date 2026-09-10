@@ -1,6 +1,6 @@
 # Phase 0 acceptance package
 
-Status: **complete**, 2026-09-09. The project owner accepted the AI substitute walkthrough as sufficient for the Phase 0 exit gate under [B-05](../decisions.md#b-05--ai-substitute-walkthrough-accepted-for-phase-0). Fixtures and static examples exist; no application or automated acceptance runner exists.
+Status: **complete**, 2026-09-09. The project owner accepted the AI substitute walkthrough as sufficient for the Phase 0 exit gate under [B-05](../decisions.md#b-05--ai-substitute-walkthrough-accepted-for-phase-0). That completion applies to fixture version 1. Phase 1B now supplies version 2 fixtures, an authorized read-only explorer, and automated retrieval checks; see [verification](../phase1/verification-1b.md).
 
 ## Start here
 
@@ -30,7 +30,7 @@ Later rulings are one illustrative continuation, not the unique correct solution
 
 ## Completion and handoff
 
-C01–C13 were reported met in the [AI substitute walkthrough](findings.md), with no mandatory omissions or unauthorized disclosures. The project owner accepted this pass for Phase 0 completion. Preliminary human review was of limited use because difficulty reading JSON confounded interpretation errors with the intended review task. A further human run is not required to close Phase 0; human usability and effort still need evaluation through a readable interface in later phases. Recorded ambiguities remain handoff items.
+C01–C13 were reported met in the [AI substitute walkthrough](findings.md), with no mandatory omissions or unauthorized disclosures. The project owner accepted this pass for Phase 0 completion. Preliminary human review was of limited use because difficulty reading JSON confounded interpretation errors with the intended review task. A further human run is not required to close Phase 0; human usability and effort still need evaluation through a readable interface in later phases. The version 2 disposition of the sharing, stale commitment and pending announcement ambiguities is recorded in the findings.
 
 The configuration variant tests that two original six-credit requests fit within fourteen credits and that simulated turn duration does not change wall-clock deadlines. It is partial evidence toward GAME-01, not proof that two materially different scenarios run in an application.
 

@@ -1,5 +1,5 @@
 {
-  "fixture_version": 1,
+  "fixture_version": 2,
   "records": [
     {
       "id": "scenario-v1",
@@ -855,6 +855,28 @@
         "authority": "reviewer",
         "status": "released",
         "text": "Six credits approved for clinics. Extended customs hours are active. The export guarantee remains cancelled. Clarification of invoice-inspection timing and staffing is still needed."
+      }
+    },
+    {
+      "id": "commitment-1-updated",
+      "kind": "commitment",
+      "game_id": "harbor-relief",
+      "branch_id": "main",
+      "effective_turn": 4,
+      "recorded_at": "2030-04-04T16:00:00Z",
+      "disclosures": {
+        "adjudicator": "2030-04-04T16:00:00Z",
+        "estuary": "2030-04-04T19:00:00Z",
+        "upland": "2030-04-04T19:00:00Z"
+      },
+      "source_refs": [
+        "commitment-1",
+        "ruling-fund"
+      ],
+      "body": {
+        "text": "The earlier six-credit bridge funding request is superseded: four credits are approved for bridge repairs.",
+        "status": "resolved",
+        "supersedes_ref": "commitment-1"
       }
     }
   ]

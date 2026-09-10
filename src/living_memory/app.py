@@ -149,6 +149,10 @@ def create_app(
         )
 
     if settings.environment == "development":
+        from living_memory.explorer import explorer_router
+
+        if isinstance(db, Database):
+            app.include_router(explorer_router(db, templates))
 
         def render_form(request: Request, bound: BoundForm, status: int = 200) -> Response:
             partial = request.headers.get("hx-request", "").lower() == "true"

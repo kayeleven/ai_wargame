@@ -69,3 +69,13 @@ belongs to 1F and must report host, workload, concurrency, durations, errors,
 pool waits and percentiles. This work provides **no 150-user capacity evidence**.
 Offline installation, organizational identity, TLS, VDI qualification and
 representative OPS-04 deadline-burst testing remain follow-up obligations.
+
+## Phase 1B environment recheck — 2026-09-10
+
+Docker and Compose are now installed (Compose reports v5.5.1), superseding the
+previous missing-installation diagnosis. `docker info` still fails with permission
+denied on `/var/run/docker.sock`, including outside the sandbox. `sudo -n docker
+info` requires a password. The current session therefore cannot run the isolated
+fresh-checkout/empty-volume/restart gate. No socket permissions or existing volumes
+were changed. An administrator must provide daemon access to the session before
+this gate can be completed. Native PostgreSQL evidence is not Docker evidence.

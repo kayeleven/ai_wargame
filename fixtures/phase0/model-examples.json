@@ -141,5 +141,6 @@
       "trigger_ref": "amendment-accepted",
       "expected_behavior": "Keep the old result as historical; reassess fund contention against the accepted revision before ruling."
     }
-  ]
+  ],
+  "fixture_version": 2
 }

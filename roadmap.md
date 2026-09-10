@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: Phase 1 milestone revision accepted, 2026-09-10. Phases are ordered by dependencies rather than calendar estimates. Phase 0 is complete; Phase 1A is implemented with host-specific verification outstanding.
+Status: Phase 1 milestone revision accepted, 2026-09-10. Phases are ordered by dependencies rather than calendar estimates. Phase 0 is complete; Phases 1A and 1B are implemented; the Docker fresh-checkout gate remains outstanding because this session cannot access the installed daemon. See [1B verification](docs/phase1/verification-1b.md).
 
 ## Phase 0 — Define executable acceptance cases
 

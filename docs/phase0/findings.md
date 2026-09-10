@@ -104,3 +104,15 @@ The owner used an AI as a human substitute and explicitly accepted its pass as s
 Fixture and contract decisions resolve the initial O-01–03 baseline; real-game refinements remain possible. O-07 has a synthetic import mapping only; select an actual source format before a production adapter. O-08 has a first reviewer protocol; comparative benefit thresholds require baseline observations. O-10 has a provisional eight-user latency target only; workload mix and recovery/queue targets remain open. O-04–06 and O-11 require deployment evidence at their recorded milestones. O-09 remains a later replay decision.
 
 Additionally, arising from the AI-assisted walkthrough: ambiguity 1 (the `commitment-1` inference channel) should be resolved in the access checks, and ambiguity 2 (the missing announcement ruling) decided and documented, as follow-up work before a future human evaluation. These handoff items do not block the accepted Phase 0 completion.
+
+## Phase 1B disposition — fixture version 2
+
+The owner selected explicit asymmetric sharing and a clarification of the recorded
+continuation. Ambiguity 1 is resolved by permitting deductions from authorized
+facts while retaining private-source restrictions. Ambiguity 2 is resolved:
+announcement approval is deliberately pending at release. Ambiguity 4 is resolved
+by an appended, separately disclosed commitment revision; the original remains
+historical evidence. Version 2 application checks are reported separately in
+[1B verification](../phase1/verification-1b.md). The version 1 walkthrough above
+remains unchanged as historical evidence. Variant answer visibility, the RFI snare,
+and static model research design remain later evaluation considerations.

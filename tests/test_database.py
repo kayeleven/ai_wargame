@@ -85,7 +85,7 @@ def test_migrations_seed_and_clock(database, tmp_path):
     with db.transaction() as session:
         artifact = session.scalars(select(DevelopmentArtifact)).one()
         assert artifact.staged_at == clock.now()
-        assert artifact.package_version == 1
+        assert artifact.package_version == 2
     with (directory / "imported-move.txt").open("a") as file:
         file.write("\n")
     assert stage_package(db, clock, directory)
@@ -123,13 +123,16 @@ def test_pool_timeout_http_recovery_and_schema_mismatch(database):
             assert client.get("/health/live").status_code == 200
         assert client.get("/health/ready").status_code == 200
         with db.engine.begin() as connection:
+            original_head = connection.scalar(text("SELECT version_num FROM alembic_version"))
             connection.execute(text("UPDATE alembic_version SET version_num='wrong'"))
         try:
             assert client.get("/health/ready").status_code == 503
             assert client.get("/health/live").status_code == 200
         finally:
             with db.engine.begin() as connection:
-                connection.execute(text("UPDATE alembic_version SET version_num='0001'"))
+                connection.execute(
+                    text("UPDATE alembic_version SET version_num=:head"), {"head": original_head}
+                )
         assert client.get("/health/ready").status_code == 200
 
 

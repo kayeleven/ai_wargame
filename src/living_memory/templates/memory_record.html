@@ -1,0 +1,10 @@
+<article class="memory-record" id="{{ record.id }}">
+<h2><a href="{{ link(record.id) }}">{{ record.title }}</a></h2>
+<p class="record-meta visibility-label">{{ record.visibility_label }}</p>
+<p class="record-meta">{{ record.kind }} · {{ record.status }} · {{ record.temporal_status }} · Turn {{ record.effective_turn }}<br>Recorded {{ record.recorded_at.isoformat() }}</p>
+{% if record.kind == 'submission' %}<p>Anticipated reactions are player expectations, not observed outcomes.</p>{% endif %}
+{% if record.overall_intention is not none %}<h3>Overall turn intention</h3><p class="authored">{{ record.overall_intention }}</p>{% endif %}
+{% for action in record.actions %}{% include 'memory_action.html' %}{% else %}{% if record.kind == 'submission' %}<p>Intention-only submission; no actions.</p>{% endif %}{% endfor %}
+<dl>{% for field in record.fields %}<dt>{{ field.label }}</dt><dd class="authored">{{ field.text }}</dd>{% endfor %}</dl>
+{% if record.source_refs %}<nav aria-label="Evidence for {{ record.id }}">Evidence: {% for ref in record.source_refs %}<a href="{{ link(ref) }}">{{ ref }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</nav>{% endif %}
+</article>

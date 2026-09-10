@@ -138,3 +138,38 @@ host-specific gate. Tests cover real PostgreSQL migrations, versioned staging,
 transaction rollback, statement and pool timeout recovery, and schema mismatch.
 Browser checks exercise both JavaScript and ordinary form paths, keyboard use,
 422/409 rendering, CSRF rejection, one-use flash messages, and local assets.
+
+## Phase 1B memory explorer
+
+After `make migrate`, run `make seed`. The seed command prints the staged package
+checksum. Load that exact package explicitly:
+
+```sh
+uv run --locked python -m living_memory.cli load-timeline --checksum CHECKSUM
+```
+
+Run `make dev` and open `/dev/memory`, or follow **Explore memory** on the home
+page. Select a development identity first, then dataset, permitted audience,
+checkpoint and task view. The reviewer can inspect all three audiences; each
+council identity can inspect its council only. Identity switching is deliberately
+available for development demonstrations and is not authentication. No explorer
+routes are registered in test/production configuration. Browser tests explicitly
+run the development configuration against the guarded test database.
+
+The loader requires the localhost development database and an explicit staged
+checksum. It is separate from staging and future player move import. Repeated
+loads do nothing; changed source packages create separate selectable datasets.
+Loading is atomic, preserves original import text, and never uses the nine
+snapshot files, variant, answer key, or model examples as runtime inputs. Those
+snapshots remain independent test oracles. Foreign-key cascades support isolated
+test cleanup; there is no application timeline delete or editing endpoint.
+
+The three named checkpoints reproduce the fixture's T3/review/release tasks.
+The service separately accepts UTC knowledge cutoffs and simulated effective time.
+Historical revisions stay visible with a superseded label; scheduled records are
+pending before their effective interval. A date passing does not apply an effect.
+Evidence links retain dataset, identity, audience, checkpoint and task. Inaccessible
+and nonexistent targets both return 404. Audience escalation returns 403. Responses
+are not cached. Existing generic 503/retry and request-ID diagnostics still apply.
+
+See [1B verification](phase1/verification-1b.md) for evidence and limitations.

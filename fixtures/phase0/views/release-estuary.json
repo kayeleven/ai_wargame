@@ -1,5 +1,5 @@
 {
-  "fixture_version": 1,
+  "fixture_version": 2,
   "viewer": "estuary",
   "recorded_at_cutoff": "2030-04-04T20:00:00Z",
   "records": [
@@ -496,6 +496,22 @@
         "authority": "reviewer",
         "status": "released",
         "text": "Four credits approved for bridge repairs. Extended customs hours are active. Your permit RFI has been answered; the earlier inquiry ruling remains recorded as deferred."
+      }
+    },
+    {
+      "id": "commitment-1-updated",
+      "kind": "commitment",
+      "game_id": "harbor-relief",
+      "branch_id": "main",
+      "effective_turn": 4,
+      "recorded_at": "2030-04-04T16:00:00Z",
+      "source_refs": [
+        "commitment-1"
+      ],
+      "body": {
+        "text": "The earlier six-credit bridge funding request is superseded: four credits are approved for bridge repairs.",
+        "status": "resolved",
+        "supersedes_ref": "commitment-1"
       }
     }
   ]

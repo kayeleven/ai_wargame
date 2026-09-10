@@ -1,5 +1,6 @@
 from alembic import context
 
+from living_memory import memory  # noqa: F401 — register read-store metadata
 from living_memory.config import load_settings
 from living_memory.db import Base, Database
 
