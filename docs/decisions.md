@@ -33,10 +33,10 @@ Status: initial log, 2026-09-09. Established direction comes from the project di
 | ID | Question | Needed by |
 | --- | --- | --- |
 | O-01 | Initial fixture/action baseline resolved by B-01–02; real-game refinements may supersede it. | Phase 0 baseline recorded |
-| O-02 | Initial simultaneous review, amendment, late-RFI, and release policies resolved by B-02. | Validate in human walkthrough and Phase 1 |
+| O-02 | Initial simultaneous review, amendment, late-RFI, and release policies resolved by B-02. | AI walkthrough accepted by B-05; validate in Phase 1 |
 | O-03 | Team-shared knowledge and named-record sharing adopted by B-02; individual compartments deferred. | Validate in Phase 1 |
 | O-04 | What local authentication/identity service, certificates, and administrator access are available? | First deployment design |
-| O-05 | Which implementation language, application framework, primary store, and job mechanism best fit maintainability and offline packaging? | Phase 1 |
+| O-05 | Language/framework/store resolved by B-06; worker mechanism and offline packaging remain follow-up choices. | Phase 1 foundation / Phase 2 workers |
 | O-06 | What local model service, hardware, context limits, and structured-output capabilities are available? How are model artifacts provisioned offline? | Phase 2 |
 | O-07 | Which external game formats should be imported first, and how will missing context be represented? | Initial import and later adapter expansion |
 | O-08 | What reviewer protocol and practical success thresholds will determine whether preparation helps? | First comparison study |
@@ -64,13 +64,69 @@ Alternatives: a supplied historical game, sequential turns, individual informati
 
 Status: accepted delivery baseline. Problem: executable acceptance needs clear expected behavior without prematurely choosing a stack. Chosen approach: Markdown contracts, JSON sources and role/time snapshots, a separate answer key, and a human reviewer script; no validator or application implementation in Phase 0. Use a provider-neutral static model example with recoverable failure cases.
 
-Alternatives: runnable fixture tooling now, provider-specific integration, or benchmark-first development. Evidence: owner selected fixtures and walkthrough and authorized implementation of that plan. Consequence: cases are specified, not verified; the exit gate waits for a human run. Synthetic import provenance exercises mapping without selecting a real external format. Requirements: GAME-04, MEM-01–05, EXP-03, OPS-05/08. Verification: C01–C13 and [walkthrough findings](phase0/findings.md).
+Alternatives: runnable fixture tooling now, provider-specific integration, or benchmark-first development. Evidence: owner selected fixtures and walkthrough and authorized implementation of that plan. Original consequence: cases were specified, not verified, and the exit gate awaited a human run. B-05 supersedes that human-run requirement and accepts the recorded AI walkthrough for Phase 0 completion; application verification remains future work. Synthetic import provenance exercises mapping without selecting a real external format. Requirements: GAME-04, MEM-01–05, EXP-03, OPS-05/08. Verification: C01–C13 and [walkthrough findings](phase0/findings.md).
 
 ### B-04 — Provisional deployment and pilot targets
 
-Status: provisional operational assumptions. Problem: an initial target is needed without available deployment evidence. Chosen approach: offline Ubuntu hosting, Windows VDI browser clients, eight concurrent pilot users, and p95 ordinary interactive request/response latency at or below two seconds, measured separately from inference. Require all seeded mandatory facts/interactions and zero unauthorized disclosures in the human walkthrough; collect effort before selecting comparative AI improvement thresholds.
+Status: provisional operational assumptions. Problem: an initial target is needed without available deployment evidence. Chosen approach: offline Ubuntu hosting, Windows VDI browser clients, eight concurrent pilot users, and p95 ordinary interactive request/response latency at or below two seconds, measured separately from inference. Require all seeded mandatory facts/interactions and zero unauthorized disclosures in the walkthrough (AI substitute accepted for Phase 0 by B-05); collect measured human effort before selecting comparative AI improvement thresholds.
 
-Alternatives: early 150-user qualification or invented AI speedup thresholds. Evidence: project scale/offline requirements and the authorized Phase 0 plan; no performance measurements exist. Consequence: confirm identity/platform constraints under O-04, stack under O-05, model/hardware under O-06, and final workload/recovery targets under O-10. Requirements: EXP-03, OPS-01/03–05/07–08. Verification: human protocol now; measured performance in later phases.
+Alternatives: early 150-user qualification or invented AI speedup thresholds. Evidence: project scale/offline requirements and the authorized Phase 0 plan; no performance measurements exist. Consequence: confirm identity/platform constraints under O-04, stack under O-05, model/hardware under O-06, and final workload/recovery targets under O-10. Requirements: EXP-03, OPS-01/03–05/07–08. Verification: AI substitute walkthrough accepted under B-05; measured human and application performance in later phases.
+
+### B-05 — AI substitute walkthrough accepted for Phase 0
+
+Date: 2026-09-09. Status: accepted by the project owner; Phase 0 complete. Supersedes the human-run exit requirement in B-03 and the Phase 0 reviewer requirement in B-04.
+
+Problem: preliminary human review was of limited use because JSON was difficult to digest, confounding data-reading mistakes with the intended review task. Chosen approach: accept the completed AI substitute walkthrough as sufficient for Phase 0 closure. Evidence: the owner explicitly accepted the AI pass; the [recorded findings](phase0/findings.md) report Tasks 1–8 completed, C01–C13 met, zero mandatory omissions, and zero unauthorized disclosures.
+
+Alternative: require another human walkthrough of the JSON fixtures before closure. Consequences: Phase 1 may proceed; recorded ambiguities remain handoff work. This decision establishes acceptance of the fixture baseline, not human usability, measured human effort, application correctness, or comparative AI benefit. Future human evaluation should use a readable presentation that separates data-reading difficulty from the intended task. Requirements and coverage remain those of Phase 0; application acceptance tests follow in Phase 1.
+
+## Phase 1 foundation decisions — 2026-09-10
+
+### B-06 — Stack and seven milestone sequence
+
+Status: accepted by the implementation plan. Problem: a playable Phase 1 needs
+smaller gates and an authorized database path before presentation conventions.
+Choose Python 3.12, uv with a committed lockfile, FastAPI, Pydantic v2,
+synchronous SQLAlchemy 2/Psycopg 3, Alembic, PostgreSQL 16, Jinja and local HTMX.
+Use host Python and Docker PostgreSQL, one application process, explicit migrations,
+injected clocks, shared CSRF/forms, and bounded thread/connection resources.
+
+Deliver 1A, 1B, 1C-core, 1C-admin, 1D, 1E and 1F in dependency order.
+Alternative: fixture-specific presentation before database authorization, or one
+large domain milestone. Evidence: the owner's revised implementation plan.
+Consequence: 1A stages original artifacts; 1B reads the shared full timeline and
+uses nine snapshots only as oracles. Typed read models isolate templates from
+persistence. See [contracts](phase1/contracts.md) and [setup](development.md).
+Requirements: MEM-01/04/05, OPS-02/03/06/07/09; current evidence in
+[1A verification](phase1/verification.md).
+
+### B-07 — Temporal, identity, and write authority boundaries
+
+Status: accepted architectural contracts for subsequent milestones. Problem:
+historical cutoffs, late disclosure and concurrent writes must preserve meaning.
+Choose immutable fact/relationship revisions with stable identities, non-null root
+branches, separate simulated validity and UTC recording/disclosure times; authorize
+all retrieval and references. Durable internal users remain separate from local
+credentials/external subjects. Use optimistic 409 conflicts and transactional
+effect idempotency with fingerprint/result storage plus unique effect identity.
+
+Alternatives: overwriting history, null branches, username-based identity merging,
+or unconditional retry of effects. Consequence: explicit historical and concurrency
+acceptance gates in 1C-core/1D/1E; these domain capabilities are not claimed by 1A.
+Requirements: MEM-01–05, PLAY-02–04, ADJ-02–04, RFI-04.
+
+### B-08 — Developer scope and deferred qualification
+
+Status: accepted revision to initial Phase 1 installation scope. Problem: local
+evidence cannot establish offline deployment or 150-user readiness. Phase 1 targets
+developer machines, with local runtime assets and bounded resources; offline
+installation, organizational identity integration, TLS, VDI and full-scale capacity
+remain deployment obligations. 1F records a “Local eight-user sanity check” with
+host/workload/pool waits/latencies/errors and explicitly no 150-user capacity evidence.
+OPS-04 needs representative deployment and deadline bursts. Alternative: treating
+local pilot results as deployment qualification. Consequence: no such claim; B-04's
+p95 two-second target applies only to the measured local run. Phase 2 inference
+runs separately from interactive processes, budgets and transactions.
 
 ## Maintaining the log
 

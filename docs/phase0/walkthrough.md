@@ -1,6 +1,6 @@
 # Human reviewer walkthrough
 
-Status: ready for a first human run; no run recorded.
+Status: completed by an AI substitute on 2026-09-09 and accepted by the project owner for Phase 0 completion under [B-05](../decisions.md#b-05--ai-substitute-walkthrough-accepted-for-phase-0). The protocol below is retained for future reviews. Preliminary human review was confounded by JSON readability; it does not establish a usable human baseline.
 
 Use a reviewer familiar with adjudication but not the fixture's expected answers. A facilitator supplies only the specified snapshots, this script, and the contracts. Do not open the answer key, full source timeline, model examples, or later snapshots before instructed. Role switches test boundaries, not independent blinded user behavior; prior knowledge from the god-view must never be copied into a player answer without a player-visible source.
 

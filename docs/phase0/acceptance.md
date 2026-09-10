@@ -1,6 +1,6 @@
 # Acceptance cases and requirement coverage
 
-Status for every case: **specified; human execution pending**. This is the answer key. Keep it outside preparation input and the reviewer's first attempt.
+Status for C01–C13: **met in the recorded AI substitute walkthrough; accepted for Phase 0 completion on 2026-09-09** (see [findings](findings.md) and [B-05](../decisions.md#b-05--ai-substitute-walkthrough-accepted-for-phase-0)). Application verification remains future work. This is the answer key. Keep it outside preparation input and the reviewer's first attempt.
 
 All cases use game `harbor-relief`, branch `main`. `review`, `t3`, and `release` refer to the exact cutoffs in the view files. Record IDs below are evidence, not an exhaustive input list. Outcome judgments can vary; mandatory evidence and information boundaries cannot.
 

@@ -21,10 +21,10 @@ The platform must support human and AI participants, imported moves, historical 
 
 ## Status and document conventions
 
-This repository currently contains planning documents and static Phase 0 acceptance fixtures, not an implemented application. The human walkthrough and Phase 0 exit gate remain pending. There is no selected implementation stack, installer, or dependency manifest yet.
+This repository contains the Phase 1A FastAPI application foundation alongside the planning documents and Phase 0 acceptance fixtures. Phase 0 is complete: the project owner accepted the AI substitute walkthrough on 2026-09-09; see the [completion decision](docs/decisions.md#b-05--ai-substitute-walkthrough-accepted-for-phase-0). The selected stack is Python 3.12, FastAPI, Pydantic, SQLAlchemy, Alembic, PostgreSQL 16, Jinja, and locally served HTMX. See [developer setup](docs/development.md) for commands and [verification](docs/phase1/verification.md) for acceptance evidence and remaining environment checks.
 
 Requirements consolidate the project owner's stated objectives. Architecture and roadmap details are proposals unless identified as established direction. Open decisions are not silently treated as approved choices.
 
-`requirements.md` describes product requirements. If Python is selected, a future `requirements.txt` may list software dependencies; it will serve a different purpose.
+`requirements.md` describes product requirements. Software dependencies are defined in `pyproject.toml` and locked in `uv.lock`.
 
 Maintain requirement identifiers when revising scope. Implementation work should reference the relevant requirements and record consequential design choices in the decision log.

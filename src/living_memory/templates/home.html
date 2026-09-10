@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Living Memory</h1>
+<p>Application foundation. Game workspaces are coming in later milestones.</p>
+{% if message %}<p role="status">{{ message }}</p>{% endif %}
+{% if development %}
+<p>Development environment</p>
+<nav aria-label="Development"><a href="/dev/forms">Try the form demonstration</a> · <a href="/docs">API documentation</a></nav>
+{% endif %}
+{% endblock %}

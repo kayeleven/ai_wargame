@@ -32,7 +32,7 @@ Compare batching by player, geography, domain, objective, and linked action grou
 
 ## Phase 0 baseline
 
-The [acceptance package](phase0/README.md) supplies the initial non-military case, role/time snapshots, source-linked expected results, and [reviewer protocol](phase0/walkthrough.md). Human execution is pending. Record effort and substantive corrections before setting comparative improvement thresholds; the static model examples are not research results. Free-text turn intentions and anticipated reactions must remain distinguishable from adjudicated outcomes.
+The [acceptance package](phase0/README.md) supplies the initial non-military case, role/time snapshots, source-linked expected results, and [reviewer protocol](phase0/walkthrough.md). The project owner accepted an AI substitute walkthrough for Phase 0 completion under [B-05](decisions.md#b-05--ai-substitute-walkthrough-accepted-for-phase-0). Preliminary human review was confounded by difficulty reading JSON and supplies no usable human baseline. Later human evaluation should use a readable presentation and record actual effort and substantive corrections before setting comparative improvement thresholds; AI-estimated timings and static model examples are not human research results. Free-text turn intentions and anticipated reactions must remain distinguishable from adjudicated outcomes.
 
 ## Cases and controls
 

@@ -1,6 +1,6 @@
 # Architecture and data model
 
-Status: proposed architecture, 2026-09-09. Technology choices are deliberately open. Requirements are authoritative for intended capabilities.
+Status: conceptual architecture with Phase 1 stack and contracts accepted on 2026-09-10 under B-06–08. The [Phase 1 contracts](phase1/contracts.md) govern implementation; the [developer guide](development.md) describes the 1A runtime. Requirements are authoritative for intended capabilities.
 
 ## System boundaries
 

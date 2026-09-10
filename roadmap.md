@@ -1,30 +1,54 @@
 # Roadmap
 
-Status: proposed delivery sequence, 2026-09-09. Phases are ordered by dependencies rather than calendar estimates. No phase is complete yet.
+Status: Phase 1 milestone revision accepted, 2026-09-10. Phases are ordered by dependencies rather than calendar estimates. Phase 0 is complete; Phase 1A is implemented with host-specific verification outstanding.
 
 ## Phase 0 — Define executable acceptance cases
 
-The [Phase 0 package](docs/phase0/README.md) now specifies the non-military scenario, free-text turn/action contract, review policies, source fixtures, and acceptance oracle. “Executable” at this stage means a scripted human walkthrough; automated acceptance tests follow in Phase 1. Human execution is pending, so this phase is not complete. Military movements/combat and M&S integration are excluded from this build.
+The [Phase 0 package](docs/phase0/README.md) now specifies the non-military scenario, free-text turn/action contract, review policies, source fixtures, and acceptance oracle. “Executable” at this stage means a scripted walkthrough; automated acceptance tests follow in Phase 1. Phase 0 is complete as of 2026-09-09: the project owner accepted the AI substitute walkthrough under [B-05](docs/decisions.md#b-05--ai-substitute-walkthrough-accepted-for-phase-0). Military movements/combat and M&S integration are excluded from this build.
 
 Turn the planning baseline into a small fixture scenario and review tasks. Include a three-turn-old commitment, cross-player resource conflict, delayed effect, coordinated action, RFI, hidden information, and imported move.
 
 Decide an initial turn-resolution policy, action schema, team permissions, deployment assumptions, and model interface. Define reviewer tasks and initial usability/performance targets. Record decisions rather than implying that preliminary proposals are settled.
 
-Exit gate: a human can walk through the fixture and identify expected memory retrievals, relationships, visibility, and review decisions. Numerical outcome truth is not required for every action.
+Exit gate: identify expected memory retrievals, relationships, visibility, and review decisions in the fixture walkthrough. Passed by the AI substitute and accepted by the project owner under B-05, superseding the original human-run requirement. Numerical outcome truth is not required for every action.
 
 Coverage: GAME-01–02, MEM-01–05, EXP-03; resolves initial items in the decision log.
 
 ## Phase 1 — Playable human workflow and durable memory
 
-Use the Phase 0 turn package baseline: one overall free-text intention and a variable-length list of four-field free-text actions. Keep system metadata and derived interpretations separate.
+Use host Python 3.12, FastAPI, Pydantic, synchronous SQLAlchemy/Psycopg,
+Alembic, Docker-hosted PostgreSQL 16, Jinja, and local HTMX. Preserve the Phase 0
+free-text turn intention and variable four-field action list.
 
-Build a browser-based vertical slice: configure a small game; create users and teams; collaborate on versioned drafts; submit actions; coordinate a linked effect; ask and answer RFIs; review issues; record rulings; apply approved effects; release player feedback.
+| Milestone | Deliverable | Acceptance gate |
+| --- | --- | --- |
+| **1A — Application foundation** | Setup, shell, shared forms, clocks, migrations, staging seed, bounded resources, diagnostics and tests. | Fresh-checkout setup, migration/repeat seed, failure recovery, forms and browser checks. See [verification](docs/phase1/verification.md). |
+| **1B — Thin retrieval slice and readable explorer** | PostgreSQL authorized read path, temporary full-timeline loader, read-only task views and components. | All nine audience/cutoff oracles from shared source records; typed read models and authorized direct/evidence navigation. |
+| **1C-core — Temporal memory and authorization** | Temporal revisions, supersession, typed relationships, root-branch scoping, search/traversal and indexes. | Cross-team/game/branch isolation, disclosure-time, correction and reconstruction; unchanged 1B presentation tests. |
+| **1C-admin — Identity and game administration** | Local identities, roles, teams, scenario configuration, external identity seam, backup/restore. | Two materially different scenarios; deactivation preserves authorship; restored state and access rules match. |
+| **1D — Player workspace** | Shared drafts, comments, ownership, immutable submissions/amendments, consent, RFIs and move import. | Recoverable edit conflicts; submission authority; intact import/omissions; no private submission leakage through coordination. |
+| **1E — Adjudication and feedback** | Manual issues/evidence/relationships, split/merge, RFI responses, rulings, effects and separate feedback release. | Stale reviews detected; atomic once-only effects; historical late-answer preservation; release boundaries. |
+| **1F — Integrated game and recovery validation** | Multi-turn browser exercise, concurrency, restore drill, requirement mapping and local performance report. | Small group completes/restores game without DB edits; prior commitments discoverable; zero unauthorized disclosure. |
 
-Provide structured history and source references, adjudicator and player views, basic memory queries, safe concurrent editing, and a first guided offline installation. Exercise backup and restore immediately. Include a simple import path for the fixture's external move.
+Deliver in order **1A → 1B → 1C-core → 1C-admin → 1D → 1E → 1F**.
+[Architectural contracts](docs/phase1/contracts.md) fix the retrieval/presentation,
+temporal, identity, concurrency and authority boundaries before subsequent planning.
+1A seed only stages original artifacts; it does not create a playable game.
+1B implements retrieval before establishing presentation components.
 
-Exit gate: a small group completes a multi-turn game without manual database edits or routine configuration-file surgery. Hidden facts stay out of player views, prior commitments remain discoverable, and the game survives restoration.
+Phase 1 targets developer machines. Offline installation, organizational identity
+integration, TLS, VDI qualification and full-scale capacity are follow-up deployment
+obligations, not Phase 1 completion claims. Backup/restore tooling begins in
+1C-admin and is exercised end to end in 1F.
 
-Coverage: GAME-01–02/04, PLAY-01–05, ADJ-02–04, MEM-01–05, RFI-01–04, OPS-01–03/06–07/09.
+The 1F report is **“Local eight-user sanity check.”** Report host, workload,
+concurrency, durations, errors, pool waits and percentiles; assess the provisional
+p95 two-second target only for that run. It provides **no 150-user capacity evidence**.
+OPS-04 qualification requires a representative later deployment and deadline bursts.
+Map applicable C01–C12 to application evidence; real model adapters remain Phase 2.
+
+Coverage: GAME-01–02/04, PLAY-01–05, ADJ-02–04, MEM-01–05, RFI-01–04,
+OPS-02–03/06–07/09 initially; OPS-01 offline provisioning is deferred qualification.
 
 ## Phase 2 — AI preparation and initial research loop
 

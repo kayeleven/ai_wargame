@@ -1,6 +1,6 @@
 # Phase 0 acceptance package
 
-Status: specified, 2026-09-09. Fixtures and static examples exist; no application or automated acceptance runner exists. The human walkthrough has not been performed. Phase 0 remains open until its exit gate is met.
+Status: **complete**, 2026-09-09. The project owner accepted the AI substitute walkthrough as sufficient for the Phase 0 exit gate under [B-05](../decisions.md#b-05--ai-substitute-walkthrough-accepted-for-phase-0). Fixtures and static examples exist; no application or automated acceptance runner exists.
 
 ## Start here
 
@@ -30,7 +30,7 @@ Later rulings are one illustrative continuation, not the unique correct solution
 
 ## Completion and handoff
 
-All cases currently have status **specified**. A human must identify every mandatory retrieval, interaction, and visibility boundary without author explanations. Zero unauthorized disclosures are allowed. Record ambiguities and substantive corrections, revise the fixture, and repeat affected tasks before marking the exit gate passed.
+C01–C13 were reported met in the [AI substitute walkthrough](findings.md), with no mandatory omissions or unauthorized disclosures. The project owner accepted this pass for Phase 0 completion. Preliminary human review was of limited use because difficulty reading JSON confounded interpretation errors with the intended review task. A further human run is not required to close Phase 0; human usability and effort still need evaluation through a readable interface in later phases. Recorded ambiguities remain handoff items.
 
 The configuration variant tests that two original six-credit requests fit within fourteen credits and that simulated turn duration does not change wall-clock deadlines. It is partial evidence toward GAME-01, not proof that two materially different scenarios run in an application.
 

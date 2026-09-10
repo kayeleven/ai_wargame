@@ -1,0 +1,20 @@
+<form id="demo-form" method="post" action="/dev/forms" hx-post="/dev/forms" hx-target="#demo-form" hx-swap="outerHTML">
+  {% if message %}<p role="status">{{ message }}</p>{% endif %}
+  {% if form.errors %}
+  <div role="alert" tabindex="-1">
+    <p>Please correct the following:</p>
+    <ul>{% for name, errors in form.errors.items() %}{% for error in errors %}
+      <li>{{ name if name != "_form" else "Form" }}: {{ error }}</li>
+    {% endfor %}{% endfor %}</ul>
+  </div>
+  {% endif %}
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <label for="title">Title</label>
+  <input id="title" name="title" value="{{ form.values.title }}" {% if form.errors.get("title") %}aria-invalid="true" aria-describedby="title-error"{% endif %}>
+  {% if form.errors.get("title") %}<p id="title-error">{{ form.errors.title | join(" ") }}</p>{% endif %}
+  {% for value in form.values.actions %}
+  <label for="action-{{ loop.index }}">Action {{ loop.index }}</label>
+  <textarea id="action-{{ loop.index }}" name="actions" rows="4">{{ value }}</textarea>
+  {% endfor %}
+  <button type="submit">Submit demonstration</button>
+</form>

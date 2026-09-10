@@ -1,0 +1,1 @@
+"""Living Memory application foundation."""

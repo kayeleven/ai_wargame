@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: living_memory
+      POSTGRES_PASSWORD: local-development-only
+      POSTGRES_DB: living_memory_dev
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-test-db.sql:/docker-entrypoint-initdb.d/test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U living_memory -d living_memory_dev"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+volumes:
+  postgres-data:
