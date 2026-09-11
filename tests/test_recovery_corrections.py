@@ -63,7 +63,7 @@ def target_factory(trade):
         )
 
 
-def test_original_archive_and_second_generation_restore(trade, target_factory, tmp_path):
+def test_0004_archive_is_explicitly_incompatible(trade, tmp_path):
     db, _, _ = trade
     legacy = os.environ.get("LM_LEGACY_SOURCE")
     if legacy:
@@ -93,18 +93,8 @@ def test_original_archive_and_second_generation_restore(trade, target_factory, t
         env=environment,
         check=True,
     )
-    url, target, _ = target_factory()
-    backup.restore_backup(url, output)
-    assert target.ready() and not target.recovery_blocked()
-    second = tmp_path / "second.dump"
-    backup.create_backup(url, second)
-    next_url, next_target, _ = target_factory()
-    backup.restore_backup(next_url, second)
-    assert next_target.ready() and not next_target.recovery_blocked()
-    with target.transaction() as a, next_target.transaction() as b:
-        assert a.scalar(
-            text("SELECT configuration FROM admin_configuration_revision LIMIT 1")
-        ) == b.scalar(text("SELECT configuration FROM admin_configuration_revision LIMIT 1"))
+    with pytest.raises(ValueError, match="incompatible"):
+        backup.verify_backup(output)
 
 
 @pytest.mark.parametrize("failure", ["restore", "revoke", "verify", "interrupt"])

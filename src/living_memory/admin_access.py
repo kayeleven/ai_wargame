@@ -171,7 +171,13 @@ def set_role(
         session.add(
             GameRole(user_id=user_id, game_id=game_id, role=role, granted_at=now, granted_by=actor)
         )
-    reconcile_team_state(session, game, now)
+    # Remediation must remain possible when a legacy/invalid configuration is
+    # already present. Activation and grants still validate the configuration.
+    try:
+        reconcile_team_state(session, game, now)
+    except AdministrationConflict:
+        if not remove:
+            raise
     audit(
         session,
         actor,

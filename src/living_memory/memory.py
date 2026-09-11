@@ -27,7 +27,7 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, synonym
+from sqlalchemy.orm import Mapped, Session, mapped_column, synonym
 from sqlalchemy.types import Text
 
 from living_memory.clocks import GameTime
@@ -58,6 +58,13 @@ class Dataset(Base):
     __table_args__ = (
         UniqueConstraint("id", "game_id", name="uq_memory_dataset_id_game"),
         UniqueConstraint("id", "game_id", "root_branch_id", name="uq_memory_dataset_root"),
+        UniqueConstraint("admin_game_id", name="uq_memory_dataset_operational_game"),
+        CheckConstraint("source_kind IN ('staged', 'operational')", name="source_kind"),
+        CheckConstraint(
+            "(source_kind = 'staged' AND admin_game_id IS NULL) OR "
+            "(source_kind = 'operational' AND admin_game_id IS NOT NULL)",
+            name="operational_owner",
+        ),
     )
     id: Mapped[UUID] = mapped_column(
         ForeignKey("development_artifact.id", ondelete="CASCADE"), primary_key=True
@@ -66,10 +73,154 @@ class Dataset(Base):
     label: Mapped[str]
     game_id: Mapped[str]
     root_branch_id: Mapped[str]
+    source_kind: Mapped[str] = mapped_column(default="staged")
+    admin_game_id: Mapped[str | None] = mapped_column(
+        ForeignKey("admin_game.id", ondelete="CASCADE")
+    )
     manifest: Mapped[dict[str, Any]] = mapped_column(JSONB)
 
 
 Timeline = Dataset
+
+
+def operational_record_id(game_id: str, object_kind: str, object_id: UUID | str) -> UUID:
+    """A stable identity for a projected workspace object."""
+    return uuid5(
+        UUID("df3d6a2e-2e4d-4d61-9f8f-b630b6aac502"), f"{game_id}:{object_kind}:{object_id}"
+    )
+
+
+def operational_revision_id(
+    game_id: str, object_kind: str, object_id: UUID | str, version: int
+) -> UUID:
+    return uuid5(
+        UUID("df3d6a2e-2e4d-4d61-9f8f-b630b6aac502"),
+        f"{game_id}:{object_kind}:{object_id}:revision:{version}",
+    )
+
+
+def create_operational_dataset(
+    session: Session, game_id: str, branch_id: str, scopes: set[str], now: datetime
+) -> Dataset:
+    """Create the single deterministic operational dataset for an activated game."""
+    existing = session.scalars(
+        select(Dataset).where(Dataset.admin_game_id == game_id)
+    ).one_or_none()
+    if existing is not None:
+        return existing
+    dataset_id = operational_record_id(game_id, "dataset", game_id)
+    # Dataset predates operational data and owns an artifact FK.  The minimal
+    # generated artifact keeps that old invariant without making operational
+    # records look like a user-supplied staged package.
+    if session.get(DevelopmentArtifact, dataset_id) is None:
+        session.add(
+            DevelopmentArtifact(
+                id=dataset_id,
+                package=f"operational:{game_id}",
+                package_version=2,
+                checksum=hashlib.sha256(f"operational:{game_id}".encode()).hexdigest(),
+                staged_at=now,
+                contents={},
+            )
+        )
+    dataset = Dataset(
+        id=dataset_id,
+        package_id=f"operational:{game_id}",
+        label=f"Operational memory: {game_id}",
+        game_id=game_id,
+        root_branch_id=branch_id,
+        manifest={
+            "source_kind": "operational",
+            "record_types": ["submission", "amendment", "coordination", "rfi", "import"],
+        },
+        source_kind="operational",
+        admin_game_id=game_id,
+    )
+    session.add(dataset)
+    # These tables intentionally use composite FKs without ORM relationships;
+    # make parent ordering explicit instead of relying on unit-of-work sorting.
+    session.flush()
+    session.add(Game(dataset_id=dataset_id, id=game_id))
+    session.flush()
+    session.add(Branch(dataset_id=dataset_id, game_id=game_id, id=branch_id, parent_id=None))
+    session.add_all(
+        VisibilityScope(dataset_id=dataset_id, game_id=game_id, id=scope, label=scope)
+        for scope in sorted(set(scopes) | {"adjudicator"})
+    )
+    return dataset
+
+
+def project_operational_object(
+    session: Session,
+    *,
+    game_id: str,
+    branch_id: str,
+    kind: str,
+    object_id: UUID | str,
+    version: int,
+    body: dict[str, Any],
+    scopes: set[str],
+    recorded_at: datetime,
+) -> UUID:
+    """Append one deterministic workspace projection revision.
+
+    The operation deliberately locks the dataset only after callers have
+    completed their aggregate writes.  Replaying an already projected version
+    is harmless, which makes transaction retries safe.
+    """
+    dataset = session.scalars(
+        select(Dataset)
+        .where(Dataset.admin_game_id == game_id, Dataset.source_kind == "operational")
+        .with_for_update()
+    ).one()
+    record_id = operational_record_id(game_id, kind, object_id)
+    revision_id = operational_revision_id(game_id, kind, object_id, version)
+    if session.get(Revision, revision_id) is not None:
+        return revision_id
+    if session.get(Record, record_id) is None:
+        session.add(
+            Record(
+                id=record_id,
+                dataset_id=dataset.id,
+                game_id=game_id,
+                branch_id=branch_id,
+                external_id=f"{kind}:{object_id}",
+                type_id=kind,
+            )
+        )
+        session.flush()
+    session.add(
+        Revision(
+            id=revision_id,
+            record_id=record_id,
+            dataset_id=dataset.id,
+            game_id=game_id,
+            branch_id=branch_id,
+            external_id=f"{kind}:{object_id}:{version}",
+            recorded_at=recorded_at,
+            valid_from=0,
+            valid_to=None,
+            supersedes_revision_id=(
+                operational_revision_id(game_id, kind, object_id, version - 1)
+                if version > 1
+                else None
+            ),
+            body=body,
+            revision_metadata={"workspace_kind": kind, "workspace_version": version},
+        )
+    )
+    session.add_all(
+        Disclosure(
+            revision_id=revision_id,
+            dataset_id=dataset.id,
+            game_id=game_id,
+            scope_id=scope,
+            available_at=recorded_at,
+            recorded_at=recorded_at,
+        )
+        for scope in sorted(scopes | {"adjudicator"})
+    )
+    return revision_id
 
 
 class Game(Base):

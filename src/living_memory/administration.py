@@ -339,43 +339,31 @@ def scheduled_configurations(
 
 
 def activate_game(db_session: Session, game: AdminGame, author: UUID, now: datetime) -> AdminGame:
-    from living_memory.identity import AuditEntry, GameRole, TeamMembership, User
+    from living_memory.identity import AuditEntry
+    from living_memory.team_authority import active_submitter_teams, has_active_adjudicator
 
     game = lock_game(db_session, game.id)
     if game.status != "draft":
         raise AdministrationConflict("Only draft games can be activated")
     ensure_compatible(db_session, game, now)
     configuration = governing_configuration(db_session, game, now)
-    has_adjudicator = db_session.scalars(
-        select(GameRole.user_id)
-        .join(User, User.id == GameRole.user_id)
-        .where(
-            GameRole.game_id == game.id,
-            GameRole.role == "adjudicator",
-            User.active.is_(True),
-            User.pending.is_(False),
-        )
-        .limit(1)
-    ).first()
-    if has_adjudicator is None:
+    if not has_active_adjudicator(db_session, game.id):
         raise ValueError("an active adjudicator is required")
-    submitter_teams = set(
-        db_session.scalars(
-            select(TeamMembership.team_id)
-            .join(User, User.id == TeamMembership.user_id)
-            .where(
-                TeamMembership.game_id == game.id,
-                TeamMembership.authority == "submitter",
-                User.active.is_(True),
-                User.pending.is_(False),
-            )
-        )
-    )
+    submitter_teams = active_submitter_teams(db_session, game.id, now)
     required = {team.id for team in configuration.teams}
     if not required <= submitter_teams:
         raise ValueError("every team requires an active submitter")
     game.status, game.current_turn, game.updated_at = "active", 1, now
     reconcile_team_state(db_session, game, now)
+    from living_memory.memory import create_operational_dataset
+
+    create_operational_dataset(
+        db_session,
+        game.id,
+        game.root_branch_id,
+        {team.id for team in configuration.teams},
+        now,
+    )
     db_session.add(
         AuditEntry(
             actor_user_id=author,
@@ -442,23 +430,12 @@ def ensure_compatible(db_session: Session, game: AdminGame, now: datetime) -> No
 
 
 def reconcile_team_state(db_session: Session, game: AdminGame, now: datetime) -> None:
-    from living_memory.identity import TeamMembership, User, _alert_admins
+    from living_memory.identity import _alert_admins
+    from living_memory.team_authority import active_submitter_teams, governing_team_ids
 
-    configured = {team.id for team in governing_configuration(db_session, game, now).teams}
+    configured = governing_team_ids(db_session, game.id, now)
     db_session.flush()
-    submitters = set(
-        db_session.scalars(
-            select(TeamMembership.team_id)
-            .join(User, User.id == TeamMembership.user_id)
-            .where(
-                TeamMembership.game_id == game.id,
-                TeamMembership.team_id.in_(configured),
-                TeamMembership.authority == "submitter",
-                User.active.is_(True),
-                User.pending.is_(False),
-            )
-        )
-    )
+    submitters = active_submitter_teams(db_session, game.id, now)
     existing = {
         state.team_id: state
         for state in db_session.scalars(
@@ -467,7 +444,13 @@ def reconcile_team_state(db_session: Session, game: AdminGame, now: datetime) ->
     }
     for team_id, obsolete in existing.items():
         if team_id not in configured:
-            db_session.delete(obsolete)
+            # Workspace objects retain a restrictive reference to this state.
+            # Keep an explicit blocked tombstone rather than deleting it.
+            obsolete.blocked, obsolete.reason, obsolete.updated_at = (
+                True,
+                "Team is not in the governing configuration",
+                now,
+            )
     for team_id in configured:
         state = existing.get(team_id)
         blocked = team_id not in submitters

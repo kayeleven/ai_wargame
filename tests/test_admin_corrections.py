@@ -211,7 +211,9 @@ def test_activation_refresh_stale_memberships_and_concurrency(trade):
     with ThreadPoolExecutor(max_workers=2) as executor:
         assert sorted(executor.map(lambda _: activate(), range(2))) == ["activated", "conflict"]
     with db.transaction() as session:
-        assert session.get(TeamOperationalState, (GAME, "removed-team")) is None
+        obsolete = session.get(TeamOperationalState, (GAME, "removed-team"))
+        assert obsolete and obsolete.blocked
+        assert obsolete.reason == "Team is not in the governing configuration"
         assert not session.get(TeamOperationalState, (GAME, "us")).blocked
         assert not resolve_principal(session, session.get(User, ids["us"]), GAME, NOW).permits(
             GAME, "removed-team"

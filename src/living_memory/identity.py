@@ -308,20 +308,43 @@ def reset_password(
 
 
 def deactivate_user(
-    db_session: Session, user: User, now: datetime, author: UUID | None = None
+    db_session: Session, user_id: UUID | User, now: datetime, author: UUID | None = None
 ) -> None:
     from living_memory.administration import lock_game, reconcile_team_state
+    from living_memory.team_authority import RetryableConflict
 
+    # Accepting User remains a harmless compatibility shim for integrations
+    # written before this operation became retry-safe.
+    target_id = user_id.id if isinstance(user_id, User) else user_id
+
+    # Discover games before taking the target lock.  Locks are always games
+    # (sorted) then user; a changed discovery set retries the transaction.
     game_ids = sorted(
         set(
             db_session.scalars(
                 select(TeamMembership.game_id)
-                .where(TeamMembership.user_id == user.id)
-                .union(select(GameRole.game_id).where(GameRole.user_id == user.id))
+                .where(TeamMembership.user_id == target_id)
+                .union(select(GameRole.game_id).where(GameRole.user_id == target_id))
             )
         )
     )
     games = [lock_game(db_session, game_id) for game_id in game_ids]
+    user = db_session.get(User, target_id, with_for_update=True, populate_existing=True)
+    if user is None:
+        raise LookupError("User not found")
+    # A membership/role may have appeared after the initial discovery.  Do not
+    # acquire a late game lock after the user lock: retry from a fresh tx.
+    confirmed_game_ids = sorted(
+        set(
+            db_session.scalars(
+                select(TeamMembership.game_id)
+                .where(TeamMembership.user_id == target_id)
+                .union(select(GameRole.game_id).where(GameRole.user_id == target_id))
+            )
+        )
+    )
+    if confirmed_game_ids != game_ids:
+        raise RetryableConflict("affected games changed while deactivating user")
     user.active, user.deactivated_at, user.updated_at = False, now, now
     revoke_user_sessions(db_session, user.id, now, "account_deactivated")
     for game in games:
@@ -528,11 +551,8 @@ def revoke_all_sessions_after_restore(db_session: Session, now: datetime) -> int
 
 
 def resolve_principal(db_session: Session, user: User, game_id: str, now: datetime) -> Principal:
-    from living_memory.administration import (
-        AdminGame,
-        governing_configuration,
-        validate_scope_names,
-    )
+    from living_memory.administration import AdminGame
+    from living_memory.team_authority import effective_memberships, governing_team_ids
 
     empty = Principal(identity=str(user.id), grants=())
     if not user.active or user.pending:
@@ -541,20 +561,10 @@ def resolve_principal(db_session: Session, user: User, game_id: str, now: dateti
     if game is None:
         return empty
     try:
-        configured = governing_configuration(db_session, game, now)
-        validate_scope_names(configured)
+        team_ids = governing_team_ids(db_session, game_id, now)
     except (ValueError, LookupError):
         return empty
-    team_ids = {team.id for team in configured.teams}
-    scopes = set(
-        db_session.scalars(
-            select(TeamMembership.team_id).where(
-                TeamMembership.user_id == user.id,
-                TeamMembership.game_id == game_id,
-                TeamMembership.team_id.in_(team_ids),
-            )
-        )
-    )
+    scopes = set(effective_memberships(db_session, user.id, game_id, now))
     if db_session.get(GameRole, (user.id, game_id, "adjudicator")) is not None:
         scopes.update(team_ids | {"adjudicator"})
     return Principal(

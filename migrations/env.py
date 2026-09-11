@@ -4,6 +4,7 @@ from living_memory import (  # noqa: F401 — register admin metadata
     administration,
     identity,
     memory,  # noqa: F401 — register read-store metadata
+    workspace,  # noqa: F401 — register Phase 1D workspace metadata
 )
 from living_memory.config import load_settings
 from living_memory.db import Base, Database

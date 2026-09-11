@@ -127,4 +127,6 @@ but cannot place unrelated accounts or expand themselves into adjudication.
 New roster/controller topology changes are rejected until 1D/1E boundary handling
 exists. Full admin-to-memory identity/root/scope/clock/vocabulary projection is a
 prerequisite to 1D writes. Recovery remains blocked until restoration, session
-revocation and verification complete; schema head 0004 backups remain compatible.
+revocation and verification complete.  Populated 0004 databases and their
+archives are intentionally incompatible with 0005; recreate and re-seed before
+using the Phase 1D workspace.

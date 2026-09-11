@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 from alembic import command
-from sqlalchemy import func, select, text
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from test_database import database  # noqa: F401
 
@@ -11,13 +11,10 @@ from living_memory.clocks import FixedClock, GameTime
 from living_memory.db import ROOT, DevelopmentArtifact, migration_config
 from living_memory.memory import (
     BranchLineage,
-    Dataset,
-    DeclaredReference,
     Disclosure,
     MemoryQuery,
     MemoryReader,
     Principal,
-    RebuildState,
     Record,
     Relationship,
     RelationshipDisclosure,
@@ -479,7 +476,7 @@ def test_core_has_no_fixture_vocabulary_or_fixed_cardinality():
     assert all(manifest.visibility_scopes for manifest in manifests)
 
 
-def test_populated_1b_migration_exposes_pending_then_rebuilds(database):  # noqa: F811
+def test_populated_1b_migration_requires_0005_rebuild(database):  # noqa: F811
     db, _ = database
     config = migration_config()
     with db.engine.begin() as connection:
@@ -506,13 +503,5 @@ def test_populated_1b_migration_exposes_pending_then_rebuilds(database):  # noqa
         )
     with db.engine.begin() as connection:
         config.attributes["connection"] = connection
-        command.upgrade(config, "head")
-    with db.transaction() as session:
-        state = session.get(RebuildState, artifact.id)
-        assert state and state.status == "pending"
-        assert session.get(Dataset, artifact.id) is None
-    assert load_timeline(db, artifact.checksum)
-    with db.transaction() as session:
-        state = session.get(RebuildState, artifact.id)
-        assert state and state.status == "loaded"
-        assert session.scalar(select(func.count()).select_from(DeclaredReference)) == 46
+        with pytest.raises(RuntimeError, match="empty 0004 schema"):
+            command.upgrade(config, "head")

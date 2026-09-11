@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -16,6 +16,23 @@ from sqlalchemy.types import DateTime
 from living_memory.config import Settings
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def run_retryable[T](work: Callable[[], T], *, attempts: int = 3) -> T:
+    """Run a small transactional operation again when its lock set changed.
+
+    Importing the domain exception here would make ``db -> administration ->
+    identity -> db`` circular, so keep the import deliberately local.
+    """
+    from living_memory.team_authority import RetryableConflict
+
+    for attempt in range(attempts):
+        try:
+            return work()
+        except RetryableConflict:
+            if attempt + 1 == attempts:
+                raise
+    raise RuntimeError("retry loop exhausted")
 
 
 class Base(DeclarativeBase):

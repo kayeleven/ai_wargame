@@ -513,11 +513,23 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
         actor = require_system(request)
         if actor.id == user_id:
             raise HTTPException(409, "A system administrator cannot deactivate this session")
-        with db.transaction() as db_session:
-            user = db_session.get(User, user_id)
-            if user is None:
-                raise HTTPException(404, "Not found")
-            deactivate_user(db_session, user, request.app.state.clock.now(), actor.id)
+        # Capture wall time once: retries are a concurrency implementation
+        # detail, not distinct administrative events.
+        now = request.app.state.clock.now()
+        from living_memory.db import run_retryable
+        from living_memory.team_authority import RetryableConflict
+
+        try:
+
+            def operation() -> None:
+                with db.transaction() as db_session:
+                    deactivate_user(db_session, user_id, now, actor.id)
+
+            run_retryable(operation)
+        except LookupError:
+            raise HTTPException(404, "Not found") from None
+        except RetryableConflict:
+            raise HTTPException(409, "Try again") from None
         return RedirectResponse("/admin", status_code=303)
 
     @router.post("/admin/games")
@@ -753,10 +765,10 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
     def authenticated_memory(
         request: Request,
         game_id: str,
-        dataset_id: UUID,
         scope_id: str,
         known_at: datetime,
         effective_microseconds: int,
+        dataset_id: UUID | None = None,
         record_id: str | None = None,
         search: str | None = None,
         cursor: str | None = None,
@@ -770,7 +782,16 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
         started = perf_counter()
         with db.transaction() as db_session:
             principal = resolve_principal(db_session, user, game_id, request.app.state.clock.now())
-            dataset = db_session.get(Dataset, dataset_id)
+            dataset = (
+                db_session.get(Dataset, dataset_id)
+                if dataset_id is not None
+                else db_session.scalars(
+                    select(Dataset).where(
+                        Dataset.admin_game_id == game_id,
+                        Dataset.source_kind == "operational",
+                    )
+                ).one_or_none()
+            )
             if (
                 dataset is None
                 or dataset.game_id != game_id
@@ -793,7 +814,7 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
                 known_at,
                 GameTime(elapsed_microseconds=effective_microseconds),
                 MemoryQuery(
-                    dataset_id=dataset_id,
+                    dataset_id=dataset.id,
                     record_id=record_id,
                     text=search,
                     cursor=cursor,
@@ -808,6 +829,46 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
         finally:
             request.state.memory_query_ms = round((perf_counter() - query_started) * 1000, 3)
         return JSONResponse(view.model_dump(mode="json"), headers={"Cache-Control": "no-store"})
+
+    @router.get("/play", response_class=HTMLResponse)
+    def play_workspace(request: Request, game_id: str) -> Response:
+        """Team-scoped workspace entry point (works without HTMX as well)."""
+        user = _current_user(request, db, settings)
+        if user is None:
+            return access_changed_response(request, 401)
+        with db.transaction() as session:
+            game = session.get(AdminGame, game_id)
+            principal = resolve_principal(session, user, game_id, request.app.state.clock.now())
+            teams = [
+                grant.visibility_scope_id
+                for grant in principal.grants
+                if grant.visibility_scope_id != "adjudicator"
+            ]
+        if game is None or not teams:
+            raise HTTPException(404, "Not found")
+        return templates.TemplateResponse(
+            request=request,
+            name="play.html",
+            context={"game": game, "teams": teams, "csrf": csrf_token(request)},
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @router.get("/adjudicate", response_class=HTMLResponse)
+    def adjudicate_workspace(request: Request, game_id: str) -> Response:
+        user = _current_user(request, db, settings)
+        if user is None:
+            return access_changed_response(request, 401)
+        with db.transaction() as session:
+            game = session.get(AdminGame, game_id)
+            principal = resolve_principal(session, user, game_id, request.app.state.clock.now())
+        if game is None or not principal.permits(game_id, "adjudicator"):
+            raise HTTPException(404, "Not found")
+        return templates.TemplateResponse(
+            request=request,
+            name="adjudicate.html",
+            context={"game": game, "csrf": csrf_token(request)},
+            headers={"Cache-Control": "no-store"},
+        )
 
     return router
 

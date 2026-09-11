@@ -49,6 +49,19 @@ def main() -> None:
     try:
         settings = load_settings()
         db = Database(settings)
+        # Every command below can alter application state (including migration
+        # bookkeeping).  A catalog lookup failure is treated exactly like a
+        # present recovery guard so an interrupted restore is never exposed.
+        try:
+            blocked = db.recovery_blocked()
+        except Exception:
+            blocked = True
+        if blocked:
+            parser.exit(
+                1,
+                "Recovery target is blocked. Dispose of this target and retry "
+                "in another fresh database.\n",
+            )
         if args.command == "migrate":
             config = migration_config()
             with db.engine.begin() as connection:

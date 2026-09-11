@@ -23,7 +23,9 @@ from living_memory.db import Database, DevelopmentArtifact, migration_config, re
 from living_memory.identity import AuthSession, revoke_all_sessions_after_restore
 from living_memory.memory import Dataset, RebuildState
 
-APP_VERSION = "0.1.0"
+# 0005 intentionally rejects populated 0004 databases.  Archives are therefore
+# only compatible within the rebuilt Phase 1D format.
+APP_VERSION = "0.2.0"
 
 
 @dataclass(frozen=True)
@@ -246,6 +248,22 @@ def _domain_inventory_session(db_session: Session) -> dict[str, Any]:
         TeamMembership,
         User,
     )
+    from living_memory.workspace import (
+        Amendment,
+        AmendmentDecision,
+        Coordination,
+        CoordinationLink,
+        Draft,
+        DraftAction,
+        DraftComment,
+        DraftRevision,
+        RequestKey,
+        Rfi,
+        RfiLink,
+        SubmissionVersion,
+        SubmittedAction,
+        WorkspaceImport,
+    )
 
     models = {
         "users": User,
@@ -260,6 +278,20 @@ def _domain_inventory_session(db_session: Session) -> dict[str, Any]:
         "configuration_revisions": ConfigurationRevision,
         "memory_datasets": Dataset,
         "sessions": AuthSession,
+        "request_keys": RequestKey,
+        "drafts": Draft,
+        "draft_actions": DraftAction,
+        "draft_revisions": DraftRevision,
+        "draft_comments": DraftComment,
+        "amendments": Amendment,
+        "submitted_actions": SubmittedAction,
+        "submission_versions": SubmissionVersion,
+        "imports": WorkspaceImport,
+        "amendment_decisions": AmendmentDecision,
+        "rfis": Rfi,
+        "rfi_links": RfiLink,
+        "coordinations": Coordination,
+        "coordination_links": CoordinationLink,
     }
     counts = {
         name: int(db_session.scalar(select(func.count()).select_from(model)) or 0)
