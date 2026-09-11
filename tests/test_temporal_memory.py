@@ -19,11 +19,15 @@ from living_memory.memory import (
     Principal,
     RebuildState,
     Record,
+    Relationship,
+    RelationshipDisclosure,
+    RelationshipEndpoint,
+    RelationshipRevision,
     Revision,
     VisibilityGrant,
     load_timeline,
 )
-from living_memory.seed import PackageManifest, stage_package
+from living_memory.seed import PackageManifest, Snapshot, stage_package
 
 pytestmark = pytest.mark.integration
 
@@ -80,6 +84,40 @@ def test_irregular_fixture_temporal_disclosure_and_relationship_suppression(orch
         for relationship in record.relationships
     }
     assert revisions == {"pollination-v1": "superseded", "pollination-v2": "current"}
+
+
+def test_orchid_oracle_matches_authorized_reader_output(orchid):
+    oracle = Snapshot.model_validate_json(
+        (ROOT / "fixtures/orchid-accord/oracle.json").read_text(encoding="utf-8")
+    )
+    assert oracle.effective_at is not None
+    actual = read(
+        orchid,
+        oracle.viewer,
+        oracle.recorded_at_cutoff.isoformat(),
+        oracle.effective_at,
+    )
+    assert {record.id for record in actual.records} == {record.id for record in oracle.records}
+    expected = {record.id: record for record in oracle.records}
+    for record in actual.records:
+        assert record.kind == expected[record.id].kind
+        assert record.body == expected[record.id].body
+        assert record.source_refs == tuple(expected[record.id].source_refs)
+    relationships = {
+        relationship.id: relationship.revision_status
+        for record in actual.records
+        for relationship in record.relationships
+    }
+    assert relationships == oracle.relationship_revisions
+
+
+def test_distinct_disclosure_availability_and_recording_times(orchid):
+    available_but_unrecorded = read(
+        orchid, "amber", "2042-06-03T12:00:00Z", 259_200_000_000
+    )
+    assert "orchid-log-v1" not in {record.id for record in available_but_unrecorded.records}
+    recorded = read(orchid, "amber", "2042-06-04T09:00:00Z", 259_200_000_000)
+    assert "orchid-log-v1" in {record.id for record in recorded.records}
 
 
 def test_relationship_revision_disclosure_and_one_hop_filters(orchid):
@@ -174,7 +212,11 @@ def test_cursor_rejects_every_context_change_and_freezes_ingestion(orchid):
     reader = MemoryReader(db, b"test-cursor-key")
     known_at = datetime.fromisoformat("2042-06-05T09:00:00Z")
     effective_at = GameTime(elapsed_microseconds=604_800_000_000)
-    base = MemoryQuery(dataset_id=dataset_id, limit=2)
+    base = MemoryQuery(
+        dataset_id=dataset_id,
+        relationship_types=("orchid:cross-pollinates",),
+        limit=2,
+    )
     first = reader.read_memory(
         principal("observer"),
         "orchid-accord",
@@ -185,6 +227,18 @@ def test_cursor_rejects_every_context_change_and_freezes_ingestion(orchid):
         base,
     )
     assert first.next_cursor
+    legacy_payload = reader._decode_cursor(first.next_cursor)
+    legacy_payload["watermark"] = first.ingestion_watermark.records
+    with pytest.raises(ValueError, match="cursor"):
+        reader.read_memory(
+            principal("observer"),
+            "orchid-accord",
+            "observer",
+            BranchLineage(root="origin"),
+            known_at,
+            effective_at,
+            base.model_copy(update={"cursor": reader._encode_cursor(legacy_payload)}),
+        )
     mismatches = (
         ("observer", BranchLineage(root="origin"), known_at.replace(hour=8), effective_at, base),
         (
@@ -272,6 +326,62 @@ def test_cursor_rejects_every_context_change_and_freezes_ingestion(orchid):
                 recorded_at=known_at,
             )
         )
+        relationship_id, relationship_revision_id = uuid4(), uuid4()
+        session.add(
+            Relationship(
+                id=relationship_id,
+                dataset_id=dataset_id,
+                game_id="orchid-accord",
+                branch_id="origin",
+                external_id="later-relationship",
+                type_id="orchid:cross-pollinates",
+            )
+        )
+        session.flush()
+        session.add(
+            RelationshipRevision(
+                id=relationship_revision_id,
+                relationship_id=relationship_id,
+                dataset_id=dataset_id,
+                game_id="orchid-accord",
+                branch_id="origin",
+                external_id="later-relationship-v1",
+                recorded_at=known_at,
+                valid_from=0,
+                valid_to=None,
+                supersedes_revision_id=None,
+                body={},
+            )
+        )
+        session.flush()
+        session.add(
+            RelationshipDisclosure(
+                revision_id=relationship_revision_id,
+                dataset_id=dataset_id,
+                game_id="orchid-accord",
+                scope_id="observer",
+                available_at=known_at,
+                recorded_at=known_at,
+            )
+        )
+        session.add_all(
+            (
+                RelationshipEndpoint(
+                    revision_id=relationship_revision_id,
+                    position=0,
+                    role_id="orchid:source",
+                    target_kind="record",
+                    target_id="accord-config",
+                ),
+                RelationshipEndpoint(
+                    revision_id=relationship_revision_id,
+                    position=1,
+                    role_id="orchid:recipient",
+                    target_kind="record",
+                    target_id="violet-note",
+                ),
+            )
+        )
     seen = {record.id for record in first.records}
     cursor = first.next_cursor
     while cursor:
@@ -289,6 +399,11 @@ def test_cursor_rejects_every_context_change_and_freezes_ingestion(orchid):
         cursor = page.next_cursor
     assert len(seen) == first.authorized_result_count
     assert "later-revision" not in seen
+    with db.transaction() as session:
+        later_relationship_order = session.get(
+            RelationshipRevision, relationship_revision_id
+        ).ingestion_order
+    assert later_relationship_order > first.ingestion_watermark.relationships
 
 
 def test_database_rejects_cross_identity_supersession_and_invalid_interval(orchid):

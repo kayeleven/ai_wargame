@@ -32,6 +32,8 @@ from sqlalchemy.types import String
 from living_memory.clocks import GameTime
 from living_memory.db import Base, Database, DevelopmentArtifact
 from living_memory.seed import (
+    DisclosureSource,
+    DisclosureValue,
     PackageManifest,
     ReferenceDeclaration,
     SourcePackage,
@@ -440,6 +442,11 @@ class ScopeMetadata(ReadModel):
     label: str
 
 
+class IngestionWatermark(ReadModel):
+    records: int
+    relationships: int
+
+
 class MemoryView(ReadModel):
     records: tuple[RecordView, ...]
     audience: str
@@ -448,7 +455,13 @@ class MemoryView(ReadModel):
     effective_at: GameTime
     authorized_result_count: int
     next_cursor: str | None
-    ingestion_watermark: int
+    ingestion_watermark: IngestionWatermark
+
+
+def _disclosure_times(value: DisclosureValue) -> tuple[datetime, datetime]:
+    if isinstance(value, DisclosureSource):
+        return value.available_at, value.recorded_at
+    return value, value
 
 
 def _parent_id(record: Any) -> str | None:
@@ -640,7 +653,8 @@ def load_timeline(db: Database, checksum: str) -> bool:
         session.flush()
         for record in records:
             revision_id = uuid5(artifact.id, "revision:" + record.id)
-            for scope, available in record.disclosures.items():
+            for scope, disclosure in record.disclosures.items():
+                available, recorded = _disclosure_times(disclosure)
                 session.add(
                     Disclosure(
                         revision_id=revision_id,
@@ -648,7 +662,7 @@ def load_timeline(db: Database, checksum: str) -> bool:
                         game_id=manifest.game_id,
                         scope_id=scope,
                         available_at=available,
-                        recorded_at=available,
+                        recorded_at=recorded,
                     )
                 )
             declarations = [
@@ -731,7 +745,8 @@ def load_timeline(db: Database, checksum: str) -> bool:
                 )
             )
             session.flush()
-            for scope, available in item.disclosures.items():
+            for scope, disclosure in item.disclosures.items():
+                available, recorded = _disclosure_times(disclosure)
                 session.add(
                     RelationshipDisclosure(
                         revision_id=revision_id,
@@ -739,7 +754,7 @@ def load_timeline(db: Database, checksum: str) -> bool:
                         game_id=manifest.game_id,
                         scope_id=scope,
                         available_at=available,
-                        recorded_at=available,
+                        recorded_at=recorded,
                     )
                 )
             session.add_all(
@@ -901,10 +916,13 @@ class MemoryReader:
                     Disclosure.recorded_at <= known_at,
                 )
             )
-            watermark = (
-                int(cursor["watermark"])
-                if cursor
-                else int(
+            if cursor:
+                try:
+                    watermark = IngestionWatermark.model_validate(cursor["watermark"])
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise ValueError("Invalid memory cursor") from exc
+            else:
+                record_watermark = int(
                     session.scalar(
                         select(func.coalesce(func.max(Revision.ingestion_order), 0))
                         .select_from(Revision)
@@ -921,8 +939,29 @@ class MemoryReader:
                     )
                     or 0
                 )
-            )
-            authorized = authorized.where(Revision.ingestion_order <= watermark)
+                relationship_watermark = int(
+                    session.scalar(
+                        select(
+                            func.coalesce(func.max(RelationshipRevision.ingestion_order), 0)
+                        )
+                        .select_from(RelationshipRevision)
+                        .join(RelationshipDisclosure)
+                        .where(
+                            RelationshipRevision.dataset_id == query.dataset_id,
+                            RelationshipRevision.game_id == game_id,
+                            RelationshipRevision.branch_id == branch_lineage.root,
+                            RelationshipRevision.recorded_at <= known_at,
+                            RelationshipDisclosure.scope_id == audience,
+                            RelationshipDisclosure.available_at <= known_at,
+                            RelationshipDisclosure.recorded_at <= known_at,
+                        )
+                    )
+                    or 0
+                )
+                watermark = IngestionWatermark(
+                    records=record_watermark, relationships=relationship_watermark
+                )
+            authorized = authorized.where(Revision.ingestion_order <= watermark.records)
             if query.record_id:
                 authorized = authorized.join(Record, Record.id == Revision.record_id).where(
                     or_(
@@ -1027,6 +1066,7 @@ class MemoryReader:
                 effective_at,
                 visible_external,
                 action_owners,
+                watermark,
             )
             result = []
             for row in rows:
@@ -1116,7 +1156,7 @@ class MemoryReader:
                     {
                         **context,
                         "dataset": str(query.dataset_id),
-                        "watermark": watermark,
+                        "watermark": watermark.model_dump(),
                         "position_time": rows[-1].recorded_at.isoformat(),
                         "position_id": str(rows[-1].id),
                     }
@@ -1141,7 +1181,7 @@ class MemoryReader:
         branch_id: str,
         known_at: datetime,
         effective_at: GameTime,
-        watermark: int,
+        watermark: IngestionWatermark,
     ) -> set[str]:
         summaries = self._relationship_summaries(
             session,
@@ -1153,6 +1193,7 @@ class MemoryReader:
             effective_at,
             None,
             None,
+            watermark,
         )
         result: set[str] = set()
         for _, summary in summaries:
@@ -1184,6 +1225,7 @@ class MemoryReader:
         effective_at: GameTime,
         visible_records: set[str] | None,
         action_owners: dict[str, str] | None,
+        watermark: IngestionWatermark,
     ) -> list[tuple[str, RelationshipSummary]]:
         if visible_records is None or action_owners is None:
             visible_rows = list(
@@ -1198,6 +1240,7 @@ class MemoryReader:
                         Disclosure.scope_id == scope_id,
                         Disclosure.available_at <= known_at,
                         Disclosure.recorded_at <= known_at,
+                        Revision.ingestion_order <= watermark.records,
                     )
                 )
             )
@@ -1225,6 +1268,7 @@ class MemoryReader:
                     RelationshipDisclosure.scope_id == scope_id,
                     RelationshipDisclosure.available_at <= known_at,
                     RelationshipDisclosure.recorded_at <= known_at,
+                    RelationshipRevision.ingestion_order <= watermark.relationships,
                 )
                 .order_by(RelationshipRevision.recorded_at, RelationshipRevision.id)
             )

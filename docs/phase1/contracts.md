@@ -52,7 +52,8 @@ PostgreSQL lexical search, record types, one-hop relationship filters, and a
 bounded page size. Search intentionally uses the `simple` configuration and has
 no stemming (`sanctions` does not match `sanction`). Opaque HMAC-signed keyset
 cursors bind the game, root lineage, visibility scope, both temporal cutoffs,
-filter hash, page position, and ingestion watermark. Every page rechecks the
+filter hash, page position, and a composite record/relationship ingestion
+watermark. Every page rechecks the
 principal grant; malformed or context-mismatched cursors are bad requests.
 
 Direct nonexistent and inaccessible targets use the same authorized query and

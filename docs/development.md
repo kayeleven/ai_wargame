@@ -181,5 +181,8 @@ See [1B verification](phase1/verification-1b.md) for evidence and limitations.
 Lexical search uses PostgreSQL's language-neutral `simple` dictionary. It does
 not stem words, so plural and singular forms may require separate searches.
 Pagination cursors are opaque and signed; changing scope, cutoff, effective time,
-branch, game, or filters invalidates them. Reads support only the root branch and
-one relationship hop in 1C-core.
+branch, game, or filters invalidates them. Their composite watermark freezes both
+record and relationship ingestion for the entire page sequence. Package
+disclosures may use the legacy single timestamp (availability and recording are
+equal) or explicit `available_at` and `recorded_at` timestamps. Reads support only
+the root branch and one relationship hop in 1C-core.

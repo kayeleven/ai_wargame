@@ -45,7 +45,10 @@
       "id": "pollination-v2", "stable_id": "pollination", "type": "orchid:cross-pollinates",
       "recorded_at": "2042-06-04T15:00:00Z", "valid_from": 604800000000,
       "supersedes": "pollination-v1",
-      "disclosures": {"amber": "2042-06-05T09:00:00Z", "observer": "2042-06-05T09:00:00Z"},
+      "disclosures": {
+        "amber": "2042-06-05T09:00:00Z",
+        "observer": {"available_at": "2042-06-04T15:00:00Z", "recorded_at": "2042-06-05T09:00:00Z"}
+      },
       "endpoints": [
         {"role": "orchid:source", "target_kind": "record", "target_id": "amber-move"},
         {"role": "orchid:carrier", "target_kind": "record", "target_id": "hidden-carrier"},

@@ -29,7 +29,10 @@
     {
       "id": "orchid-log-v1", "stable_id": "orchid-log", "kind": "orchid:pollination-log", "game_id": "orchid-accord", "branch_id": "origin",
       "valid_from": 172800000000, "valid_to": 604800000000, "recorded_at": "2042-06-02T10:00:00Z",
-      "disclosures": {"amber": "2042-06-03T09:00:00Z", "observer": "2042-06-02T10:00:00Z"},
+      "disclosures": {
+        "amber": {"available_at": "2042-06-03T09:00:00Z", "recorded_at": "2042-06-04T09:00:00Z"},
+        "observer": "2042-06-02T10:00:00Z"
+      },
       "source_refs": ["amber-move"], "body": {"title": "First bloom log", "finding": "Two petals were marked."}
     },
     {

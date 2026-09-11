@@ -17,7 +17,7 @@ a correction and validity boundary, delayed record/relationship disclosure, and
 a relationship revision. Both use the same manifest parser, loader, reader,
 search, traversal, pagination and explorer.
 
-Static verification on 2026-09-10:
+Static verification refreshed on 2026-09-11 after remediation review:
 
 - `ruff check .`: passed.
 - strict `mypy`: passed.
@@ -25,7 +25,9 @@ Static verification on 2026-09-10:
   matched and zero unresolved differences; Orchid reported one declared-only
   intentional correction.
 - `git diff --check`: passed.
-- PostgreSQL unit/integration/migration suite: 42 passed.
+- PostgreSQL unit/integration/migration suite: 44 passed, including distinct
+  disclosure timestamps, executable Orchid oracle reconciliation, and frozen
+  record/relationship cursor watermarks.
 - Chromium browser suite, including both datasets with JavaScript enabled and
   disabled: 7 passed.
 

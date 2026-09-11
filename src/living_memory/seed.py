@@ -22,6 +22,14 @@ class ReferenceDeclaration(BaseModel):
     json_pointer: str | None = None
 
 
+class DisclosureSource(BaseModel):
+    available_at: AwareDatetime
+    recorded_at: AwareDatetime
+
+
+DisclosureValue = AwareDatetime | DisclosureSource
+
+
 class FixtureRecord(BaseModel):
     model_config = ConfigDict(extra="allow")
     id: str = Field(min_length=1)
@@ -52,7 +60,7 @@ class FixtureRecord(BaseModel):
 
 
 class SourceRecord(FixtureRecord):
-    disclosures: dict[str, AwareDatetime]
+    disclosures: dict[str, DisclosureValue]
 
 
 class SourcePackage(BaseModel):
@@ -75,7 +83,7 @@ class RelationshipRevisionSource(BaseModel):
     valid_from: int = Field(ge=0)
     valid_to: int | None = Field(default=None, ge=0)
     supersedes: str | None = None
-    disclosures: dict[str, AwareDatetime]
+    disclosures: dict[str, DisclosureValue]
     endpoints: list[RelationshipEndpointSource] = Field(min_length=2)
     body: dict[str, Any] = Field(default_factory=dict)
 
@@ -137,6 +145,10 @@ class Snapshot(BaseModel):
     records: list[FixtureRecord]
     viewer: str
     recorded_at_cutoff: AwareDatetime
+    effective_at: int | None = Field(default=None, ge=0)
+    relationship_revisions: dict[str, Literal["current", "superseded"]] = Field(
+        default_factory=dict
+    )
 
 
 class ReconciliationItem(BaseModel):
@@ -309,6 +321,7 @@ def read_package(directory: Path) -> tuple[int, str, dict[str, Any]]:
     if manifest_path.exists():
         names.add("manifest.json")
     contents: dict[str, Any] = {}
+    oracles: list[Snapshot] = []
     root = directory.resolve()
     for name in sorted(names):
         path = (directory / name).resolve()
@@ -321,12 +334,21 @@ def read_package(directory: Path) -> tuple[int, str, dict[str, Any]]:
             oracle = Snapshot.model_validate_json(raw)
             if oracle.fixture_version != source.fixture_version:
                 raise ValueError("package fixture versions must agree")
+            oracles.append(oracle)
         contents[name] = raw
     ids = [record.id for record in source.records]
     if len(ids) != len(set(ids)):
         raise ValueError("source record IDs must be unique")
     if any(name not in ids for name in manifest.references):
         raise ValueError("reference declaration names an unknown revision")
+    oracle_relationship_ids = {item.id for item in manifest.relationships}
+    if any(
+        oracle.viewer not in scopes
+        or {record.id for record in oracle.records} - set(ids)
+        or set(oracle.relationship_revisions) - oracle_relationship_ids
+        for oracle in oracles
+    ):
+        raise ValueError("oracle names an undeclared scope, record, or relationship revision")
     reconciliation = reference_reconciliation(source, manifest)
     if (reconciliation.legacy_only or reconciliation.declared_only) and not (
         reconciliation.corrections

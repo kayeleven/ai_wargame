@@ -2,5 +2,84 @@
   "fixture_version": 1,
   "viewer": "observer",
   "recorded_at_cutoff": "2042-06-05T09:00:00Z",
-  "records": []
+  "effective_at": 604800000000,
+  "relationship_revisions": {
+    "pollination-v1": "superseded",
+    "pollination-v2": "current"
+  },
+  "records": [
+    {
+      "id": "accord-config",
+      "kind": "platform:configuration",
+      "game_id": "orchid-accord",
+      "branch_id": "origin",
+      "valid_from": 0,
+      "recorded_at": "2042-06-01T08:00:00Z",
+      "source_refs": [],
+      "body": {
+        "title": "Orchid Accord",
+        "participant_groups": ["amber", "violet", "silver"],
+        "represented_actors": ["glasshouse", "meadow", "archive", "courier"],
+        "controllers": {"amber": ["glasshouse", "courier"], "violet": ["meadow"], "silver": ["archive"]},
+        "turns": [{"number": 1, "simulated_days": 2}, {"number": 2, "simulated_days": 5}, {"number": 3, "simulated_days": 1}]
+      }
+    },
+    {
+      "id": "amber-move",
+      "kind": "platform:submission",
+      "game_id": "orchid-accord",
+      "branch_id": "origin",
+      "valid_from": 0,
+      "recorded_at": "2042-06-01T12:00:00Z",
+      "source_refs": [],
+      "body": {
+        "overall_intention": "Improve seed exchange without disturbing dormant beds.",
+        "actions": [{"action_id": "amber-sample", "Title": "Share pollen samples", "Description": "Send labeled samples to the meadow.", "Intent of Action": "Compare bloom traits.", "Anticipated reaction": "The meadow will schedule a survey."}]
+      }
+    },
+    {
+      "id": "hidden-carrier",
+      "kind": "platform:observation",
+      "game_id": "orchid-accord",
+      "branch_id": "origin",
+      "valid_from": 172800000000,
+      "recorded_at": "2042-06-02T09:30:00Z",
+      "source_refs": [],
+      "body": {"title": "Courier route", "text": "A courier used the shaded northern path."}
+    },
+    {
+      "id": "orchid-log-v1",
+      "stable_id": "orchid-log",
+      "kind": "orchid:pollination-log",
+      "game_id": "orchid-accord",
+      "branch_id": "origin",
+      "valid_from": 172800000000,
+      "valid_to": 604800000000,
+      "recorded_at": "2042-06-02T10:00:00Z",
+      "source_refs": ["amber-move"],
+      "body": {"title": "First bloom log", "finding": "Two petals were marked."}
+    },
+    {
+      "id": "orchid-log-v2",
+      "stable_id": "orchid-log",
+      "kind": "orchid:pollination-log",
+      "game_id": "orchid-accord",
+      "branch_id": "origin",
+      "valid_from": 604800000000,
+      "recorded_at": "2042-06-04T14:00:00Z",
+      "supersedes": "orchid-log-v1",
+      "source_refs": ["orchid-log-v1"],
+      "body": {"title": "Corrected bloom log", "finding": "Three petals were marked.", "corrects": "orchid-log-v1"}
+    },
+    {
+      "id": "violet-note",
+      "kind": "platform:observation",
+      "game_id": "orchid-accord",
+      "branch_id": "origin",
+      "valid_from": 259200000000,
+      "recorded_at": "2042-06-03T11:00:00Z",
+      "source_refs": [],
+      "body": {"title": "Shade survey", "text": "Dormant beds remained undisturbed."}
+    }
+  ]
 }
