@@ -186,3 +186,41 @@ record and relationship ingestion for the entire page sequence. Package
 disclosures may use the legacy single timestamp (availability and recording are
 equal) or explicit `available_at` and `recorded_at` timestamps. Reads support only
 the root branch and one relationship hop in 1C-core.
+
+## Identity, administration, and recovery
+
+After migration, create the first system administrator from an interactive terminal;
+the password is read twice without echo and is never accepted as an argument:
+
+```sh
+uv run --locked python -m living_memory.cli create-admin --username administrator --display-name "System Administrator"
+```
+
+Sign in at `/login` and use `/admin` to create users, provider scopes and exact-group
+recommendations, configure games, assign roles and memberships, review pending external
+subjects, schedule revisions, and activate games. Administrators have no private memory
+access solely because they are administrators. The manifest identity selector remains
+available only under `/dev/memory` in development.
+
+Reset a local password with `reset-password --username NAME`; this also revokes every
+session for that user. Runtime session cookies are opaque random values whose hashes are
+stored in PostgreSQL. Idle and absolute expiry and the username/source throttling bounds
+are configured by the `LM_SESSION_*` and `LM_LOGIN_*` values in `.env.example`.
+
+Create a protected custom-format PostgreSQL archive and sidecar manifest with:
+
+```sh
+make backup ARCHIVE=/protected/path/living-memory.dump
+```
+
+Restore requires a separately created, empty, explicitly named database using the same
+server connection settings. It refuses a target with any public tables, verifies archive
+checksum and compatibility, restores without owners or ACLs, checks Alembic/domain and
+staged-package inventory, then revokes every restored session before returning success:
+
+```sh
+make restore ARCHIVE=/protected/path/living-memory.dump TARGET_DATABASE=living_memory_recovery
+```
+
+Never make the restore target the current source database. Scheduled backups, retention,
+RPO/RTO, and portable domain export remain deferred.

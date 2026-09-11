@@ -1,4 +1,4 @@
-.PHONY: setup db-up migrate seed dev check test test-browser db-down
+.PHONY: setup db-up migrate seed dev check test test-browser backup restore db-down
 setup:
 	python3.12 scripts/setup.py
 db-up:
@@ -17,5 +17,11 @@ test:
 	uv run --locked pytest --ignore=tests/browser
 test-browser:
 	uv run --locked pytest tests/browser
+backup:
+	test -n "$(ARCHIVE)"
+	uv run --locked python -m living_memory.cli backup --archive "$(ARCHIVE)"
+restore:
+	test -n "$(ARCHIVE)" && test -n "$(TARGET_DATABASE)"
+	uv run --locked python -m living_memory.cli restore --archive "$(ARCHIVE)" --target-database "$(TARGET_DATABASE)"
 db-down:
 	docker compose down

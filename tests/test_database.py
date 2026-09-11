@@ -57,6 +57,10 @@ def database(settings):
         config.attributes["connection"] = connection
         command.upgrade(config, "head")
         command.upgrade(config, "head")
+        connection.execute(text("DELETE FROM admin_audit_entry"))
+        connection.execute(text("DELETE FROM admin_game"))
+        connection.execute(text("DELETE FROM auth_login_attempt"))
+        connection.execute(text("DELETE FROM auth_user"))
         connection.execute(text("DELETE FROM development_artifact"))
     yield db, config_settings
     db.close()

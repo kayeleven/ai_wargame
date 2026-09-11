@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     pool_timeout: float = Field(default=2, gt=0, le=30)
     connect_timeout: int = Field(default=3, ge=1, le=30)
     statement_timeout_ms: int = Field(default=5000, ge=1, le=60000)
+    session_idle_minutes: int = Field(default=30, ge=1, le=1440)
+    session_absolute_days: int = Field(default=7, ge=1, le=30)
+    login_username_limit: int = Field(default=8, ge=1, le=100)
+    login_source_limit: int = Field(default=80, ge=2, le=1000)
+    login_window_minutes: int = Field(default=15, ge=1, le=1440)
 
     @field_validator("session_secret")
     @classmethod

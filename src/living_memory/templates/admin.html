@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Administration · Living Memory{% endblock %}
+{% block content %}
+<h1>Administration</h1>
+<p>Signed in as {{ display_name }}. <strong>{{ alerts }}</strong> unread alert{% if alerts != 1 %}s{% endif %}.</p>
+<form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button>Sign out</button></form>
+
+<h2>Games</h2>
+{% if games %}<ul>{% for game in games %}<li><strong>{{ game.title }}</strong> — {{ game.status }}, turn {{ game.current_turn }}</li>{% endfor %}</ul>{% else %}<p>No games.</p>{% endif %}
+
+<h2>Pending external access <span aria-label="pending access count">{{ pending|length }}</span></h2>
+{% if pending %}<ul>{% for item in pending %}<li>{{ item.game_id }} · {{ item.id }}
+<span>{{ item.display_attributes.get('display_name', 'External user') }} · observed groups: {{ item.observed_groups|join(', ') }}</span><form method="post" action="/admin/external/{{ item.id }}/approve"><input type="hidden" name="csrf_token" value="{{ csrf }}"><label>Team (optional)<input name="team_id"></label><label>Authority<select name="authority"><option>member</option><option>submitter</option></select></label><label>Game role (optional)<select name="role"><option value="">None</option><option>game_admin</option><option>adjudicator</option></select></label><button>Approve placement</button></form><form method="post" action="/admin/external/{{ item.id }}/deny"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button>Deny access</button></form>
+</li>{% endfor %}</ul>{% else %}<p>No pending requests.</p>{% endif %}
+
+<h2>Users</h2>
+{% if users %}<ul>{% for item in users %}<li>{{ item.username }}{% if not item.active %} (deactivated){% elif system %}<form class="inline" method="post" action="/admin/users/{{ item.id }}/deactivate"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button>Deactivate {{ item.username }}</button></form>{% endif %}</li>{% endfor %}</ul>{% endif %}
+{% if system %}
+<details><summary>Create local user</summary>
+<form method="post" action="/admin/users">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <label for="new-username">Username</label><input id="new-username" name="username" required>
+  <label for="display-name">Display name</label><input id="display-name" name="display_name" required>
+  <label for="new-password">Initial password</label><input id="new-password" name="password" type="password" required autocomplete="new-password">
+  <button>Create user</button>
+</form></details>
+
+<details><summary>Create configured game</summary>
+<form method="post" action="/admin/games">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <label for="game-id">Stable identifier</label><input id="game-id" name="game_id" required pattern="[a-z][a-z0-9_-]{0,63}">
+  <label for="game-title">Title</label><input id="game-title" name="title" required>
+  <label for="description">Public description</label><textarea id="description" name="description"></textarea>
+  <label for="public-rules">Public rules</label><textarea id="public-rules" name="public_rules"></textarea>
+  <label for="public-briefing">Open-source briefing</label><textarea id="public-briefing" name="public_briefing"></textarea>
+  <label for="configuration">Structured configuration (JSON)</label><textarea id="configuration" name="configuration" required rows="14"></textarea>
+  <button>Create draft game</button>
+</form></details>
+
+<details><summary>Create external provider scope</summary>
+<form method="post" action="/admin/provider-scopes"><input type="hidden" name="csrf_token" value="{{ csrf }}"><label>Game<select name="game_id">{% for game in games %}<option value="{{ game.id }}">{{ game.title }}</option>{% endfor %}</select></label><label>Provider identifier<input name="provider" required></label><button>Create provider scope</button></form></details>
+{% endif %}
+
+<details><summary>Assign game role</summary><form method="post" action="/admin/roles"><input type="hidden" name="csrf_token" value="{{ csrf }}"><label>User<select name="user_id">{% for item in users if item.active %}<option value="{{ item.id }}">{{ item.username }}</option>{% endfor %}</select></label><label>Game<select name="game_id">{% for game in games %}<option value="{{ game.id }}">{{ game.title }}</option>{% endfor %}</select></label><label>Role<select name="role"><option>game_admin</option><option>adjudicator</option></select></label><button>Assign role</button></form></details>
+
+<details><summary>Assign team membership</summary><form method="post" action="/admin/memberships"><input type="hidden" name="csrf_token" value="{{ csrf }}"><label>User<select name="user_id">{% for item in users if item.active %}<option value="{{ item.id }}">{{ item.username }}</option>{% endfor %}</select></label><label>Game identifier<input name="game_id" required></label><label>Team identifier<input name="team_id" required></label><label>Authority<select name="authority"><option>member</option><option>submitter</option></select></label><button>Assign membership</button></form></details>
+
+{% if system %}<details><summary>Add exact group recommendation</summary><form method="post" action="/admin/provider-mappings"><input type="hidden" name="csrf_token" value="{{ csrf }}"><label>Provider scope<select name="provider_scope_id">{% for scope in scopes %}<option value="{{ scope.id }}">{{ scope.game_id }} · {{ scope.provider }}</option>{% endfor %}</select></label><label>Exact external group identifier<input name="external_group" required></label><label>Suggested team<input name="suggested_team_id"></label><label>Suggested role<select name="suggested_role"><option value="">None</option><option>game_admin</option><option>adjudicator</option></select></label><button>Add recommendation</button></form></details>{% endif %}
+
+{% for game in games %}<details><summary>Revise or activate {{ game.title }}</summary><form method="post" action="/admin/games/{{ game.id }}/revisions"><input type="hidden" name="csrf_token" value="{{ csrf }}"><label>Effective turn<input name="effective_turn" type="number" min="1" required></label><label>Structured configuration (JSON)<textarea name="configuration" rows="12" required></textarea></label><button>Create immutable revision</button></form>{% if game.status == 'draft' %}<form method="post" action="/admin/games/{{ game.id }}/activate"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button>Activate after prerequisite check</button></form>{% endif %}</details>{% endfor %}
+{% endblock %}

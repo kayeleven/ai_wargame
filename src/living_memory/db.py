@@ -58,7 +58,7 @@ class Database:
             hide_parameters=True,
             connect_args={
                 "connect_timeout": settings.connect_timeout,
-                "options": f"-c statement_timeout={settings.statement_timeout_ms}",
+                "options": f"-c statement_timeout={settings.statement_timeout_ms} -c jit=off",
             },
         )
         self.sessions = sessionmaker(self.engine, expire_on_commit=False)

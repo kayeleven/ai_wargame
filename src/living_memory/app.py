@@ -89,6 +89,8 @@ def create_app(
         # Never trust client request IDs or log raw URLs/query strings.
         request.state.request_id = uuid4().hex
         request.state.db_timeout_category = None
+        request.state.principal_resolution_ms = None
+        request.state.memory_query_ms = None
         start = perf_counter()
         try:
             response = await call_next(request)
@@ -106,6 +108,8 @@ def create_app(
                     "route": getattr(route, "path", "unmatched"),
                     "status": response.status_code,
                     "elapsed_ms": round((perf_counter() - start) * 1000, 3),
+                    "principal_resolution_ms": request.state.principal_resolution_ms,
+                    "memory_query_ms": request.state.memory_query_ms,
                     "database_timeout_category": request.state.db_timeout_category,
                 }
             )
@@ -147,6 +151,20 @@ def create_app(
             {"status": "ready" if available else "schema mismatch"},
             status_code=200 if available else 503,
         )
+
+    if isinstance(db, Database):
+        from living_memory.web import (
+            AccessChangedError,
+            access_changed_response,
+            auth_admin_router,
+        )
+
+        @app.exception_handler(AccessChangedError)
+        async def access_changed(request: Request, exc: AccessChangedError) -> HTMLResponse:
+            del exc
+            return access_changed_response(request)
+
+        app.include_router(auth_admin_router(db, templates, settings))
 
     if settings.environment == "development":
         from living_memory.explorer import explorer_router
