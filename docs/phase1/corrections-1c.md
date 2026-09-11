@@ -1,5 +1,17 @@
 # Phase 1C bounded correction — 2026-09-11
 
+Historical record: the execution evidence and rollout instructions below describe
+the bounded correction at schema `0004`, backup version `0.1.0`. The current checkout
+has schema `0005` and backup version `0.2.0`; populated 0004 upgrades and old archives
+are incompatible. Use the [developer guide](../development.md#schema-and-backup-compatibility)
+for current limitations. Do not apply this record's 0004 rollout instructions as
+current-head setup instructions.
+
+[B-11](../decisions.md#b-11--wrapper-ownership-and-framework-contracts) supersedes
+the mandatory admin-to-memory projection handoff below. The accepted roadmap also
+adds white-cell lenses and moves integrated validation after Phase 2M. These are
+future implementation obligations, not changes to the preserved verification results.
+
 **Status: bounded correction implemented and verified**, with the explicit deferrals below.
 
 This record supersedes the earlier unqualified 1C-admin completion claim. The local

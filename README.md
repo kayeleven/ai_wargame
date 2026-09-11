@@ -8,6 +8,19 @@ The primary research question is which AI preparation methods give human adjudic
 
 The platform must support human and AI participants, imported moves, historical replay, and counterfactual branches. It is intended to operate offline with a locally hosted LLM, initially at single-digit user volume and eventually with up to 150 simultaneous users.
 
+The accepted direction separates a durable platform wrapper from swappable
+adjudication and memory frameworks. The wrapper preserves authoritative game and
+review history and original run artifacts; framework projections are rebuildable.
+Open-world scenarios use premises and accumulated adjudicator precedent, with player
+claims distinct from established facts. White-cell users retain god view and can
+apply an actor-only lens. Military context does not exclude a non-military action;
+military components are handled separately without M&S integration here.
+
+Mock scenarios test and narrow candidates; operational-environment comparisons
+determine suitability. Research replay defaults to automated mode with a human-review
+toggle and retains incompatible moves as attempted. Operational games retain human
+approval of rulings and release.
+
 ## Project documents
 
 | Document | Purpose |
@@ -21,9 +34,19 @@ The platform must support human and AI participants, imported moves, historical 
 
 ## Status and document conventions
 
-This repository contains the Phase 1A foundation, Phase 1B/1C-core temporal memory, and Phase 1C-admin identity and game administration with bounded audit corrections alongside the Phase 0 acceptance fixtures. The selected stack is Python 3.12, FastAPI, Pydantic, SQLAlchemy, Alembic, PostgreSQL 16, Jinja, and locally served HTMX. See [developer setup](docs/development.md) and the [current 1C correction record](docs/phase1/corrections-1c.md), which supersedes earlier unqualified completion claims.
+This repository contains the Phase 1A foundation, Phase 1B/1C-core temporal memory,
+Phase 1C-admin identity and administration with bounded corrections, and the 1D
+persistence foundation and initial helpers. Player/adjudication pages remain
+placeholders; 1D workflows and dedicated verification are outstanding. Framework
+decoupling, white-cell lenses, AI and replay are planned work. The selected stack is
+Python 3.12, FastAPI, Pydantic, SQLAlchemy, Alembic, PostgreSQL 16, Jinja and local
+HTMX. See [developer setup](docs/development.md) for current schema/backup
+compatibility and the [historical 1C correction record](docs/phase1/corrections-1c.md)
+for its bounded verification evidence.
 
-Requirements consolidate the project owner's stated objectives. Architecture and roadmap details are proposals unless identified as established direction. Open decisions are not silently treated as approved choices.
+Requirements consolidate the project owner's objectives. The revised roadmap direction
+is accepted under [B-11–B-14](docs/decisions.md#b-11--wrapper-ownership-and-framework-contracts);
+it does not imply implementation. Open technology choices remain proposals.
 
 `requirements.md` describes product requirements. Software dependencies are defined in `pyproject.toml` and locked in `uv.lock`.
 

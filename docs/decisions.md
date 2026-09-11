@@ -1,6 +1,6 @@
 # Decisions and open questions
 
-Status: initial log, 2026-09-09. Established direction comes from the project discussion. Proposals below are not final technology selections.
+Status: updated 2026-09-11. B-11–B-14 record the accepted roadmap revision and owner-selected defaults. They govern remaining work, not claims of implementation. Historical decisions and evidence are retained; candidate backend, worker and model selections remain open.
 
 ## Established direction
 
@@ -34,15 +34,15 @@ Status: initial log, 2026-09-09. Established direction comes from the project di
 | --- | --- | --- |
 | O-01 | Initial fixture/action baseline resolved by B-01–02; real-game refinements may supersede it. | Phase 0 baseline recorded |
 | O-02 | Initial simultaneous review, amendment, late-RFI, and release policies resolved by B-02. | AI walkthrough accepted by B-05; validate in Phase 1 |
-| O-03 | Team-shared knowledge and named-record sharing adopted by B-02; individual compartments deferred. | Validate in Phase 1 |
+| O-03 | Team-shared access remains; B-12 adds actor knowledge and an actor-only white-cell lens without restricting god-view access. Individual user compartments remain deferred. | Resolved direction; validate in 1E |
 | O-04 | What local authentication/identity service, certificates, and administrator access are available? | First deployment design |
-| O-05 | Language/framework/store resolved by B-06; worker mechanism and offline packaging remain follow-up choices. | Phase 1 foundation / Phase 2 workers |
+| O-05 | Wrapper stack resolved by B-06; candidate memory backends (roadmap N-02), worker mechanism and offline packaging remain open under B-11/B-14. | Phase 2 / 3A |
 | O-06 | What local model service, hardware, context limits, and structured-output capabilities are available? How are model artifacts provisioned offline? | Phase 2 |
 | O-07 | Which external game formats should be imported first, and how will missing context be represented? | Initial import and later adapter expansion |
 | O-08 | What reviewer protocol and practical success thresholds will determine whether preparation helps? | First comparison study |
-| O-09 | How should downstream historical moves be retained, revised, or regenerated after divergence? | Phase 4 |
+| O-09 | B-13 resolves the Phase 2 default as retain as attempted (N-05); detailed human revision/controller regeneration remains Phase 4 work. | Phase 2 baseline resolved / Phase 4 extension |
 | O-10 | What representative workload, latency targets, inference queue targets, backup frequency, and recovery objectives define full-game readiness? | Set before phase 5 testing |
-| O-11 | What export, retention, audit-access, and diagnostic-handling policies apply in the deployment environment? | Operational pilot |
+| O-11 | Results cannot leave the operational environment (B-14). What retention, audit-access and internal diagnostic-handling policies apply? | Before 3A |
 
 These questions do not block all progress. Resolve each before implementing behavior that depends on it; keep independent work moving.
 
@@ -55,6 +55,10 @@ Status: accepted baseline. Problem: the broad architecture could be read as requ
 Alternatives: mandatory structured resource/target fields; a unified military/non-military submission workflow. Evidence: project owner supplied the actual action format and explicitly limited this build to non-military actions. Consequence: preserve prose, treat anticipated reactions as expectations, and resolve missing context through review. Requirements: PLAY-01/05, GAME-04, MEM-01/05. Verification: C01, C08, C11 in the [acceptance cases](phase0/acceptance.md).
 
 ### B-02 — Small synthetic game and human authority
+
+Scope note, 2026-09-11: B-12 extends the fixture's team-knowledge baseline with
+actor beliefs and white-cell lenses. B-13 sets research replay defaults. The
+original fixture, operational human authority and historical acceptance remain intact.
 
 Status: accepted initial implementation baseline. Problem: behavior must be concrete before implementation. Chosen approach: two civilian teams and four turns, simultaneous submissions, team-shared knowledge, a designated submitter, explicit consent to named cross-team coordination, and one adjudicator approving rulings and separately releasing feedback. Freeze submitted packages; accept explicit amendments only before ruling and reassess affected review work. Late RFI answers apply prospectively; corrections preserve history.
 
@@ -83,6 +87,9 @@ Alternative: require another human walkthrough of the JSON fixtures before closu
 ## Phase 1 foundation decisions — 2026-09-10
 
 ### B-06 — Stack and seven milestone sequence
+
+Update, 2026-09-11: the stack remains selected. B-14 supersedes the remaining
+milestone sequence; B-11 governs the wrapper/framework boundary before 1D-remainder.
 
 Status: accepted by the implementation plan. Problem: a playable Phase 1 needs
 smaller gates and an authorized database path before presentation conventions.
@@ -116,6 +123,10 @@ acceptance gates in 1C-core/1D/1E; these domain capabilities are not claimed by 
 Requirements: MEM-01–05, PLAY-02–04, ADJ-02–04, RFI-04.
 
 ### B-08 — Developer scope and deferred qualification
+
+Update, 2026-09-11: B-14 adds native Windows development setup in 1G and moves
+operational research installation/update/recovery to 3A. Local evidence still does
+not establish offline deployment or 150-user readiness.
 
 Status: accepted revision to initial Phase 1 installation scope. Problem: local
 evidence cannot establish offline deployment or 150-user readiness. Phase 1 targets
@@ -151,6 +162,10 @@ in 1C-core. Requirements: MEM-01/04/05, PLAY-01/05; C01–C10 retrieval evidence
 
 ### B-10 — Scenario-independent 1C-core and rebuild transition
 
+Update, 2026-09-11: this remains the record of the implemented 1C backend. B-11
+makes it a candidate behind the new seam; B-14 moves a second backend with multi-step
+traversal and initial replay into Phase 2. The original evidence is unchanged.
+
 Status: implemented direction, 2026-09-10. Replace the reconstructable 1B read
 tables with normalized stable identities and immutable record/relationship
 revisions. Revision-level disclosures preserve historical authorization. Explicit
@@ -166,3 +181,130 @@ revision behavior. PostgreSQL `simple` full-text search and signed watermark
 keyset cursors are the lexical/pagination baseline. Multi-hop traversal and
 ancestor replay remain deferred to Phase 3. This destructive derived-data
 transition is development-only and is not precedent for user data migration.
+
+## Revised roadmap decisions — 2026-09-11
+
+### B-11 — Wrapper ownership and framework contracts
+
+Status: accepted by the project owner before 1D-remainder. Problem: game activation
+and authenticated retrieval currently depend directly on the 1C memory schema, and
+the former Phase 1 contract required that projection before player writes.
+
+Chosen approach: the wrapper owns canonical input, rulings, facts, effects, world
+state, actor beliefs, disclosures and all human review history. It also preserves
+immutable run artifacts, including original proposals and exactly what reviewers
+saw. Only derived projections, indexes and caches are disposable. A framework
+combines an adjudication/preparation method with its memory/retrieval backend;
+it receives frozen input and returns proposals through stable contracts.
+
+The input contract includes submissions, scenario premise, prior rulings/facts,
+RFI status, disclosures and cutoff. The output contract includes a review packet,
+god view and per-actor fog-of-war views, with independent provenance and truth
+status. Lookup resolves authorized game memory automatically and flags world
+questions for humans; a future reference corpus can register as a resolver.
+Frameworks do not write wrapper tables directly; the wrapper owns application of
+proposals and does not depend on a candidate's schema. One framework is active per
+game; others process saved moves in isolated replay histories.
+
+Supersedes: the mandatory admin-to-memory projection prerequisite in the
+[Phase 1 contracts](phase1/contracts.md) and the historical 1C correction handoff.
+The decision governs 1D/1E now; 1W completes code decoupling, framework registration
+independent of activation, query routing, atomic rebuild and independent recovery.
+
+Alternative: keep the 1C store as mandatory platform persistence. Evidence: the
+owner's revised roadmap and approval of the code-coupling review. Consequences:
+the wrapper must run without an installed framework; rebuilding a backend must
+preserve authoritative history and run artifacts. Existing code is not yet adapted.
+Requirements: MEM-05/06, ADJ-02, EXP-02, OPS-06/09. Verification: future 1W gate
+and Phase 2 second-method/backend acceptance; no new execution evidence claimed.
+
+### B-12 — Open-world scope, white-cell lens and release
+
+Status: accepted by the project owner. Problem: bounded fixture rules and team
+permissions do not describe open-world claims, actor beliefs or white-cell work.
+
+Chosen approach: scenarios have a start date and premise; rules and numeric
+resources are optional. Player statements are claims, and scenario premises and
+established rulings/RFI facts take precedence over contrary model world knowledge.
+Truth, belief and effect remain separate. Military movement/combat and M&S
+integration remain excluded under B-01; non-military components remain in scope
+even when military activity is their context. No automated M&S routing is required.
+
+The white cell plays unrepresented actors and retains god view. Its optional lens
+selects an actor only, using the current game or replay context. No separate time
+selector, truth/belief toggle or side-by-side lens requirement is introduced.
+N-04 is resolved. Actor knowledge must be recorded, but the lens requires no actor
+grants or migration of existing team grants. Controlled actor additions and changes
+of control remain implementation work.
+
+Internal evidence remains private unless separately authorized for disclosure.
+Audience-visible citations require disclosure checks; approved observations can
+be released without exposing confidential causal evidence. Citation checks do not
+certify prose. Operational release remains a recorded human decision.
+
+Alternatives: restrict white-cell users to actor permissions; treat citable claims
+as facts; infer prose safety from citations. Evidence: the owner's god-view/lens
+clarification, actor-only selection and accepted roadmap review. Consequences:
+extend B-02 beyond the bounded fixture without rewriting its evidence. Requirements:
+GAME-01/05, MEM-01/04/05, ADJ-04, OPS-07. Verification: future 1E lens-fidelity,
+claim/precedent and release tests, including prose leakage with clean citations.
+
+### B-13 — Replay defaults and preserved histories
+
+Status: accepted by the project owner. Problem: replay must permit divergence
+without contaminating original games or discarding research evidence.
+
+Chosen approach: every replay creates its own wrapper-owned history of rulings,
+facts, effects, disclosures, review history and artifacts; the original remains
+unchanged. Automated research mode is the default, with a toggle for human review
+(N-01 resolved). Record policy selections and changes. Recorded-ruling reuse is
+an explicit alternative only where applicable. Operational games still require
+human authority; the research default cannot authorize operational releases.
+
+Retain incompatible historical moves as attempted by default (N-05 resolved),
+adjudicating feasibility in the replay world. Flag/skip alternatives require a
+recorded override. Record applicability of original RFIs, disclosures and rulings.
+Phase 4 adds human revision and controller regeneration.
+
+Report frozen-context and trajectory comparisons separately. The former controls
+inputs; the latter measures downstream usefulness with divergence and reviewer
+controls reported. Automated acceptance provides no measured human-review effort;
+use human-review sessions for that evidence.
+
+Alternatives: human review as default, silently inherit original rulings, or drop
+incompatible moves. Evidence: the owner selected automated research with a human
+toggle and retain-as-attempted, and accepted preserved replay histories. Requirements:
+ADJ-03, EXP-02/03, REP-01–04. Verification: future Phase 2 isolation, policy,
+cutoff and replay-review gates; Phase 4 continuation tests.
+
+### B-14 — Delivery, setup and operational comparison
+
+Status: accepted revised delivery direction. Problem: fixture results cannot
+select a framework for operational game complexity, and offline updates constrain
+iteration. Chosen order: B-11 → 1D-remainder → 1E → 1W → Phase 2 → 2M → 1F →
+3A → 3B/3C → 4 → 5. Phase 1G runs alongside 1D/1E. This supersedes B-06's
+remaining sequence and B-10's deferral of initial traversal/replay to Phase 3.
+
+1G delivers one-command development/evaluation setup on Ubuntu and native Windows
+PowerShell; WSL is supported but not required. Document prerequisites and generate
+secrets. Dependencies must be pinned and packageable offline. This extends B-08's
+development scope without claiming full installer parity or offline provisioning.
+Phase 2 delivers queued inference, two methods and two backends; method definitions
+are versioned configuration. Phase 2M tests open-world non-military cases, premise
+adherence, claims, precedent, lenses, leakage, failure recovery and volume.
+
+Mocks establish behavior on tested cases and eliminate candidates. With one
+survivor, operational work validates it rather than claiming comparative selection;
+with none, repair/replace and retest. Later variants must pass the same gates.
+Phase 3A provides offline research install/update/recovery and internal analysis;
+results cannot be exported from that environment. Phase 3 comparisons select on
+operational evidence. Full-scale capacity, VDI and deployment qualification remain
+Phase 5; 1F retains the original integrated game/recovery gate and local eight-user
+report, with no 150-user claim.
+
+Alternative: select on fixtures and defer packaging to Phase 5. Evidence: the
+owner's rewritten roadmap and approval of coordinated documentation updates.
+Consequences: preserve Phase 0 and completed verification as historical evidence;
+collect human effort in the review surface and operational replay sessions.
+Requirements: EXP-01–04, MEM-06, OPS-01–09. Verification: the future milestone
+gates in the [roadmap](../roadmap.md), not new completion claims in this decision.

@@ -1,8 +1,29 @@
-# Developer setup (1A)
+# Developer setup and current implementation
 
 The supported development layout is host Python **3.12** with **PostgreSQL 16**
-in Docker Compose. One application process serves localhost. This is a development
-foundation; seeding does not create a playable game or implement authentication.
+in Docker Compose. One application process serves localhost. Local authentication
+and game administration exist; seeding only stages fixture artifacts and does not
+create a playable game.
+
+The current checkout includes 1A/1B/1C and the 1D persistence foundation plus initial
+helpers. `/play` and `/adjudicate` are placeholders; workspace authorization,
+transitions, concurrency workflows and dedicated 1D verification remain outstanding.
+The [accepted roadmap](../roadmap.md) and [B-11–B-14](decisions.md#b-11--wrapper-ownership-and-framework-contracts)
+govern future work. Framework decoupling, white-cell lenses, AI and replay are not
+implemented by this documentation update.
+
+## Schema and backup compatibility
+
+Current schema head is `0005`; the backup compatibility version in `backup.py` is
+`0.2.0`. Migration 0005 accepts only an empty 0004 schema and refuses populated
+databases, including staged fixtures. There is no supported in-place upgrade of
+populated 0004 data. Preserve valuable databases and archives; use a separate fresh
+development database and re-seed for this checkout. Do not delete existing data as
+part of normal setup. Older 0004/0.1.0 archives are not accepted by current restore.
+
+The [1C correction record](phase1/corrections-1c.md) documents historical 0004/0.1.0
+verification, not current compatibility. Its standalone rollout report is not a
+current-head setup step. Framework-independent recovery remains a future 1W gate.
 
 ## Fresh checkout
 
@@ -26,6 +47,13 @@ form pages use local HTMX, local CSS, and system fonts. FastAPI's optional
 `/docs` and `/redoc` interfaces remain available locally but use the framework's
 default CDN assets; they are not required by the application workflow.
 Offline provisioning is deferred and is not claimed by this setup.
+
+Phase 1G will replace these manual setup steps with one-command development/evaluation
+setup on Ubuntu and native Windows PowerShell (WSL optional), with generated secrets.
+That workflow is not available yet. Its prerequisites include Python 3.12, uv,
+Docker or an existing PostgreSQL 16, and PostgreSQL client tools for recovery.
+New dependencies must be pinned and have an offline source; offline research
+bundles/update drills are Phase 3A work, full deployment qualification Phase 5.
 
 | Command | Behavior |
 | --- | --- |
@@ -89,8 +117,9 @@ calculated from the host clock. Request duration uses a separate monotonic timer
 All unsafe application requests use the shared CSRF dependency. Render
 `csrf_token` as a hidden field or send `X-CSRF-Token`; HTMX includes the hidden
 field automatically. No request content, game data, credentials, or attempted
-form values belong in signed cookies. Only CSRF and fixed flash codes are stored
-today. Signed cookies are readable, not encrypted.
+form values belong in signed cookies. The signed session cookie holds CSRF and fixed
+flash codes and is readable, not encrypted. A separate authentication cookie holds
+an opaque random token whose hash is stored in PostgreSQL.
 
 Bind forms with Pydantic through `bind_form`, explicitly naming repeated fields.
 Raw entered strings and repeated-field order survive 422 responses. Root
@@ -196,11 +225,16 @@ the password is read twice without echo and is never accepted as an argument:
 uv run --locked python -m living_memory.cli create-admin --username administrator --display-name "System Administrator"
 ```
 
-Sign in at `/login` and use `/admin` to create users, provider scopes and exact-group
-recommendations, configure games, assign roles and memberships, review pending external
+Sign in at `/login` and use `/admin` to create users and provider scopes,
+configure games, assign roles and memberships, review pending external
 subjects, schedule revisions, and activate games. Administrators have no private memory
 access solely because they are administrators. The manifest identity selector remains
 available only under `/dev/memory` in development.
+
+The exact-group recommendation creation UI was removed in the bounded correction;
+existing mappings remain preserved. Actor-only white-cell lenses and controlled
+roster/controller changes are future work. Current activation creates a 1C dataset
+and `/memory` uses its reader directly; 1W will replace that coupling under B-11.
 
 Reset a local password with `reset-password --username NAME`; this also revokes every
 session for that user. Runtime session cookies are opaque random values whose hashes are

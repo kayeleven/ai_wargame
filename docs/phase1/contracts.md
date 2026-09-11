@@ -1,8 +1,38 @@
 # Phase 1 architectural contracts
 
-Accepted implementation direction, 2026-09-10. Milestone 1A establishes the
-application foundation. The following domain rules govern subsequent milestones;
-they do not imply those workflows are already implemented.
+Accepted implementation direction, updated 2026-09-11 under
+[B-11–B-14](../decisions.md#b-11--wrapper-ownership-and-framework-contracts).
+The existing 1C backend contracts remain documented below; the new boundary governs
+1D-remainder onward. Neither these contracts nor the roadmap imply implementation
+of the outstanding workspace, white-cell, framework or replay workflows.
+
+## Wrapper and framework boundary: B-11
+
+The wrapper owns authoritative input, rulings, facts, effects, world state, actor
+beliefs, disclosures and all human review history. It preserves immutable run
+artifacts: original proposals/grouping, raw output, context, validation failures
+and exactly what reviewers saw. Only projections, indexes and caches are disposable.
+Human triage/regrouping and original framework proposals are never disposable.
+
+Frameworks receive frozen input and return proposals; they never write wrapper
+tables directly, and the wrapper does not depend on a candidate's schema.
+
+| Contract | Required boundary |
+| --- | --- |
+| Input | Immutable submissions, premise, prior rulings/facts, RFI status, disclosures and temporal cutoff. Preserve player prose verbatim. |
+| Output | Review packet, proposed god view and per-actor fog-of-war views. Independent provenance class (game record/world knowledge/assumption) and truth status (established/claimed/disputed/unresolved). |
+| Lookup | Automatically resolve authorized game-memory needs; flag world-specific questions for human verification. A reference corpus is out of scope but can register later. |
+
+This **supersedes the former admin-to-memory projection prerequisite for 1D writes**.
+1D and 1E use wrapper-owned records. Existing activation/dataset and query/reader
+coupling is adapted in 1W, after 1E and before Phase 2. Activation must succeed
+without a framework; datasets are created through framework registration. Queries
+use the retrieval seam. Backup/restore preserves wrapper history and artifacts
+without candidate backends; projections rebuild atomically with pending status.
+
+The temporal, authorization and once-only effect guarantees below remain binding.
+Their current PostgreSQL representation describes the 1C candidate, not a required
+schema for every framework. Phase 2 proves the seam with two methods/two backends.
 
 ## Authorized retrieval: 1B and 1C-core
 
@@ -13,7 +43,7 @@ A development-only principal provider maps fixed identity IDs to game/audience
 grants. Choosing an audience cannot enlarge grants. This is authorization
 demonstration, not authentication.
 
-Establish the permanent service boundary:
+The existing 1C service boundary is:
 
 `read_memory(principal, game_id, audience, branch_lineage, known_at, effective_at, query) → MemoryView`
 
@@ -96,12 +126,43 @@ Test concurrent conflicts, repeated and simultaneous effects, stale amendments
 and reviews, prospective late answers preserving historical rulings, and release
 audience boundaries.
 
+## White-cell lens and release: 1E
+
+White-cell users retain god view while playing unrepresented actors. An optional
+actor-only lens filters presentation in the current game/replay context. Indicate
+the active lens and allow return to god view; no separate time selector, truth/belief
+toggle or side-by-side views are required. Actor belief/disclosure history must
+support accurate lenses and fog-of-war views. No actor grants or migration of team
+grants is required for the lens. Historical retrieval still obeys temporal cutoffs.
+
+Separate private internal evidence, audience-visible citations and explicit approved
+disclosures. Check visible citations under audience authorization, but do not infer
+prose safety from valid citations. An approved observation may be released without
+its confidential causal evidence. Human approval governs operational release.
+Test lens fidelity and prose leakage with clean citations, rather than restricting
+white-cell users' access to other actors' information.
+
+## Replay and research: Phase 2
+
+Each replay creates its own wrapper-owned authoritative history and immutable run
+artifacts, leaving the original unchanged. Framework projections belong to one
+trajectory; no later knowledge or unrelated replay data may contaminate retrieval.
+Research replay defaults to automated mode with a human-review toggle; record the
+policy and changes. Recorded-ruling reuse is an explicit alternative where applicable.
+This research default does not authorize operational state or feedback release.
+
+Retain incompatible recorded moves as attempted by default, adjudicating feasibility
+in that trajectory; record flag/skip overrides. Record applicability of original
+RFIs, rulings and disclosures. Phase 4 adds human revision/controller regeneration.
+Report frozen-context and trajectory comparisons separately and preserve reviewer
+effort and what was shown. Automated acceptance is not human-effort evidence.
+
 ## Integration and deployment obligations
 
-1F runs a small multi-turn browser game, concurrent operations and a restoration
+After Phase 2M, 1F runs a small multi-turn browser game, concurrent operations and a restoration
 drill without database edits, verifies prior commitments and nondisclosure, and
-maps applicable C01–C12 requirements to application evidence. Real model-adapter
-behavior remains Phase 2.
+maps applicable C01–C12 requirements to application evidence. It exercises the
+framework seam and model adapter introduced in Phase 2.
 
 Title its performance artifact **“Local eight-user sanity check.”** Record host
 specifications, workload, concurrency, durations, errors, pool waits, and observed
@@ -109,11 +170,14 @@ percentiles. Assess the provisional p95 two-second target only within that run.
 State explicitly: **no 150-user capacity evidence**. OPS-04 requires a later
 representative deployment with deadline-burst workload.
 
-Developer-machine execution is the Phase 1 target. Offline installation,
-organizational identity connectivity, TLS, Windows VDI qualification, and full-scale
-capacity remain tracked deployment work. Offline runtime asset choices in 1A do
-not qualify offline provisioning. Phase 2 inference uses separate processes and
-budgets and never waits inside interactive transactions or the interactive pool.
+1G adds one-command development/evaluation setup on Ubuntu and native Windows
+PowerShell with optional WSL, documented prerequisites and generated secrets.
+Dependencies must be pinned and packageable offline. This is not full installer
+parity or offline provisioning evidence. Phase 3A delivers offline research
+install/update/recovery and internal reporting; results cannot be exported.
+Organizational identity, TLS, VDI and full-scale capacity remain Phase 5 qualification.
+Phase 2 inference uses separate processes/budgets, with queued status, priority,
+retry, cancellation and failure recovery, never waiting in interactive transactions.
 
 ## Phase 1C correction authority and compatibility
 
@@ -124,9 +188,10 @@ at the injected current time and `max(1, current_turn)`, independently of histor
 memory cutoffs. Game administrators can manage scoped ordinary membership/roles,
 but cannot place unrelated accounts or expand themselves into adjudication.
 
-New roster/controller topology changes are rejected until 1D/1E boundary handling
-exists. Full admin-to-memory identity/root/scope/clock/vocabulary projection is a
-prerequisite to 1D writes. Recovery remains blocked until restoration, session
-revocation and verification complete.  Populated 0004 databases and their
-archives are intentionally incompatible with 0005; recreate and re-seed before
-using the Phase 1D workspace.
+Current code rejects roster/controller topology changes; controlled additions and
+control changes remain planned work. B-11 supersedes this section's former mandatory
+admin-to-memory projection prerequisite. Recovery remains blocked until restoration,
+session revocation and verification complete. Populated 0004 databases and their
+archives are intentionally incompatible with 0005. See the [developer guide](../development.md)
+for current compatibility limitations; do not treat the historical correction's
+0004 rollout procedure as the current checkout's upgrade path.
