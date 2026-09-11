@@ -1,5 +1,6 @@
 # Local assistant working files, session notes, and chat-specific rules.
 /codex/
+.codex/
 .env
 .env.*
 !.env.example
