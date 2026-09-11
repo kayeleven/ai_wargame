@@ -1,5 +1,8 @@
 # Phase 1B verification — 2026-09-10
 
+> Historical record. Current status, corrected behavior, gate evidence and accepted
+> deferrals are in [Phase 1C corrections](corrections-1c.md). Original results below are preserved.
+
 The shared PostgreSQL retrieval slice and development-only readable explorer are
 implemented. The outstanding Docker fresh-checkout gate is **blocked by daemon
 access**, not closed by the native PostgreSQL checks below.

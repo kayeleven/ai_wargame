@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
 
-from living_memory.backup import create_backup, restore_backup
+from living_memory.backup import RecoveryFailure, create_backup, restore_backup
 from living_memory.clocks import SystemClock
 from living_memory.config import DEV_DATABASE, load_settings
 from living_memory.db import ROOT, Database, migration_config
@@ -113,6 +113,8 @@ def main() -> None:
             target_url = source_url.set(database=args.target_database)
             revoked = restore_backup(target_url.render_as_string(hide_password=False), args.archive)
             print(f"Restore verified; {revoked} restored active sessions revoked.")
+    except RecoveryFailure as exc:
+        parser.exit(1, str(exc) + "\n")
     except SQLAlchemyError:
         parser.exit(1, "Database operation failed. Check database availability and migrations.\n")
     except (

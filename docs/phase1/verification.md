@@ -1,5 +1,8 @@
 # 1A verification — 2026-09-10
 
+> Historical record. Current status, corrected behavior, gate evidence and accepted
+> deferrals are in [Phase 1C corrections](corrections-1c.md). Original results below are preserved.
+
 Implementation is complete. The application, database, form and browser checks
 pass. **The full Docker-based fresh-checkout acceptance gate remains unverified**
 because this host has no Docker/Compose installation. Later milestones are

@@ -115,7 +115,6 @@ def test_identity_configuration_authorization_and_external_contract(database):
         player = create_local_user(session, "Player", "Player", "player password", start)
         adjudicator = create_local_user(session, "Judge", "Judge", "judge password", start)
         game = create_game(session, "admin-test", "Admin test", config(), admin.id, start)
-        game.adjudicator_scopes = ["team-0", "team-1"]
         revise_game(session, game, config("Draft replacement"), 1, admin.id, start + timedelta(1))
         session.add_all(
             [
@@ -157,9 +156,14 @@ def test_identity_configuration_authorization_and_external_contract(database):
         assert game is not None
         activate_game(session, game, admin.id, start + timedelta(2))
         # Administrative status alone never grants private memory.
-        assert resolve_principal(session, admin, game.id).audiences == ("team-1",)
-        assert resolve_principal(session, player, game.id).audiences == ("team-0",)
-        assert resolve_principal(session, adjudicator, game.id).audiences == (
+        assert resolve_principal(session, admin, game.id, start + timedelta(2)).audiences == (
+            "team-1",
+        )
+        assert resolve_principal(session, player, game.id, start + timedelta(2)).audiences == (
+            "team-0",
+        )
+        assert resolve_principal(session, adjudicator, game.id, start + timedelta(2)).audiences == (
+            "adjudicator",
             "team-0",
             "team-1",
         )
@@ -190,7 +194,7 @@ def test_identity_configuration_authorization_and_external_contract(database):
             session, scope, subject, start + timedelta(4)
         )
         assert pending_user.pending
-        assert resolve_principal(session, pending_user, "admin-test").grants == ()
+        assert resolve_principal(session, pending_user, "admin-test", start).grants == ()
         first_id = pending_user.id
 
     with db.transaction() as session:
@@ -228,7 +232,7 @@ def test_identity_configuration_authorization_and_external_contract(database):
         assert resolve_session(session, replacement, start + timedelta(5, minutes=3)) is not None
         membership = session.get(TeamMembership, (player.id, "admin-test", "team-0"))
         assert membership is not None
-        remove_membership(session, membership, player.id, start + timedelta(6))
+        remove_membership(session, membership, admin.id, start + timedelta(6))
         deactivate_user(session, player, start + timedelta(6))
 
     with db.transaction() as session:

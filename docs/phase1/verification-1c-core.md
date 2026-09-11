@@ -1,5 +1,8 @@
 # Phase 1C-core verification
 
+> Historical record. Current status, corrected behavior, gate evidence and accepted
+> deferrals are in [Phase 1C corrections](corrections-1c.md). Original results below are preserved.
+
 Status: implementation and local acceptance complete; the fresh-checkout gate is
 recorded separately.
 

@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: Phase 1 milestone revision accepted, 2026-09-10. Phases are ordered by dependencies rather than calendar estimates. Phase 0 is complete; Phases 1A and 1B are implemented; the Docker fresh-checkout gate remains outstanding because this session cannot access the installed daemon. See [1B verification](docs/phase1/verification-1b.md).
+Status: Phase 0 complete; Phase 1A/1B/1C-core/1C-admin implemented with bounded Phase 1C corrections. The earlier Docker gate passed; correction evidence and explicit deferrals are maintained in [1C correction verification](docs/phase1/corrections-1c.md). Player workspace and adjudication remain 1D/1E work.
 
 ## Phase 0 — Define executable acceptance cases
 

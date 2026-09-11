@@ -114,3 +114,17 @@ organizational identity connectivity, TLS, Windows VDI qualification, and full-s
 capacity remain tracked deployment work. Offline runtime asset choices in 1A do
 not qualify offline provisioning. Phase 2 inference uses separate processes and
 budgets and never waits inside interactive transactions or the interactive pool.
+
+## Phase 1C correction authority and compatibility
+
+The [bounded correction record](corrections-1c.md) governs current administration.
+Only system administrators may grant/revoke adjudicators; existing grants remain
+subject to operator review. Request-time principals use the governing configuration
+at the injected current time and `max(1, current_turn)`, independently of historical
+memory cutoffs. Game administrators can manage scoped ordinary membership/roles,
+but cannot place unrelated accounts or expand themselves into adjudication.
+
+New roster/controller topology changes are rejected until 1D/1E boundary handling
+exists. Full admin-to-memory identity/root/scope/clock/vocabulary projection is a
+prerequisite to 1D writes. Recovery remains blocked until restoration, session
+revocation and verification complete; schema head 0004 backups remain compatible.

@@ -310,40 +310,22 @@ def reset_password(
 def deactivate_user(
     db_session: Session, user: User, now: datetime, author: UUID | None = None
 ) -> None:
-    submitter_teams = tuple(
-        db_session.execute(
-            select(TeamMembership.game_id, TeamMembership.team_id).where(
-                TeamMembership.user_id == user.id,
-                TeamMembership.authority == "submitter",
-            )
-        ).all()
-    )
-    user.active, user.deactivated_at, user.updated_at = False, now, now
-    revoke_user_sessions(db_session, user.id, now, "account_deactivated")
-    db_session.flush()
-    from living_memory.administration import TeamOperationalState
+    from living_memory.administration import lock_game, reconcile_team_state
 
-    for game_id, team_id in submitter_teams:
-        remaining = db_session.scalar(
-            select(func.count())
-            .select_from(TeamMembership)
-            .join(User, User.id == TeamMembership.user_id)
-            .where(
-                TeamMembership.game_id == game_id,
-                TeamMembership.team_id == team_id,
-                TeamMembership.authority == "submitter",
-                User.active.is_(True),
+    game_ids = sorted(
+        set(
+            db_session.scalars(
+                select(TeamMembership.game_id)
+                .where(TeamMembership.user_id == user.id)
+                .union(select(GameRole.game_id).where(GameRole.user_id == user.id))
             )
         )
-        if not remaining:
-            state = db_session.get(TeamOperationalState, (game_id, team_id))
-            if state is None:
-                state = TeamOperationalState(game_id=game_id, team_id=team_id)
-                db_session.add(state)
-            state.blocked = True
-            state.reason = "No active submitter is assigned"
-            state.updated_at = now
-            _alert_admins(db_session, game_id, "team_blocked", team_id, now)
+    )
+    games = [lock_game(db_session, game_id) for game_id in game_ids]
+    user.active, user.deactivated_at, user.updated_at = False, now, now
+    revoke_user_sessions(db_session, user.id, now, "account_deactivated")
+    for game in games:
+        reconcile_team_state(db_session, game, now)
     audit(db_session, author or user.id, None, "user_deactivated", "user", str(user.id), now)
 
 
@@ -474,6 +456,10 @@ def resolve_session(
     now: datetime,
     policy: SessionPolicy = DEFAULT_SESSION_POLICY,
 ) -> User | None:
+    from living_memory.db import recovery_blocked
+
+    if recovery_blocked(db_session):
+        return None
     row = db_session.scalars(
         select(AuthSession).where(AuthSession.token_hash == _token_hash(token)).with_for_update()
     ).one_or_none()
@@ -541,32 +527,40 @@ def revoke_all_sessions_after_restore(db_session: Session, now: datetime) -> int
     return count
 
 
-def resolve_principal(db_session: Session, user: User, game_id: str) -> Principal:
+def resolve_principal(db_session: Session, user: User, game_id: str, now: datetime) -> Principal:
+    from living_memory.administration import (
+        AdminGame,
+        governing_configuration,
+        validate_scope_names,
+    )
+
+    empty = Principal(identity=str(user.id), grants=())
     if not user.active or user.pending:
-        return Principal(identity=str(user.id), grants=())
-    grants: set[tuple[str, str]] = set()
-    roles = set(
+        return empty
+    game = db_session.get(AdminGame, game_id)
+    if game is None:
+        return empty
+    try:
+        configured = governing_configuration(db_session, game, now)
+        validate_scope_names(configured)
+    except (ValueError, LookupError):
+        return empty
+    team_ids = {team.id for team in configured.teams}
+    scopes = set(
         db_session.scalars(
-            select(GameRole.role).where(GameRole.user_id == user.id, GameRole.game_id == game_id)
+            select(TeamMembership.team_id).where(
+                TeamMembership.user_id == user.id,
+                TeamMembership.game_id == game_id,
+                TeamMembership.team_id.in_(team_ids),
+            )
         )
     )
-    if "adjudicator" in roles:
-        from living_memory.administration import AdminGame
-
-        game = db_session.get(AdminGame, game_id)
-        if game:
-            grants.update((game_id, scope) for scope in game.adjudicator_scopes)
-    teams = db_session.execute(
-        select(TeamMembership.team_id).where(
-            TeamMembership.user_id == user.id, TeamMembership.game_id == game_id
-        )
-    ).scalars()
-    grants.update((game_id, team_id) for team_id in teams)
+    if db_session.get(GameRole, (user.id, game_id, "adjudicator")) is not None:
+        scopes.update(team_ids | {"adjudicator"})
     return Principal(
         identity=str(user.id),
         grants=tuple(
-            VisibilityGrant(game_id=owner, visibility_scope_id=scope)
-            for owner, scope in sorted(grants)
+            VisibilityGrant(game_id=game_id, visibility_scope_id=scope) for scope in sorted(scopes)
         ),
     )
 
@@ -647,6 +641,7 @@ def resolve_or_register_external_identity(
     db_session.add(binding)
     db_session.flush()
     request = PendingAccessRequest(
+        id=uuid4(),
         binding_id=binding.id,
         game_id=provider_scope.game_id,
         display_attributes=minimal_attributes,
@@ -697,33 +692,14 @@ def _alert_admins(
 def remove_membership(
     db_session: Session, membership: TeamMembership, actor: UUID, now: datetime
 ) -> None:
-    game_id, team_id = membership.game_id, membership.team_id
-    was_submitter = membership.authority == "submitter"
-    db_session.delete(membership)
-    db_session.flush()
-    if was_submitter:
-        remaining = db_session.scalar(
-            select(func.count())
-            .select_from(TeamMembership)
-            .join(User, User.id == TeamMembership.user_id)
-            .where(
-                TeamMembership.game_id == game_id,
-                TeamMembership.team_id == team_id,
-                TeamMembership.authority == "submitter",
-                User.active.is_(True),
-            )
-        )
-        if not remaining:
-            from living_memory.administration import TeamOperationalState
+    from living_memory.administration import lock_game, reconcile_team_state
 
-            state = db_session.get(TeamOperationalState, (game_id, team_id))
-            if state is None:
-                state = TeamOperationalState(game_id=game_id, team_id=team_id)
-                db_session.add(state)
-            state.blocked = True
-            state.reason = "No active submitter is assigned"
-            state.updated_at = now
-            _alert_admins(db_session, game_id, "team_blocked", team_id, now)
+    game_id, team_id = membership.game_id, membership.team_id
+    game = lock_game(db_session, game_id)
+    if not is_game_admin(db_session, actor, game_id):
+        raise PermissionError("Game administration required")
+    db_session.delete(membership)
+    reconcile_team_state(db_session, game, now)
     db_session.add(
         AuditEntry(
             actor_user_id=actor,

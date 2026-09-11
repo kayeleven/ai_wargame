@@ -92,8 +92,28 @@ def create_app(
         request.state.principal_resolution_ms = None
         request.state.memory_query_ms = None
         start = perf_counter()
+        response: Response
         try:
-            response = await call_next(request)
+            blocked = False
+            if (
+                isinstance(db, Database)
+                and request.url.path != "/health/live"
+                and not request.url.path.startswith("/static/")
+            ):
+                try:
+                    blocked = await anyio.to_thread.run_sync(db.recovery_blocked)
+                except SQLAlchemyError:
+                    blocked = True
+            if blocked:
+                response = JSONResponse(
+                    {
+                        "detail": "Database recovery is blocked",
+                        "request_id": request.state.request_id,
+                    },
+                    status_code=503,
+                )
+            else:
+                response = await call_next(request)
         except Exception:
             response = JSONResponse(
                 {"detail": "Unexpected error", "request_id": request.state.request_id},

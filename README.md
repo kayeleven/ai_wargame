@@ -21,7 +21,7 @@ The platform must support human and AI participants, imported moves, historical 
 
 ## Status and document conventions
 
-This repository contains the Phase 1A foundation, Phase 1B/1C-core temporal memory, and accepted Phase 1C-admin identity and game administration alongside the Phase 0 acceptance fixtures. The selected stack is Python 3.12, FastAPI, Pydantic, SQLAlchemy, Alembic, PostgreSQL 16, Jinja, and locally served HTMX. See [developer setup](docs/development.md) and the [1C-admin verification record](docs/phase1/verification-1c-admin.md).
+This repository contains the Phase 1A foundation, Phase 1B/1C-core temporal memory, and Phase 1C-admin identity and game administration with bounded audit corrections alongside the Phase 0 acceptance fixtures. The selected stack is Python 3.12, FastAPI, Pydantic, SQLAlchemy, Alembic, PostgreSQL 16, Jinja, and locally served HTMX. See [developer setup](docs/development.md) and the [current 1C correction record](docs/phase1/corrections-1c.md), which supersedes earlier unqualified completion claims.
 
 Requirements consolidate the project owner's stated objectives. Architecture and roadmap details are proposals unless identified as established direction. Open decisions are not silently treated as approved choices.
 

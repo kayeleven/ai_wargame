@@ -1,0 +1,105 @@
+Using CPython 3.12.3 interpreter at: /usr/bin/python3.12
+Creating virtual environment at: .venv
+Resolved 47 packages in 0.90ms
+   Building living-memory @ file:///tmp/lm-phase1c-gate-57zzuqvd/checkout
+      Built living-memory @ file:///tmp/lm-phase1c-gate-57zzuqvd/checkout
+Prepared 1 package in 224ms
+Installed 45 packages in 54ms
+ + alembic==1.19.2
+ + annotated-doc==0.0.5
+ + annotated-types==0.8.0
+ + anyio==4.15.1
+ + argon2-cffi==25.1.0
+ + argon2-cffi-bindings==26.1.0
+ + certifi==2026.7.22
+ + cffi==2.1.1
+ + click==8.5.0
+ + fastapi==0.141.1
+ + greenlet==3.5.5
+ + h11==0.16.0
+ + httpcore==1.0.9
+ + httpx==0.28.1
+ + idna==3.19
+ + iniconfig==2.3.0
+ + itsdangerous==2.2.0
+ + jinja2==3.1.6
+ + librt==0.15.0
+ + living-memory==0.1.0 (from file:///tmp/lm-phase1c-gate-57zzuqvd/checkout)
+ + mako==1.4.1
+ + markupsafe==3.0.3
+ + mypy==1.20.2
+ + mypy-extensions==1.1.0
+ + packaging==26.3
+ + pathspec==1.1.1
+ + playwright==1.62.0
+ + pluggy==1.6.0
+ + psycopg==3.3.5
+ + psycopg-binary==3.3.5
+ + pycparser==3.0
+ + pydantic==2.13.5
+ + pydantic-core==2.46.5
+ + pydantic-settings==2.15.0
+ + pyee==13.0.1
+ + pygments==2.21.0
+ + pytest==9.1.1
+ + python-dotenv==1.2.3
+ + python-multipart==0.0.32
+ + ruff==0.16.6
+ + sqlalchemy==2.0.52
+ + starlette==1.6.0
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4
+ + uvicorn==0.52.4
+ Network lm_correction_gate_22116fa2f759_default Creating 
+ Network lm_correction_gate_22116fa2f759_default Creating 
+ Volume lm_correction_gate_22116fa2f759_postgres-data Creating 
+ Volume lm_correction_gate_22116fa2f759_postgres-data Creating 
+ Volume lm_correction_gate_22116fa2f759_postgres-data Created 
+ Volume lm_correction_gate_22116fa2f759_postgres-data Created 
+ Network lm_correction_gate_22116fa2f759_default Created 
+ Network lm_correction_gate_22116fa2f759_default Created 
+ Container lm_correction_gate_22116fa2f759-db-1 Creating 
+ Container lm_correction_gate_22116fa2f759-db-1 Created 
+ Container lm_correction_gate_22116fa2f759-db-1 Starting 
+ Container lm_correction_gate_22116fa2f759-db-1 Started 
+ Container lm_correction_gate_22116fa2f759-db-1 Waiting 
+ Container lm_correction_gate_22116fa2f759-db-1 Healthy 
+Migrations applied.
+Migrations applied.
+Package staged.
+Checksum: b0e55454f28e553889657d0b8fae9531dbd948560e4dbd2d99d80bf590f38e9a
+Package staged.
+Checksum: 48bd36abba63357d9a4ffca02d2ec09c6630e0f82753df2c960e4f2893fabab2
+Package unchanged.
+Checksum: b0e55454f28e553889657d0b8fae9531dbd948560e4dbd2d99d80bf590f38e9a
+Package unchanged.
+Checksum: 48bd36abba63357d9a4ffca02d2ec09c6630e0f82753df2c960e4f2893fabab2
+All checks passed!
+Success: no issues found in 16 source files
+........................................................................ [ 88%]
+.........                                                                [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /tmp/lm-phase1c-gate-57zzuqvd/checkout/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv/lib/python3.12/site-packages/starlette/testclient.py:53
+  /tmp/lm-phase1c-gate-57zzuqvd/checkout/.venv/lib/python3.12/site-packages/starlette/testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+81 passed, 2 warnings in 35.18s
+ Container lm_correction_gate_22116fa2f759-db-1 Restarting 
+ Container lm_correction_gate_22116fa2f759-db-1 Started 
+ Container lm_correction_gate_22116fa2f759-db-1 Running 
+ Container lm_correction_gate_22116fa2f759-db-1 Waiting 
+ Container lm_correction_gate_22116fa2f759-db-1 Healthy 
+Restart: two staged artifacts persisted
+ Container lm_correction_gate_22116fa2f759-db-1 Stopping 
+ Container lm_correction_gate_22116fa2f759-db-1 Stopped 
+ Container lm_correction_gate_22116fa2f759-db-1 Removing 
+ Container lm_correction_gate_22116fa2f759-db-1 Removed 
+ Volume lm_correction_gate_22116fa2f759_postgres-data Removing 
+ Network lm_correction_gate_22116fa2f759_default Removing 
+ Volume lm_correction_gate_22116fa2f759_postgres-data Removed 
+ Network lm_correction_gate_22116fa2f759_default Removed 

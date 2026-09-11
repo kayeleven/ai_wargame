@@ -4,22 +4,37 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from time import perf_counter
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
+import anyio
 from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.routing import APIRoute
 from fastapi.templating import Jinja2Templates
+from pydantic import ValidationError
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
+from living_memory.admin_access import (
+    delete_membership,
+    review_access,
+    set_membership,
+    set_role,
+)
 from living_memory.administration import (
     AdminGame,
+    AdministrationConflict,
+    ConfigurationRevision,
     ScenarioConfiguration,
     TeamOperationalState,
     activate_game,
     configuration_at,
     create_game,
+    ensure_compatible,
     revise_game,
+    scheduled_configurations,
 )
 from living_memory.config import Settings
 from living_memory.db import Database
@@ -30,12 +45,10 @@ from living_memory.identity import (
     ExternalIdentityBinding,
     GameRole,
     PendingAccessRequest,
-    ProviderGroupMapping,
     ProviderScope,
     SessionPolicy,
     TeamMembership,
     User,
-    audit,
     authenticate_local,
     create_local_user,
     deactivate_user,
@@ -47,6 +60,14 @@ from living_memory.identity import (
 )
 
 AUTH_COOKIE = "lm_auth"
+ADMIN_DUPLICATE_CONSTRAINTS = {
+    "uq_auth_user_username",
+    "pk_admin_game",
+    "pk_auth_team_membership",
+    "pk_auth_game_role",
+    "uq_auth_provider_scope_game_id",
+    "uq_admin_configuration_revision_game_id",
+}
 
 
 class AccessChangedError(Exception):
@@ -92,7 +113,61 @@ def access_changed_response(request: Request, status: int = 403) -> HTMLResponse
 
 
 def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settings) -> APIRouter:
-    router = APIRouter()
+    class AdminRoute(APIRoute):
+        def get_route_handler(self) -> Any:
+            original = super().get_route_handler()
+
+            async def handler(request: Request) -> Response:
+                if not request.url.path.startswith("/admin/") or request.method != "POST":
+                    return await original(request)
+                try:
+                    return await original(request)
+                except PermissionError:
+                    return access_changed_response(request)
+                except LookupError:
+                    raise HTTPException(404, "Not found") from None
+                except (ValueError, RequestValidationError, IntegrityError, HTTPException) as exc:
+                    status = 422
+                    if isinstance(exc, HTTPException):
+                        if exc.status_code not in {409, 422}:
+                            raise
+                        status, message = exc.status_code, str(exc.detail)
+                    elif isinstance(exc, IntegrityError):
+                        diag = getattr(exc.orig, "diag", None)
+                        name = getattr(diag, "constraint_name", "") or ""
+                        if (
+                            getattr(exc.orig, "sqlstate", None) != "23505"
+                            or name not in ADMIN_DUPLICATE_CONSTRAINTS
+                        ):
+                            raise
+                        status, message = 409, "This identifier or assignment already exists."
+                    elif isinstance(exc, (ValidationError, RequestValidationError)):
+                        message = "; ".join(
+                            f"{'.'.join(map(str, item['loc']))}: {item['msg']}"
+                            for item in exc.errors()
+                        )
+                    else:
+                        status = 409 if isinstance(exc, AdministrationConflict) else 422
+                        message = str(exc)
+                    form = await request.form()
+                    values = {
+                        key: str(value)
+                        for key, value in form.items()
+                        if key not in {"password", "csrf_token"}
+                    }
+                    return await anyio.to_thread.run_sync(
+                        lambda: admin(
+                            request,
+                            status=status,
+                            error=message,
+                            values=values,
+                            form_action=request.url.path,
+                        )
+                    )
+
+            return handler
+
+    router = APIRouter(route_class=AdminRoute)
 
     @router.get("/login", response_class=HTMLResponse)
     def login_form(request: Request) -> Response:
@@ -169,8 +244,14 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
         response.delete_cookie(AUTH_COOKIE, path="/", httponly=True, samesite="lax")
         return response
 
-    @router.get("/admin", response_class=HTMLResponse)
-    def admin(request: Request) -> Response:
+    def admin(
+        request: Request,
+        *,
+        status: int = 200,
+        error: str = "",
+        values: dict[str, str] | None = None,
+        form_action: str = "",
+    ) -> Response:
         user = _current_user(request, db, settings)
         if user is None:
             return RedirectResponse("/login", status_code=303)
@@ -197,17 +278,6 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
                 }
                 for game in db_session.scalars(game_query)
             )
-            alerts = int(
-                db_session.scalar(
-                    select(func.count())
-                    .select_from(AdministratorAlert)
-                    .where(
-                        AdministratorAlert.recipient_user_id == user.id,
-                        AdministratorAlert.read_at.is_(None),
-                    )
-                )
-                or 0
-            )
             pending_query = (
                 select(
                     PendingAccessRequest.id,
@@ -221,7 +291,55 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
             if not system:
                 pending_query = pending_query.where(PendingAccessRequest.game_id.in_(game_ids))
             pending = tuple(db_session.execute(pending_query).all())
-            users = tuple(db_session.execute(select(User.id, User.username, User.active)).all())
+            user_query = select(User.id, User.username, User.active, User.pending)
+            if not system:
+                participants = (
+                    select(TeamMembership.user_id)
+                    .where(TeamMembership.game_id.in_(game_ids))
+                    .union(
+                        select(GameRole.user_id).where(GameRole.game_id.in_(game_ids)),
+                        select(ExternalIdentityBinding.user_id)
+                        .join(PendingAccessRequest)
+                        .where(PendingAccessRequest.game_id.in_(game_ids)),
+                    )
+                )
+                user_query = user_query.where(User.id.in_(participants))
+            users = tuple(db_session.execute(user_query).all())
+            alert_query = select(AdministratorAlert).where(
+                AdministratorAlert.recipient_user_id == user.id
+            )
+            if not system:
+                alert_query = alert_query.where(AdministratorAlert.game_id.in_(game_ids))
+
+            def alert_link(row: AdministratorAlert) -> str | None:
+                if not row.game_id or row.subject_id == "None":
+                    return None
+                if row.kind == "team_blocked":
+                    target = db_session.get(TeamOperationalState, (row.game_id, row.subject_id))
+                    return f"/admin/games/{row.game_id}" if target else None
+                if row.kind == "pending_access":
+                    try:
+                        pending_id = UUID(row.subject_id)
+                    except ValueError:
+                        return None
+                    item = db_session.get(PendingAccessRequest, pending_id)
+                    if item and item.game_id == row.game_id:
+                        return f"/admin#pending-{pending_id}"
+                return None
+
+            alert_rows = tuple(
+                {
+                    "id": row.id,
+                    "game_id": row.game_id,
+                    "kind": row.kind,
+                    "subject_id": row.subject_id,
+                    "read_at": row.read_at,
+                    "link": alert_link(row),
+                }
+                for row in db_session.scalars(
+                    alert_query.order_by(AdministratorAlert.created_at.desc())
+                )
+            )
             scope_query = select(
                 ProviderScope.id, ProviderScope.game_id, ProviderScope.provider
             ).order_by(ProviderScope.game_id, ProviderScope.provider)
@@ -231,18 +349,135 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
         return templates.TemplateResponse(
             request=request,
             name="admin.html",
+            status_code=status,
             context={
                 "csrf": csrf_token(request),
                 "display_name": user.display_name,
                 "games": games,
-                "alerts": alerts,
+                "alerts": sum(row["read_at"] is None for row in alert_rows),
                 "pending": pending,
                 "users": users,
                 "scopes": scopes,
                 "system": system,
+                "alert_rows": alert_rows,
+                "error": error,
+                "values": values or {},
+                "form_action": form_action,
             },
             headers={"Cache-Control": "no-store"},
         )
+
+    @router.get("/admin", response_class=HTMLResponse)
+    def admin_page(request: Request) -> Response:
+        return admin(request)
+
+    @router.get("/admin/games/{game_id}", response_class=HTMLResponse)
+    def game_detail(request: Request, game_id: str) -> Response:
+        actor = _current_user(request, db, settings)
+        if actor is None:
+            raise HTTPException(401, "Authentication required")
+        with db.transaction() as session:
+            if not is_game_admin(session, actor.id, game_id):
+                raise AccessChangedError
+            game = session.get(AdminGame, game_id)
+            if game is None:
+                raise HTTPException(404, "Not found")
+            now = request.app.state.clock.now()
+            current = configuration_at(session, game_id, now, max(1, game.current_turn))
+            problem = ""
+            try:
+                ensure_compatible(session, game, now)
+            except ValueError as exc:
+                problem = str(exc)
+            history = tuple(
+                {
+                    "id": row.id,
+                    "sequence": row.sequence,
+                    "recorded_at": row.recorded_at,
+                    "effective_turn": row.effective_turn,
+                    "configuration": row.configuration,
+                }
+                for row in session.scalars(
+                    select(ConfigurationRevision)
+                    .where(ConfigurationRevision.game_id == game_id)
+                    .order_by(ConfigurationRevision.sequence.desc())
+                )
+            )
+            members = tuple(
+                session.execute(
+                    select(
+                        TeamMembership.user_id,
+                        User.username,
+                        TeamMembership.team_id,
+                        TeamMembership.authority,
+                    )
+                    .join(User, User.id == TeamMembership.user_id)
+                    .where(TeamMembership.game_id == game_id)
+                ).all()
+            )
+            roles = tuple(
+                session.execute(
+                    select(
+                        GameRole.user_id,
+                        User.username,
+                        GameRole.role,
+                        GameRole.granted_by,
+                        GameRole.granted_at,
+                    )
+                    .join(User, User.id == GameRole.user_id)
+                    .where(GameRole.game_id == game_id)
+                ).all()
+            )
+            states = tuple(
+                {"team_id": row.team_id, "blocked": row.blocked, "reason": row.reason}
+                for row in session.scalars(
+                    select(TeamOperationalState).where(TeamOperationalState.game_id == game_id)
+                )
+            )
+            context = {
+                "csrf": csrf_token(request),
+                "game_id": game.id,
+                "title": game.title,
+                "status": game.status,
+                "turn": game.current_turn,
+                "current": current.configuration,
+                "source_revision": current.sequence,
+                "history": history,
+                "members": members,
+                "roles": roles,
+                "states": states,
+                "scheduled": tuple(
+                    row.sequence
+                    for row in scheduled_configurations(
+                        session, game_id, now, max(1, game.current_turn)
+                    )
+                ),
+                "problem": problem,
+                "system": is_system_admin(session, actor.id),
+            }
+        return templates.TemplateResponse(
+            request=request,
+            name="admin_game.html",
+            context=context,
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @router.post("/admin/alerts/{alert_id}/read")
+    def read_alert(request: Request, alert_id: UUID) -> Response:
+        actor = _current_user(request, db, settings)
+        if actor is None:
+            raise HTTPException(401, "Authentication required")
+        with db.transaction() as session:
+            row = session.get(AdministratorAlert, alert_id, with_for_update=True)
+            if (
+                row is None
+                or row.recipient_user_id != actor.id
+                or (row.game_id and not is_game_admin(session, actor.id, row.game_id))
+            ):
+                raise HTTPException(404, "Not found")
+            if row.read_at is None:
+                row.read_at = request.app.state.clock.now()
+        return RedirectResponse("/admin", status_code=303)
 
     def require_system(request: Request) -> User:
         user = _current_user(request, db, settings)
@@ -351,6 +586,12 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
             )
         return RedirectResponse("/admin", status_code=303)
 
+    def signed_in(request: Request) -> User:
+        actor = _current_user(request, db, settings)
+        if actor is None:
+            raise HTTPException(401, "Authentication required")
+        return actor
+
     @router.post("/admin/memberships")
     def add_membership(
         request: Request,
@@ -359,54 +600,45 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
         team_id: str = Form(),
         authority: str = Form(),
     ) -> Response:
-        actor = _current_user(request, db, settings)
-        if actor is None:
-            raise HTTPException(401, "Authentication required")
-        if authority not in {"member", "submitter"}:
-            raise HTTPException(422, "Invalid authority")
-        with db.transaction() as db_session:
-            if not is_game_admin(db_session, actor.id, game_id):
-                raise AccessChangedError
-            game = db_session.get(AdminGame, game_id)
-            target = db_session.get(User, user_id)
-            if game is None or target is None or not target.active or target.pending:
-                raise HTTPException(422, "User or game is not eligible")
-            configured = ScenarioConfiguration.model_validate(
-                configuration_at(
-                    db_session,
-                    game_id,
-                    request.app.state.clock.now(),
-                    max(1, game.current_turn),
-                ).configuration
-            )
-            if team_id not in {team.id for team in configured.teams}:
-                raise HTTPException(422, "Unknown configured team")
-            db_session.add(
-                TeamMembership(
-                    user_id=user_id,
-                    game_id=game_id,
-                    team_id=team_id,
-                    authority=authority,
-                    granted_at=request.app.state.clock.now(),
-                    granted_by=actor.id,
-                )
-            )
-            if authority == "submitter":
-                state = db_session.get(TeamOperationalState, (game_id, team_id))
-                if state:
-                    state.blocked, state.reason = False, ""
-                    state.updated_at = request.app.state.clock.now()
-            audit(
-                db_session,
+        actor = signed_in(request)
+        with db.transaction() as session:
+            set_membership(
+                session,
                 actor.id,
                 game_id,
-                "membership_granted",
-                "team_membership",
-                f"{user_id}:{team_id}",
+                user_id,
+                team_id,
+                authority,
                 request.app.state.clock.now(),
-                {"authority": authority},
             )
         return RedirectResponse("/admin", status_code=303)
+
+    @router.post("/admin/games/{game_id}/memberships/{user_id}/{team_id}/change")
+    def change_membership(
+        request: Request, game_id: str, user_id: UUID, team_id: str, authority: str = Form()
+    ) -> Response:
+        actor = signed_in(request)
+        with db.transaction() as session:
+            set_membership(
+                session,
+                actor.id,
+                game_id,
+                user_id,
+                team_id,
+                authority,
+                request.app.state.clock.now(),
+                change=True,
+            )
+        return RedirectResponse(f"/admin/games/{game_id}", status_code=303)
+
+    @router.post("/admin/games/{game_id}/memberships/{user_id}/{team_id}/remove")
+    def remove_team_member(request: Request, game_id: str, user_id: UUID, team_id: str) -> Response:
+        actor = signed_in(request)
+        with db.transaction() as session:
+            delete_membership(
+                session, actor.id, game_id, user_id, team_id, request.app.state.clock.now()
+            )
+        return RedirectResponse(f"/admin/games/{game_id}", status_code=303)
 
     @router.post("/admin/roles")
     def add_role(
@@ -415,33 +647,25 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
         game_id: str = Form(),
         role: str = Form(),
     ) -> Response:
-        actor = _current_user(request, db, settings)
-        if actor is None:
-            raise HTTPException(401, "Authentication required")
-        if role not in {"game_admin", "adjudicator"}:
-            raise HTTPException(422, "Invalid role")
-        with db.transaction() as db_session:
-            if not is_game_admin(db_session, actor.id, game_id):
-                raise AccessChangedError
-            db_session.add(
-                GameRole(
-                    user_id=user_id,
-                    game_id=game_id,
-                    role=role,
-                    granted_at=request.app.state.clock.now(),
-                    granted_by=actor.id,
-                )
-            )
-            audit(
-                db_session,
+        actor = signed_in(request)
+        with db.transaction() as session:
+            set_role(session, actor.id, game_id, user_id, role, request.app.state.clock.now())
+        return RedirectResponse("/admin", status_code=303)
+
+    @router.post("/admin/games/{game_id}/roles/{user_id}/{role}/remove")
+    def remove_role(request: Request, game_id: str, user_id: UUID, role: str) -> Response:
+        actor = signed_in(request)
+        with db.transaction() as session:
+            set_role(
+                session,
                 actor.id,
                 game_id,
-                "game_role_granted",
-                "game_role",
-                f"{user_id}:{role}",
+                user_id,
+                role,
                 request.app.state.clock.now(),
+                remove=True,
             )
-        return RedirectResponse("/admin", status_code=303)
+        return RedirectResponse(f"/admin/games/{game_id}", status_code=303)
 
     @router.post("/admin/external/{request_id}/approve")
     def approve_external(
@@ -451,135 +675,25 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
         authority: str = Form(default="member"),
         role: str = Form(default=""),
     ) -> Response:
-        actor = _current_user(request, db, settings)
-        if actor is None:
-            raise HTTPException(401, "Authentication required")
-        if authority not in {"member", "submitter"}:
-            raise HTTPException(422, "Invalid authority")
-        if role and role not in {"game_admin", "adjudicator"}:
-            raise HTTPException(422, "Invalid role")
-        with db.transaction() as db_session:
-            pending = db_session.get(PendingAccessRequest, request_id)
-            if pending is None:
-                raise HTTPException(404, "Not found")
-            if not is_game_admin(db_session, actor.id, pending.game_id):
-                raise AccessChangedError
-            binding = db_session.get(ExternalIdentityBinding, pending.binding_id)
-            if binding is None:
-                raise HTTPException(404, "Not found")
-            user = db_session.get(User, binding.user_id)
-            if user is None:
-                raise HTTPException(404, "Not found")
-            user.pending = False
-            user.updated_at = request.app.state.clock.now()
-            pending.status = "approved"
-            pending.reviewed_at = request.app.state.clock.now()
-            pending.reviewed_by = actor.id
-            if team_id:
-                game = db_session.get(AdminGame, pending.game_id)
-                if game is None:
-                    raise HTTPException(404, "Not found")
-                configured = ScenarioConfiguration.model_validate(
-                    configuration_at(
-                        db_session,
-                        pending.game_id,
-                        request.app.state.clock.now(),
-                        max(1, game.current_turn),
-                    ).configuration
-                )
-                if team_id not in {team.id for team in configured.teams}:
-                    raise HTTPException(422, "Unknown configured team")
-                db_session.add(
-                    TeamMembership(
-                        user_id=user.id,
-                        game_id=pending.game_id,
-                        team_id=team_id,
-                        authority=authority,
-                        granted_at=request.app.state.clock.now(),
-                        granted_by=actor.id,
-                    )
-                )
-                if authority == "submitter":
-                    state = db_session.get(TeamOperationalState, (pending.game_id, team_id))
-                    if state:
-                        state.blocked, state.reason = False, ""
-                        state.updated_at = request.app.state.clock.now()
-            if role:
-                db_session.add(
-                    GameRole(
-                        user_id=user.id,
-                        game_id=pending.game_id,
-                        role=role,
-                        granted_at=request.app.state.clock.now(),
-                        granted_by=actor.id,
-                    )
-                )
-            audit(
-                db_session,
+        actor = signed_in(request)
+        with db.transaction() as session:
+            review_access(
+                session,
                 actor.id,
-                pending.game_id,
-                "external_access_approved",
-                "pending_access_request",
-                str(pending.id),
+                request_id,
+                True,
                 request.app.state.clock.now(),
-                {"team_id": team_id or None, "authority": authority, "role": role or None},
-            )
-        return RedirectResponse("/admin", status_code=303)
-
-    @router.post("/admin/provider-mappings")
-    def add_mapping(
-        request: Request,
-        provider_scope_id: Annotated[UUID, Form()],
-        external_group: str = Form(),
-        suggested_team_id: str = Form(default=""),
-        suggested_role: str = Form(default=""),
-    ) -> Response:
-        actor = _current_user(request, db, settings)
-        if actor is None:
-            raise HTTPException(401, "Authentication required")
-        if not external_group.strip():
-            raise HTTPException(422, "External group must be an exact nonempty identifier")
-        if suggested_role and suggested_role not in {"game_admin", "adjudicator"}:
-            raise HTTPException(422, "Invalid suggested role")
-        with db.transaction() as db_session:
-            scope = db_session.get(ProviderScope, provider_scope_id)
-            if scope is None:
-                raise HTTPException(404, "Not found")
-            if not is_game_admin(db_session, actor.id, scope.game_id):
-                raise AccessChangedError
-            db_session.add(
-                ProviderGroupMapping(
-                    provider_scope_id=scope.id,
-                    external_group=external_group,
-                    suggested_team_id=suggested_team_id or None,
-                    suggested_role=suggested_role or None,
-                )
+                team_id=team_id,
+                authority=authority,
+                role=role,
             )
         return RedirectResponse("/admin", status_code=303)
 
     @router.post("/admin/external/{request_id}/deny")
     def deny_external(request: Request, request_id: UUID) -> Response:
-        actor = _current_user(request, db, settings)
-        if actor is None:
-            raise HTTPException(401, "Authentication required")
-        with db.transaction() as db_session:
-            pending = db_session.get(PendingAccessRequest, request_id)
-            if pending is None:
-                raise HTTPException(404, "Not found")
-            if not is_game_admin(db_session, actor.id, pending.game_id):
-                raise AccessChangedError
-            pending.status = "denied"
-            pending.reviewed_at = request.app.state.clock.now()
-            pending.reviewed_by = actor.id
-            audit(
-                db_session,
-                actor.id,
-                pending.game_id,
-                "external_access_denied",
-                "pending_access_request",
-                str(pending.id),
-                request.app.state.clock.now(),
-            )
+        actor = signed_in(request)
+        with db.transaction() as session:
+            review_access(session, actor.id, request_id, False, request.app.state.clock.now())
         return RedirectResponse("/admin", status_code=303)
 
     @router.post("/admin/provider-scopes")
@@ -655,7 +769,7 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
             return access_changed_response(request, 401)
         started = perf_counter()
         with db.transaction() as db_session:
-            principal = resolve_principal(db_session, user, game_id)
+            principal = resolve_principal(db_session, user, game_id, request.app.state.clock.now())
             dataset = db_session.get(Dataset, dataset_id)
             if (
                 dataset is None

@@ -19,7 +19,7 @@ from sqlalchemy import func, inspect, select, text
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.orm import Session
 
-from living_memory.db import Database, DevelopmentArtifact, migration_config
+from living_memory.db import Database, DevelopmentArtifact, migration_config, recovery_blocked
 from living_memory.identity import AuthSession, revoke_all_sessions_after_restore
 from living_memory.memory import Dataset, RebuildState
 
@@ -92,6 +92,8 @@ def create_backup(database_url: str, archive: Path) -> Path:
     try:
         with database.engine.connect() as connection:
             with connection.begin():
+                if recovery_blocked(connection):
+                    raise ValueError("Cannot back up a blocked recovery target")
                 tables = inspect(connection).get_table_names(schema="public")
                 if tables:
                     quote = connection.dialect.identifier_preparer.quote
@@ -106,6 +108,7 @@ def create_backup(database_url: str, archive: Path) -> Path:
                             "--format=custom",
                             "--no-owner",
                             "--no-acl",
+                            "--exclude-schema=lm_recovery",
                             "--file",
                             str(archive),
                             *_connection_arguments(url),
@@ -181,10 +184,49 @@ def _version_major(value: str) -> int:
 
 
 def _prove_empty(database: Database) -> None:
+    """Accept template0 defaults and our empty recovery schema, no other user objects."""
     with database.engine.connect() as connection:
-        tables = inspect(connection).get_table_names(schema="public")
-        if tables:
-            raise ValueError("restore target already contains application schema or data")
+        unexpected = connection.scalar(
+            text("""
+            SELECT EXISTS (
+              SELECT 1 FROM pg_namespace
+              WHERE nspname NOT IN ('public', 'information_schema', 'lm_recovery')
+                AND nspname NOT LIKE 'pg_%'
+              UNION ALL
+              SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+              WHERE n.nspname IN ('public', 'lm_recovery')
+              UNION ALL
+              SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+              WHERE n.nspname IN ('public', 'lm_recovery')
+              UNION ALL
+              SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace
+              WHERE n.nspname IN ('public', 'lm_recovery')
+              UNION ALL SELECT 1 FROM pg_extension WHERE extname <> 'plpgsql'
+              UNION ALL SELECT 1 FROM pg_foreign_server
+              UNION ALL SELECT 1 FROM pg_foreign_data_wrapper
+              UNION ALL SELECT 1 FROM pg_event_trigger
+              UNION ALL SELECT 1 FROM pg_publication
+              UNION ALL SELECT 1 FROM pg_language
+                WHERE lanname NOT IN ('internal', 'c', 'sql', 'plpgsql')
+              UNION ALL SELECT 1 FROM pg_operator x JOIN pg_namespace n ON n.oid=x.oprnamespace
+                WHERE n.nspname IN ('public', 'lm_recovery')
+              UNION ALL SELECT 1 FROM pg_collation x JOIN pg_namespace n ON n.oid=x.collnamespace
+                WHERE n.nspname IN ('public', 'lm_recovery')
+              UNION ALL SELECT 1 FROM pg_conversion x JOIN pg_namespace n ON n.oid=x.connamespace
+                WHERE n.nspname IN ('public', 'lm_recovery')
+              UNION ALL SELECT 1 FROM pg_ts_config x JOIN pg_namespace n ON n.oid=x.cfgnamespace
+                WHERE n.nspname IN ('public', 'lm_recovery')
+              UNION ALL SELECT 1 FROM pg_ts_dict x JOIN pg_namespace n ON n.oid=x.dictnamespace
+                WHERE n.nspname IN ('public', 'lm_recovery')
+            )
+        """)
+        )
+        if unexpected:
+            raise ValueError("Restore requires an empty template0 database")
+
+
+class RecoveryFailure(RuntimeError):
+    """The target was guarded and must not be served after failed recovery."""
 
 
 def _domain_inventory(database: Database) -> dict[str, Any]:
@@ -243,9 +285,13 @@ def _domain_inventory_session(db_session: Session) -> dict[str, Any]:
 
 
 def _verify_domain(database: Database) -> dict[str, Any]:
-    if not database.ready():
+    if not database.schema_ready():
         raise ValueError("restored Alembic heads do not match the application")
+    from living_memory.administration import ConfigurationRevision, ScenarioConfiguration
+
     with database.transaction() as db_session:
+        for revision in db_session.scalars(select(ConfigurationRevision)):
+            ScenarioConfiguration.model_validate(revision.configuration)
         duplicate_artifacts = db_session.execute(
             select(DevelopmentArtifact.package, DevelopmentArtifact.checksum)
             .group_by(DevelopmentArtifact.package, DevelopmentArtifact.checksum)
@@ -267,49 +313,60 @@ def _verify_domain(database: Database) -> dict[str, Any]:
 
 
 def restore_backup(database_url: str, archive: Path) -> int:
-    """Restore only into a verified-empty explicit DB, then revoke all restored sessions."""
+    """Guard an explicit empty target until restore, revocation and verification succeed."""
     manifest = verify_backup(archive)
     url = make_url(database_url)
     database = _database_for_url(database_url)
     try:
-        _prove_empty(database)
-    finally:
-        database.close()
-    _run(
-        [
-            "pg_restore",
-            "--no-owner",
-            "--no-acl",
-            "--exit-on-error",
-            *_connection_arguments(url),
-            str(archive),
-        ],
-        url,
-    )
-    database = _database_for_url(database_url)
-    try:
-        restored_inventory = _verify_domain(database)
-        if restored_inventory != manifest.domain_inventory:
-            raise ValueError("restored domain inventory does not match the backup manifest")
-        with database.transaction() as db_session:
-            structural_count = int(
-                db_session.scalar(select(func.count()).select_from(AuthSession)) or 0
-            )
-            revoked = revoke_all_sessions_after_restore(db_session, datetime.now(UTC))
-        with database.transaction() as db_session:
-            remaining = int(
-                db_session.scalar(
-                    select(func.count())
-                    .select_from(AuthSession)
-                    .where(AuthSession.revoked_at.is_(None))
-                )
-                or 0
-            )
-            if remaining:
-                raise ValueError("restored sessions were not revoked")
-        if revoked > structural_count:
-            raise ValueError("invalid restored session count")
-        return revoked
+        with database.engine.connect() as guard:
+            locked = guard.scalar(text("SELECT pg_try_advisory_lock(724103, 1)"))
+            guard.commit()
+            if not locked:
+                raise ValueError("Another recovery owns this target")
+            try:
+                _prove_empty(database)
+                guard.execute(text("CREATE SCHEMA IF NOT EXISTS lm_recovery"))
+                guard.commit()
+                try:
+                    _run(
+                        [
+                            "pg_restore",
+                            "--no-owner",
+                            "--no-acl",
+                            "--exit-on-error",
+                            "--single-transaction",
+                            "--exclude-schema=lm_recovery",
+                            *_connection_arguments(url),
+                            str(archive),
+                        ],
+                        url,
+                    )
+                    with database.transaction() as session:
+                        revoked = revoke_all_sessions_after_restore(session, datetime.now(UTC))
+                    # Keep this legacy inventory shape unchanged for 0004 archives.
+                    restored_inventory = _verify_domain(database)
+                    if restored_inventory != manifest.domain_inventory:
+                        raise ValueError("Restored inventory differs from the backup manifest")
+                    with database.transaction() as session:
+                        if session.scalar(
+                            select(func.count())
+                            .select_from(AuthSession)
+                            .where(AuthSession.revoked_at.is_(None))
+                        ):
+                            raise ValueError("Restored sessions were not revoked")
+                    # No CASCADE: unexpected recovery objects must prevent unblocking.
+                    guard.execute(text("DROP SCHEMA lm_recovery"))
+                    guard.commit()
+                    return revoked
+                except Exception as exc:
+                    guard.rollback()
+                    raise RecoveryFailure(
+                        "Recovery target remains blocked. Dispose of this target and retry "
+                        "into a fresh template0 database."
+                    ) from exc
+            finally:
+                guard.execute(text("SELECT pg_advisory_unlock(724103, 1)"))
+                guard.commit()
     finally:
         database.close()
 

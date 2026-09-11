@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
-from sqlalchemy import MetaData, UniqueConstraint, create_engine
+from sqlalchemy import MetaData, UniqueConstraint, create_engine, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 from sqlalchemy.types import DateTime
@@ -69,10 +69,29 @@ class Database:
         with self.sessions.begin() as session:
             yield session
 
+    def recovery_blocked(self) -> bool:
+        with self.engine.connect() as connection:
+            return recovery_blocked(connection)
+
     def ready(self) -> bool:
+        return not self.recovery_blocked() and self.schema_ready()
+
+    def schema_ready(self) -> bool:
         with self.engine.connect() as connection:
             current = set(MigrationContext.configure(connection).get_current_heads())
         return current == set(ScriptDirectory.from_config(migration_config()).get_heads())
 
     def close(self) -> None:
         self.engine.dispose()
+
+
+def recovery_blocked(connection: Any) -> bool:
+    # pg_namespace is public catalog metadata; schema USAGE is not required.
+    return bool(
+        connection.scalar(
+            text(
+                "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_namespace "
+                "WHERE nspname = 'lm_recovery')"
+            )
+        )
+    )

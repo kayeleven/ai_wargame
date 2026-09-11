@@ -1,5 +1,8 @@
 # 1C-admin verification — 2026-09-11
 
+> Historical record. Current status, corrected behavior, gate evidence and accepted
+> deferrals are in [Phase 1C corrections](corrections-1c.md). Original results below are preserved.
+
 Phase 1C-admin is **implemented and accepted**. Native PostgreSQL, HTTP, Chromium,
 backup/restore, and the isolated fresh-copy Docker gate all pass.
 

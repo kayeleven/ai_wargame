@@ -18,6 +18,7 @@ from sqlalchemy import (
     ForeignKey,
     ForeignKeyConstraint,
     Identity,
+    Index,
     UniqueConstraint,
     and_,
     cast,
@@ -27,7 +28,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, synonym
-from sqlalchemy.types import String
+from sqlalchemy.types import Text
 
 from living_memory.clocks import GameTime
 from living_memory.db import Base, Database, DevelopmentArtifact
@@ -44,6 +45,7 @@ from living_memory.seed import (
 
 class RebuildState(Base):
     __tablename__ = "memory_rebuild_state"
+    __table_args__ = (CheckConstraint("status IN ('pending', 'loaded')", name="status"),)
     artifact_id: Mapped[UUID] = mapped_column(
         ForeignKey("development_artifact.id", ondelete="CASCADE"), primary_key=True
     )
@@ -54,8 +56,8 @@ class RebuildState(Base):
 class Dataset(Base):
     __tablename__ = "memory_dataset"
     __table_args__ = (
-        UniqueConstraint("id", "game_id"),
-        UniqueConstraint("id", "game_id", "root_branch_id"),
+        UniqueConstraint("id", "game_id", name="uq_memory_dataset_id_game"),
+        UniqueConstraint("id", "game_id", "root_branch_id", name="uq_memory_dataset_root"),
     )
     id: Mapped[UUID] = mapped_column(
         ForeignKey("development_artifact.id", ondelete="CASCADE"), primary_key=True
@@ -125,8 +127,8 @@ class Record(Base):
             ["memory_branch.dataset_id", "memory_branch.game_id", "memory_branch.id"],
             ondelete="CASCADE",
         ),
-        UniqueConstraint("dataset_id", "external_id"),
-        UniqueConstraint("id", "dataset_id", "game_id", "branch_id"),
+        UniqueConstraint("dataset_id", "external_id", name="uq_memory_record_external"),
+        UniqueConstraint("id", "dataset_id", "game_id", "branch_id", name="uq_memory_record_owner"),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True)
     dataset_id: Mapped[UUID]
@@ -139,6 +141,9 @@ class Record(Base):
 class Revision(Base):
     __tablename__ = "memory_record_revision"
     __table_args__ = (
+        Index(
+            "ix_memory_record_temporal", "dataset_id", "game_id", "branch_id", "recorded_at", "id"
+        ),
         ForeignKeyConstraint(
             ["record_id", "dataset_id", "game_id", "branch_id"],
             [
@@ -154,10 +159,12 @@ class Revision(Base):
             ["memory_record_revision.id", "memory_record_revision.record_id"],
         ),
         CheckConstraint("valid_to IS NULL OR valid_from < valid_to", name="valid_interval"),
-        UniqueConstraint("dataset_id", "external_id"),
-        UniqueConstraint("id", "record_id"),
-        UniqueConstraint("id", "dataset_id", "game_id"),
-        UniqueConstraint("dataset_id", "ingestion_order"),
+        UniqueConstraint("dataset_id", "external_id", name="uq_memory_record_revision_external"),
+        UniqueConstraint("id", "record_id", name="uq_memory_record_revision_identity"),
+        UniqueConstraint("id", "dataset_id", "game_id", name="uq_memory_record_revision_owner"),
+        UniqueConstraint(
+            "dataset_id", "ingestion_order", name="uq_memory_record_revision_ingestion"
+        ),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True)
     record_id: Mapped[UUID]
@@ -217,7 +224,14 @@ class DeclaredReference(Base):
     __tablename__ = "memory_declared_reference"
     __table_args__ = (
         CheckConstraint("target_kind IN ('record', 'action', 'external')", name="target_kind"),
-        UniqueConstraint("revision_id", "purpose", "target_kind", "target_id", "json_pointer"),
+        UniqueConstraint(
+            "revision_id",
+            "purpose",
+            "target_kind",
+            "target_id",
+            "json_pointer",
+            name="uq_memory_declared_reference",
+        ),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True)
     revision_id: Mapped[UUID] = mapped_column(
@@ -237,8 +251,10 @@ class Relationship(Base):
             ["memory_branch.dataset_id", "memory_branch.game_id", "memory_branch.id"],
             ondelete="CASCADE",
         ),
-        UniqueConstraint("dataset_id", "external_id"),
-        UniqueConstraint("id", "dataset_id", "game_id", "branch_id"),
+        UniqueConstraint("dataset_id", "external_id", name="uq_memory_relationship_external"),
+        UniqueConstraint(
+            "id", "dataset_id", "game_id", "branch_id", name="uq_memory_relationship_owner"
+        ),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True)
     dataset_id: Mapped[UUID]
@@ -266,9 +282,13 @@ class RelationshipRevision(Base):
             ["memory_relationship_revision.id", "memory_relationship_revision.relationship_id"],
         ),
         CheckConstraint("valid_to IS NULL OR valid_from < valid_to", name="valid_interval"),
-        UniqueConstraint("dataset_id", "external_id"),
-        UniqueConstraint("id", "relationship_id"),
-        UniqueConstraint("id", "dataset_id", "game_id"),
+        UniqueConstraint(
+            "dataset_id", "external_id", name="uq_memory_relationship_revision_external"
+        ),
+        UniqueConstraint("id", "relationship_id", name="uq_memory_relationship_revision_identity"),
+        UniqueConstraint(
+            "id", "dataset_id", "game_id", name="uq_memory_relationship_revision_owner"
+        ),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True)
     relationship_id: Mapped[UUID]
@@ -941,9 +961,7 @@ class MemoryReader:
                 )
                 relationship_watermark = int(
                     session.scalar(
-                        select(
-                            func.coalesce(func.max(RelationshipRevision.ingestion_order), 0)
-                        )
+                        select(func.coalesce(func.max(RelationshipRevision.ingestion_order), 0))
                         .select_from(RelationshipRevision)
                         .join(RelationshipDisclosure)
                         .where(
@@ -962,8 +980,11 @@ class MemoryReader:
                     records=record_watermark, relationships=relationship_watermark
                 )
             authorized = authorized.where(Revision.ingestion_order <= watermark.records)
+            authorized_context = authorized
+            if query.record_id or query.record_types:
+                authorized = authorized.join(Record, Record.id == Revision.record_id)
             if query.record_id:
-                authorized = authorized.join(Record, Record.id == Revision.record_id).where(
+                authorized = authorized.where(
                     or_(
                         Revision.external_id == query.record_id,
                         Record.external_id == query.record_id,
@@ -972,12 +993,10 @@ class MemoryReader:
             if query.revision_id:
                 authorized = authorized.where(Revision.id == query.revision_id)
             if query.record_types:
-                authorized = authorized.join(Record, Record.id == Revision.record_id).where(
-                    Record.type_id.in_(query.record_types)
-                )
+                authorized = authorized.where(Record.type_id.in_(query.record_types))
             if query.text:
                 authorized = authorized.where(
-                    func.to_tsvector("simple", cast(Revision.body, String)).op("@@")(
+                    func.to_tsvector("simple", cast(Revision.body, Text)).op("@@")(
                         func.plainto_tsquery("simple", query.text)
                     )
                 )
@@ -1023,11 +1042,14 @@ class MemoryReader:
             if (query.record_id or query.revision_id) and not rows:
                 raise LookupError("Not found")
             visible_revision_ids = {
-                value for value in session.scalars(authorized.with_only_columns(Revision.id))
+                value
+                for value in session.scalars(authorized_context.with_only_columns(Revision.id))
             }
             visible_external = {
                 value
-                for value in session.scalars(authorized.with_only_columns(Revision.external_id))
+                for value in session.scalars(
+                    authorized_context.with_only_columns(Revision.external_id)
+                )
             }
             all_visible = list(
                 session.scalars(select(Revision).where(Revision.id.in_(visible_revision_ids)))

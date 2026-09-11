@@ -18,19 +18,19 @@ IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 
 
 class Controller(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
     kind: Literal["human", "imported", "ai"]
     reference: str | None = None
 
 
 class ActorConfiguration(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
     id: str
     name: str = Field(min_length=1, max_length=200)
 
 
 class TeamConfiguration(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
     id: str
     name: str = Field(min_length=1, max_length=200)
     actor_ids: tuple[str, ...] = Field(min_length=1)
@@ -38,27 +38,27 @@ class TeamConfiguration(BaseModel):
 
 
 class ResourceConfiguration(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
     id: str
     name: str = Field(min_length=1, max_length=200)
     initial_values: dict[str, float]
 
 
 class RelationshipEndpointConfiguration(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
     entity_id: str
     role: str
 
 
 class RelationshipConfiguration(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
     id: str
     type: str
     endpoints: tuple[RelationshipEndpointConfiguration, ...] = Field(min_length=2)
 
 
 class TurnConfiguration(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
     number: int = Field(ge=1)
     simulated_duration_minutes: int = Field(gt=0)
     submission_deadline: datetime
@@ -74,7 +74,7 @@ class TurnConfiguration(BaseModel):
 
 
 class ScenarioConfiguration(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
     teams: tuple[TeamConfiguration, ...] = Field(min_length=1)
     actors: tuple[ActorConfiguration, ...] = Field(min_length=1)
     rules: tuple[str, ...] = Field(min_length=1)
@@ -185,6 +185,7 @@ def create_game(
     public_briefing: str = "",
     root_branch_id: str = "main",
 ) -> AdminGame:
+    validate_scope_names(configuration)
     if not IDENTIFIER.fullmatch(game_id) or not IDENTIFIER.fullmatch(root_branch_id):
         raise ValueError("game and root branch identifiers are invalid")
     game = AdminGame(
@@ -237,6 +238,14 @@ def revise_game(
     author: UUID,
     now: datetime,
 ) -> ConfigurationRevision:
+    game = lock_game(db_session, game.id)
+    if game.status == "completed":
+        raise AdministrationConflict("Completed games cannot be revised")
+    previous = governing_configuration(db_session, game, now)
+    ensure_compatible(db_session, game, now)
+    validate_scope_names(configuration)
+    if roster(configuration) != roster(previous):
+        raise AdministrationConflict("Roster and controller edits require a new game")
     if effective_turn < 1:
         raise ValueError("effective turn must be positive")
     if game.status == "draft" and effective_turn != 1:
@@ -261,6 +270,7 @@ def revise_game(
         None,
     )
     revision = ConfigurationRevision(
+        id=uuid4(),
         game_id=game.id,
         sequence=(known[-1].sequence + 1) if known else 1,
         recorded_at=now,
@@ -283,6 +293,7 @@ def revise_game(
         now,
         {"effective_turn": effective_turn},
     )
+    reconcile_team_state(db_session, game, now)
     return revision
 
 
@@ -330,9 +341,11 @@ def scheduled_configurations(
 def activate_game(db_session: Session, game: AdminGame, author: UUID, now: datetime) -> AdminGame:
     from living_memory.identity import AuditEntry, GameRole, TeamMembership, User
 
-    configuration = ScenarioConfiguration.model_validate(
-        configuration_at(db_session, game.id, now, 1).configuration
-    )
+    game = lock_game(db_session, game.id)
+    if game.status != "draft":
+        raise AdministrationConflict("Only draft games can be activated")
+    ensure_compatible(db_session, game, now)
+    configuration = governing_configuration(db_session, game, now)
     has_adjudicator = db_session.scalars(
         select(GameRole.user_id)
         .join(User, User.id == GameRole.user_id)
@@ -340,6 +353,7 @@ def activate_game(db_session: Session, game: AdminGame, author: UUID, now: datet
             GameRole.game_id == game.id,
             GameRole.role == "adjudicator",
             User.active.is_(True),
+            User.pending.is_(False),
         )
         .limit(1)
     ).first()
@@ -353,17 +367,15 @@ def activate_game(db_session: Session, game: AdminGame, author: UUID, now: datet
                 TeamMembership.game_id == game.id,
                 TeamMembership.authority == "submitter",
                 User.active.is_(True),
+                User.pending.is_(False),
             )
         )
     )
     required = {team.id for team in configuration.teams}
-    if submitter_teams != required:
+    if not required <= submitter_teams:
         raise ValueError("every team requires an active submitter")
     game.status, game.current_turn, game.updated_at = "active", 1, now
-    for team_id in required:
-        state = db_session.get(TeamOperationalState, (game.id, team_id))
-        if state:
-            state.blocked, state.reason, state.updated_at = False, "", now
+    reconcile_team_state(db_session, game, now)
     db_session.add(
         AuditEntry(
             actor_user_id=author,
@@ -379,3 +391,93 @@ def activate_game(db_session: Session, game: AdminGame, author: UUID, now: datet
 
 
 Game = AdminGame
+
+
+class AdministrationConflict(ValueError):
+    """A valid request conflicts with the current administrative state."""
+
+
+def lock_game(db_session: Session, game_id: str) -> AdminGame:
+    game = db_session.get(AdminGame, game_id, with_for_update=True, populate_existing=True)
+    if game is None:
+        raise LookupError("Game not found")
+    return game
+
+
+def governing_configuration(
+    db_session: Session, game: AdminGame, now: datetime
+) -> ScenarioConfiguration:
+    return ScenarioConfiguration.model_validate(
+        configuration_at(db_session, game.id, now, max(1, game.current_turn)).configuration
+    )
+
+
+def validate_scope_names(configuration: ScenarioConfiguration) -> None:
+    if any(team.id == "adjudicator" for team in configuration.teams):
+        raise AdministrationConflict("Team ID adjudicator is reserved; create a compatible game")
+
+
+def roster(configuration: ScenarioConfiguration) -> tuple[Any, ...]:
+    return (
+        tuple(sorted(actor.id for actor in configuration.actors)),
+        tuple(
+            sorted(
+                (
+                    team.id,
+                    tuple(sorted(team.actor_ids)),
+                    tuple(sorted((c.kind, c.reference or "") for c in team.controllers)),
+                )
+                for team in configuration.teams
+            )
+        ),
+    )
+
+
+def ensure_compatible(db_session: Session, game: AdminGame, now: datetime) -> None:
+    current = governing_configuration(db_session, game, now)
+    validate_scope_names(current)
+    for revision in scheduled_configurations(db_session, game.id, now, max(1, game.current_turn)):
+        if roster(ScenarioConfiguration.model_validate(revision.configuration)) != roster(current):
+            raise AdministrationConflict("Scheduled roster changes require explicit remediation")
+
+
+def reconcile_team_state(db_session: Session, game: AdminGame, now: datetime) -> None:
+    from living_memory.identity import TeamMembership, User, _alert_admins
+
+    configured = {team.id for team in governing_configuration(db_session, game, now).teams}
+    db_session.flush()
+    submitters = set(
+        db_session.scalars(
+            select(TeamMembership.team_id)
+            .join(User, User.id == TeamMembership.user_id)
+            .where(
+                TeamMembership.game_id == game.id,
+                TeamMembership.team_id.in_(configured),
+                TeamMembership.authority == "submitter",
+                User.active.is_(True),
+                User.pending.is_(False),
+            )
+        )
+    )
+    existing = {
+        state.team_id: state
+        for state in db_session.scalars(
+            select(TeamOperationalState).where(TeamOperationalState.game_id == game.id)
+        )
+    }
+    for team_id, obsolete in existing.items():
+        if team_id not in configured:
+            db_session.delete(obsolete)
+    for team_id in configured:
+        state = existing.get(team_id)
+        blocked = team_id not in submitters
+        if state is None:
+            state = TeamOperationalState(game_id=game.id, team_id=team_id, blocked=blocked)
+            db_session.add(state)
+        elif blocked and not state.blocked:
+            _alert_admins(db_session, game.id, "team_blocked", team_id, now)
+        state.blocked, state.reason, state.updated_at = (
+            blocked,
+            "No active submitter is assigned" if blocked else "",
+            now,
+        )

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · Administration{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1><a href="/admin">Administration</a>
+<p>{{ status }} · turn {{ turn }}</p>
+{% if problem %}<p role="alert">{{ problem }}</p>{% endif %}
+<h2>Governing configuration</h2><p>Revision {{ source_revision }}</p>
+<pre>{{ current|tojson(indent=2) }}</pre>
+<h2>Scheduled revisions</h2><p>{{ scheduled|join(', ') or 'None' }}</p>
+<h2>Configuration history</h2>
+{% for row in history %}<details><summary>Revision {{ row.sequence }} · effective turn {{ row.effective_turn }} · recorded {{ row.recorded_at }}</summary><pre>{{ row.configuration|tojson(indent=2) }}</pre></details>{% endfor %}
+{% if status != 'completed' and not problem %}
+<h2>Revise configuration</h2><p>Starting from revision {{ source_revision }}. Roster and controller edits require a new game.</p>
+<form method="post" action="/admin/games/{{ game_id }}/revisions"><input type="hidden" name="csrf_token" value="{{ csrf }}"><label>Effective turn<input name="effective_turn" type="number" min="1" value="{{ 1 if status == 'draft' else turn + 1 }}" required></label><label for="revision-configuration">Configuration</label><textarea id="revision-configuration" name="configuration" rows="16" required>{{ current|tojson(indent=2) }}</textarea><button>Create immutable revision</button></form>
+{% endif %}
+<h2>Team status</h2><ul>{% for state in states %}<li>{{ state.team_id }}: {{ state.reason if state.blocked else 'Ready' }}</li>{% endfor %}</ul>
+<h2>Memberships</h2>
+{% for member in members %}<div><p>{{ member.username }} · {{ member.team_id }} · {{ member.authority }}</p>
+<form method="post" action="/admin/games/{{ game_id }}/memberships/{{ member.user_id }}/{{ member.team_id }}/change"><input type="hidden" name="csrf_token" value="{{ csrf }}"><label>Authority<select aria-label="Authority" name="authority"><option {% if member.authority == 'member' %}selected{% endif %}>member</option><option {% if member.authority == 'submitter' %}selected{% endif %}>submitter</option></select></label><button>Change authority</button></form>
+<form method="post" action="/admin/games/{{ game_id }}/memberships/{{ member.user_id }}/{{ member.team_id }}/remove"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button>Remove membership</button></form></div>{% endfor %}
+<h2>Game roles</h2>
+{% for row in roles %}<p>{{ row.username }} · {{ row.role }} · granted {{ row.granted_at }} by {{ row.granted_by }}</p>{% if row.role != 'adjudicator' or system %}<form method="post" action="/admin/games/{{ game_id }}/roles/{{ row.user_id }}/{{ row.role }}/remove"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button>Remove role</button></form>{% endif %}{% endfor %}
+{% endblock %}
