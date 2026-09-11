@@ -382,6 +382,7 @@
       "branch_id": "main",
       "effective_turn": 3,
       "recorded_at": "2030-04-03T13:00:00Z",
+      "supersedes": "effect-guarantee-scheduled",
       "disclosures": {
         "adjudicator": "2030-04-03T13:00:00Z",
         "estuary": "2030-04-03T13:00:00Z",
@@ -465,6 +466,7 @@
       "branch_id": "main",
       "effective_turn": 4,
       "recorded_at": "2030-04-04T08:00:00Z",
+      "supersedes": "effect-customs-scheduled",
       "disclosures": {
         "adjudicator": "2030-04-04T08:00:00Z",
         "estuary": "2030-04-04T08:00:00Z",
@@ -659,6 +661,7 @@
       "branch_id": "main",
       "effective_turn": 4,
       "recorded_at": "2030-04-04T15:00:00Z",
+      "supersedes": "estuary-t4-v1",
       "disclosures": {
         "adjudicator": "2030-04-04T15:00:00Z",
         "estuary": "2030-04-04T15:00:00Z"
@@ -864,6 +867,7 @@
       "branch_id": "main",
       "effective_turn": 4,
       "recorded_at": "2030-04-04T16:00:00Z",
+      "supersedes": "commitment-1",
       "disclosures": {
         "adjudicator": "2030-04-04T16:00:00Z",
         "estuary": "2030-04-04T19:00:00Z",

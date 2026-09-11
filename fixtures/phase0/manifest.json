@@ -1,0 +1,85 @@
+{
+  "format_version": 1,
+  "package_id": "harbor-relief-acceptance",
+  "label": "Harbor Relief acceptance fixture",
+  "game_id": "harbor-relief",
+  "root_branch_id": "main",
+  "source_files": ["source.json"],
+  "artifact_files": ["imported-move.txt", "variant.json", "model-examples.json"],
+  "oracle_files": [
+    "views/t3-adjudicator.json", "views/t3-estuary.json", "views/t3-upland.json",
+    "views/review-adjudicator.json", "views/review-estuary.json", "views/review-upland.json",
+    "views/release-adjudicator.json", "views/release-estuary.json", "views/release-upland.json"
+  ],
+  "visibility_scopes": [
+    {"id": "adjudicator", "label": "Visible to adjudicator"},
+    {"id": "estuary", "label": "Visible to Estuary Council"},
+    {"id": "upland", "label": "Visible to Upland Council"}
+  ],
+  "development_principals": [
+    {"id": "reviewer", "grants": ["adjudicator", "estuary", "upland"]},
+    {"id": "estuary-lead", "grants": ["estuary"]},
+    {"id": "estuary-member", "grants": ["estuary"]},
+    {"id": "upland-lead", "grants": ["upland"]},
+    {"id": "upland-member", "grants": ["upland"]}
+  ],
+  "record_types": [
+    {"id": "scenario", "label": "Scenario"}, {"id": "submission", "label": "Submission"},
+    {"id": "commitment", "label": "Commitment"}, {"id": "ruling", "label": "Ruling"},
+    {"id": "effect", "label": "Effect"}, {"id": "coordination", "label": "Coordination"},
+    {"id": "claim", "label": "Claim"}, {"id": "observation", "label": "Observation"},
+    {"id": "import", "label": "Import"}, {"id": "review_note", "label": "Review note"},
+    {"id": "rfi", "label": "RFI"}, {"id": "rfi_response", "label": "RFI response"},
+    {"id": "amendment", "label": "Amendment"}, {"id": "feedback", "label": "Feedback"}
+  ],
+  "relationship_types": [{"id": "platform:enables", "label": "Enables"}],
+  "relationship_roles": [{"id": "platform:prerequisite", "label": "Prerequisite"}, {"id": "platform:enabled", "label": "Enabled"}],
+  "relationships": [
+    {
+      "id": "customs-enables-v1", "stable_id": "customs-enables", "type": "platform:enables",
+      "recorded_at": "2030-04-02T13:00:00Z", "valid_from": 1814400000000,
+      "disclosures": {"adjudicator": "2030-04-02T13:00:00Z", "estuary": "2030-04-02T13:00:00Z", "upland": "2030-04-02T13:00:00Z"},
+      "endpoints": [
+        {"role": "platform:prerequisite", "target_kind": "record", "target_id": "ruling-customs"},
+        {"role": "platform:enabled", "target_kind": "record", "target_id": "effect-customs-active"}
+      ]
+    }
+  ],
+  "references": {
+    "effect-customs-scheduled": [{"purpose": "authority", "target_id": "ruling-customs", "json_pointer": "/authority_ref"}],
+    "effect-guarantee-cancelled": [{"purpose": "supersession", "target_id": "effect-guarantee-scheduled", "json_pointer": "/supersedes_ref"}],
+    "effect-customs-active": [
+      {"purpose": "supersession", "target_id": "effect-customs-scheduled", "json_pointer": "/supersedes_ref"},
+      {"purpose": "authority", "target_id": "ruling-customs", "json_pointer": "/authority_ref"}
+    ],
+    "import-invoices": [
+      {"purpose": "destination", "target_id": "upland-t4-v1", "json_pointer": "/destination_submission_ref"},
+      {"purpose": "destination", "target_kind": "action", "target_id": "u-inspect", "json_pointer": "/destination_action_id"}
+    ],
+    "rfi-permits": [{"purpose": "subject", "target_kind": "action", "target_id": "e-permits", "json_pointer": "/action_ref"}],
+    "review-invoices": [{"purpose": "subject", "target_kind": "action", "target_id": "u-inspect", "json_pointer": "/action_ref"}],
+    "estuary-t4-v2": [{"purpose": "supersession", "target_id": "estuary-t4-v1", "json_pointer": "/previous_version_ref"}],
+    "amendment-accepted": [
+      {"purpose": "accepted", "target_id": "estuary-t4-v2", "json_pointer": "/accepted_submission_ref"},
+      {"purpose": "superseded", "target_id": "estuary-t4-v1", "json_pointer": "/superseded_submission_ref"}
+    ],
+    "effect-fund": [{"purpose": "authority", "target_id": "ruling-fund", "json_pointer": "/authority_ref"}],
+    "rfi-permits-answer": [{"purpose": "response", "target_id": "rfi-permits", "json_pointer": "/rfi_ref"}],
+    "commitment-1-updated": [{"purpose": "supersession", "target_id": "commitment-1", "json_pointer": "/supersedes_ref"}]
+  },
+  "checkpoints": [
+    {"id": "t3", "label": "Turn 3", "known_at": "2030-04-03T23:00:00Z", "effective_at": 1209600000000},
+    {"id": "review", "label": "Review", "known_at": "2030-04-04T14:00:00Z", "effective_at": 1814400000000},
+    {"id": "release", "label": "Release", "known_at": "2030-04-04T20:00:00Z", "effective_at": 1814400000000}
+  ],
+  "explorer_presets": [
+    {"id": "timeline", "label": "Timeline"},
+    {"id": "continuing", "label": "Continuing", "record_types": ["commitment", "effect", "coordination", "ruling"]},
+    {"id": "review", "label": "Review", "record_types": ["scenario", "submission", "import", "review_note", "amendment", "claim", "observation", "rfi"]},
+    {"id": "feedback", "label": "Feedback", "record_types": ["feedback", "rfi", "rfi_response", "observation", "commitment"]}
+  ],
+  "default_principal": "estuary-member",
+  "default_checkpoint": "review",
+  "default_preset": "timeline",
+  "reference_corrections": ["All legacy-only body references are explicitly declared above; source_refs are explicit evidence declarations."]
+}

@@ -47,6 +47,20 @@ oracles and tests forbidden selection, hidden evidence, and late disclosure.
 cross-game, branch isolation, and historical reconstruction tests without changing
 the presentation contract.
 
+The 1C query supports stable record and revision selection, language-neutral
+PostgreSQL lexical search, record types, one-hop relationship filters, and a
+bounded page size. Search intentionally uses the `simple` configuration and has
+no stemming (`sanctions` does not match `sanction`). Opaque HMAC-signed keyset
+cursors bind the game, root lineage, visibility scope, both temporal cutoffs,
+filter hash, page position, and ingestion watermark. Every page rechecks the
+principal grant; malformed or context-mismatched cursors are bad requests.
+
+Direct nonexistent and inaccessible targets use the same authorized query and
+return the same 404 body. Constant-time behavior is not claimed. Root-branch
+isolation and a single authorized relationship hop are supported. Ancestor replay
+and multi-hop dependency chains remain deferred; MEM-03 is therefore only
+partially satisfied in this milestone.
+
 ## Durable identity: 1C-admin
 
 Use stable internal user IDs for authorship and audits. Deactivate accounts rather

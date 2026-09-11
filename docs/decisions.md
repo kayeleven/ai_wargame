@@ -148,3 +148,21 @@ records from an explicitly selected staged checksum. Fixed identity selection is
 an authorization simulation, not authentication. The read-only routes are absent
 outside development. Temporary persistence is replaceable behind typed read models
 in 1C-core. Requirements: MEM-01/04/05, PLAY-01/05; C01–C10 retrieval evidence.
+
+### B-10 — Scenario-independent 1C-core and rebuild transition
+
+Status: implemented direction, 2026-09-10. Replace the reconstructable 1B read
+tables with normalized stable identities and immutable record/relationship
+revisions. Revision-level disclosures preserve historical authorization. Explicit
+purpose/target/pointer references replace JSON suffix inference; opaque bodies do
+not acquire links merely because a string resembles an ID. Ordered typed
+relationship endpoints are all-or-nothing under authorization.
+
+The migration preserves staged packages and exposes a pending-rebuild state until
+an explicit atomic load succeeds. Harbor Relief remains an oracle fixture and
+Orchid Accord exercises different cardinality, control mapping, cadence,
+vocabulary, custom types, corrections, delayed disclosure, and relationship
+revision behavior. PostgreSQL `simple` full-text search and signed watermark
+keyset cursors are the lexical/pagination baseline. Multi-hop traversal and
+ancestor replay remain deferred to Phase 3. This destructive derived-data
+transition is development-only and is not precedent for user data migration.

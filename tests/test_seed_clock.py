@@ -33,6 +33,29 @@ def test_package_preservation_and_validation(tmp_path):
         read_package(directory)
 
 
+def test_manifest_can_combine_multiple_record_sources_without_source_json(tmp_path):
+    shutil.copytree(ROOT / "fixtures/phase0", tmp_path / "package")
+    directory = tmp_path / "package"
+    package = json.loads((directory / "source.json").read_text())
+    split = len(package["records"]) // 2
+    for name, records in (
+        ("records-a.json", package["records"][:split]),
+        ("records-b.json", package["records"][split:]),
+    ):
+        (directory / name).write_text(
+            json.dumps({"fixture_version": package["fixture_version"], "records": records})
+        )
+    manifest_path = directory / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["source_files"] = ["records-a.json", "records-b.json"]
+    manifest_path.write_text(json.dumps(manifest))
+    (directory / "source.json").unlink()
+    _, _, contents = read_package(directory)
+    normalized = json.loads(contents["_records.json"])
+    assert len(normalized["records"]) == len(package["records"])
+    assert "source.json" not in contents
+
+
 @pytest.mark.parametrize(
     "environment,database",
     [

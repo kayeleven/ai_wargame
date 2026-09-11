@@ -2,16 +2,21 @@ import json
 import socket
 import threading
 import time
+from datetime import UTC, datetime
 from urllib.parse import urlencode, urlsplit
 
 import pytest
 import uvicorn
 from playwright.sync_api import expect, sync_playwright
+from sqlalchemy import select
 from test_database import database  # noqa: F401
 from test_memory import timeline  # noqa: F401
 
 from living_memory.app import create_app
-from living_memory.db import ROOT
+from living_memory.clocks import FixedClock
+from living_memory.db import ROOT, DevelopmentArtifact
+from living_memory.memory import load_timeline
+from living_memory.seed import stage_package
 
 pytestmark = pytest.mark.browser
 
@@ -32,6 +37,36 @@ def memory_server(timeline):  # noqa: F811
                 pytest.fail("Memory server did not start")
             time.sleep(0.01)
         yield f"http://127.0.0.1:{sock.getsockname()[1]}", str(dataset)
+    finally:
+        server.should_exit = True
+        thread.join(timeout=10)
+        sock.close()
+
+
+@pytest.fixture
+def dual_memory_server(database):  # noqa: F811
+    db, settings = database
+    clock = FixedClock(datetime(2045, 1, 1, tzinfo=UTC))
+    for name in ("phase0", "orchid-accord"):
+        stage_package(db, clock, ROOT / "fixtures" / name)
+    with db.transaction() as session:
+        artifacts = list(session.scalars(select(DevelopmentArtifact)))
+    for artifact in artifacts:
+        assert load_timeline(db, artifact.checksum)
+    datasets = {artifact.package: str(artifact.id) for artifact in artifacts}
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    app = create_app(settings.model_copy(update={"environment": "development"}), db)
+    server = uvicorn.Server(uvicorn.Config(app, log_level="warning", access_log=False))
+    thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
+    thread.start()
+    try:
+        deadline = time.monotonic() + 10
+        while not server.started:
+            if not thread.is_alive() or time.monotonic() > deadline:
+                pytest.fail("Memory server did not start")
+            time.sleep(0.01)
+        yield f"http://127.0.0.1:{sock.getsockname()[1]}", datasets
     finally:
         server.should_exit = True
         thread.join(timeout=10)
@@ -105,4 +140,35 @@ def test_audiences_checkpoints_and_evidence(memory_server, javascript):
         page.keyboard.press("Enter")
         expect(page.locator("#upland-t4-v1")).to_have_count(0)
         assert external == []
+        browser.close()
+
+
+@pytest.mark.parametrize("javascript", [True, False])
+def test_dataset_switch_and_multi_scope_fixture(dual_memory_server, javascript):
+    server, datasets = dual_memory_server
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page(java_script_enabled=javascript)
+        page.goto(
+            server
+            + "/dev/memory?"
+            + urlencode(
+                {
+                    "dataset": datasets["orchid-accord-adversarial"],
+                    "identity": "multi-reader",
+                    "audience": "amber",
+                    "checkpoint": "late",
+                }
+            )
+        )
+        expect(page.get_by_label("Audience", exact=True).locator("option")).to_have_count(2)
+        expect(
+            page.get_by_label("Record type").locator('option[value="orchid:pollination-log"]')
+        ).to_have_count(1)
+        expect(page.locator("#hidden-carrier")).to_have_count(0)
+        expect(page.get_by_text("orchid:cross-pollinates", exact=False)).to_have_count(0)
+        page.get_by_label("Dataset").select_option(datasets["harbor-relief-acceptance"])
+        page.get_by_role("button", name="Show memory").click()
+        expect(page.get_by_role("heading", name="Harbor Relief")).to_be_visible()
+        expect(page.get_by_label("Development identity")).to_have_value("estuary-member")
         browser.close()

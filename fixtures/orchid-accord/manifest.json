@@ -1,0 +1,73 @@
+{
+  "format_version": 1,
+  "package_id": "orchid-accord-adversarial",
+  "label": "Orchid Accord adversarial fixture",
+  "game_id": "orchid-accord",
+  "root_branch_id": "origin",
+  "source_files": ["source.json"],
+  "oracle_files": ["oracle.json"],
+  "visibility_scopes": [
+    {"id": "amber", "label": "Amber brief"},
+    {"id": "violet", "label": "Violet brief"},
+    {"id": "silver", "label": "Silver brief"},
+    {"id": "observer", "label": "Observer brief"}
+  ],
+  "development_principals": [
+    {"id": "multi-reader", "grants": ["amber", "violet"]},
+    {"id": "observer-reader", "grants": ["observer"]},
+    {"id": "silver-reader", "grants": ["silver"]}
+  ],
+  "record_types": [
+    {"id": "platform:configuration", "label": "Configuration"},
+    {"id": "platform:submission", "label": "Submission"},
+    {"id": "orchid:pollination-log", "label": "Pollination log"},
+    {"id": "platform:observation", "label": "Observation"}
+  ],
+  "relationship_types": [{"id": "orchid:cross-pollinates", "label": "Cross-pollinates"}],
+  "relationship_roles": [
+    {"id": "orchid:source", "label": "Source"},
+    {"id": "orchid:carrier", "label": "Carrier"},
+    {"id": "orchid:recipient", "label": "Recipient"}
+  ],
+  "relationships": [
+    {
+      "id": "pollination-v1", "stable_id": "pollination", "type": "orchid:cross-pollinates",
+      "recorded_at": "2042-06-02T10:00:00Z", "valid_from": 172800000000,
+      "disclosures": {"amber": "2042-06-02T10:00:00Z", "observer": "2042-06-02T10:00:00Z"},
+      "endpoints": [
+        {"role": "orchid:source", "target_kind": "record", "target_id": "amber-move"},
+        {"role": "orchid:carrier", "target_kind": "record", "target_id": "hidden-carrier"},
+        {"role": "orchid:recipient", "target_kind": "record", "target_id": "orchid-log-v1"}
+      ],
+      "body": {"confidence": "tentative"}
+    },
+    {
+      "id": "pollination-v2", "stable_id": "pollination", "type": "orchid:cross-pollinates",
+      "recorded_at": "2042-06-04T15:00:00Z", "valid_from": 604800000000,
+      "supersedes": "pollination-v1",
+      "disclosures": {"amber": "2042-06-05T09:00:00Z", "observer": "2042-06-05T09:00:00Z"},
+      "endpoints": [
+        {"role": "orchid:source", "target_kind": "record", "target_id": "amber-move"},
+        {"role": "orchid:carrier", "target_kind": "record", "target_id": "hidden-carrier"},
+        {"role": "orchid:recipient", "target_kind": "record", "target_id": "orchid-log-v2"}
+      ],
+      "body": {"confidence": "confirmed"}
+    }
+  ],
+  "references": {
+    "orchid-log-v2": [{"purpose": "correction", "target_id": "orchid-log-v1", "json_pointer": "/corrects"}]
+  },
+  "checkpoints": [
+    {"id": "opening", "label": "Opening", "known_at": "2042-06-01T12:00:00Z", "effective_at": 0},
+    {"id": "survey", "label": "Survey", "known_at": "2042-06-03T12:00:00Z", "effective_at": 259200000000},
+    {"id": "late", "label": "Late disclosure", "known_at": "2042-06-05T09:00:00Z", "effective_at": 604800000000}
+  ],
+  "explorer_presets": [
+    {"id": "all", "label": "All records"},
+    {"id": "logs", "label": "Logs", "record_types": ["orchid:pollination-log"]}
+  ],
+  "default_principal": "multi-reader",
+  "default_checkpoint": "survey",
+  "default_preset": "all",
+  "reference_corrections": ["The correction link uses an explicit domain field that the retired suffix heuristic did not recognize."]
+}

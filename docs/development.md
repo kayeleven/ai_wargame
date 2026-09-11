@@ -32,7 +32,7 @@ Offline provisioning is deferred and is not claimed by this setup.
 | `make setup` | Check Python, uv, Docker and Compose; sync locked dependencies. |
 | `make db-up` | Start PostgreSQL, wait for its health check; bind 127.0.0.1:5432. |
 | `make migrate` | Explicitly upgrade to Alembic head; repeating is safe. |
-| `make seed` | Validate and stage Phase 0 sources and nine oracles; repeating is a no-op. |
+| `make seed` | Validate and stage both manifest packages and declared files; repeating is a no-op. |
 | `make dev` | Serve 127.0.0.1:8000 with reload and safe application request logs. |
 | `make check` | Ruff and strict mypy; no files rewritten. |
 | `make test` | Unit and actual PostgreSQL integration tests; unavailable DB fails. |
@@ -142,10 +142,10 @@ Browser checks exercise both JavaScript and ordinary form paths, keyboard use,
 ## Phase 1B memory explorer
 
 After `make migrate`, run `make seed`. The seed command prints the staged package
-checksum. Load that exact package explicitly:
+checksum. Load each exact package explicitly:
 
 ```sh
-uv run --locked python -m living_memory.cli load-timeline --checksum CHECKSUM
+uv run --locked python -m living_memory.cli load-memory --checksum CHECKSUM
 ```
 
 Run `make dev` and open `/dev/memory`, or follow **Explore memory** on the home
@@ -164,7 +164,11 @@ snapshot files, variant, answer key, or model examples as runtime inputs. Those
 snapshots remain independent test oracles. Foreign-key cascades support isolated
 test cleanup; there is no application timeline delete or editing endpoint.
 
-The three named checkpoints reproduce the fixture's T3/review/release tasks.
+Checkpoints, identities, visibility labels, record types, relationship types and
+presets come from the selected dataset manifest. Switching datasets resets
+invalid selections deterministically. A post-0003 staged package remains visible
+as “reload required” until explicitly rebuilt. Harbor's three named checkpoints
+continue to reproduce its T3/review/release tasks.
 The service separately accepts UTC knowledge cutoffs and simulated effective time.
 Historical revisions stay visible with a superseded label; scheduled records are
 pending before their effective interval. A date passing does not apply an effect.
@@ -173,3 +177,9 @@ and nonexistent targets both return 404. Audience escalation returns 403. Respon
 are not cached. Existing generic 503/retry and request-ID diagnostics still apply.
 
 See [1B verification](phase1/verification-1b.md) for evidence and limitations.
+
+Lexical search uses PostgreSQL's language-neutral `simple` dictionary. It does
+not stem words, so plural and singular forms may require separate searches.
+Pagination cursors are opaque and signed; changing scope, cutoff, effective time,
+branch, game, or filters invalidates them. Reads support only the root branch and
+one relationship hop in 1C-core.

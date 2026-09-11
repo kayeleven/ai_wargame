@@ -7,4 +7,5 @@
 {% for action in record.actions %}{% include 'memory_action.html' %}{% else %}{% if record.kind == 'submission' %}<p>Intention-only submission; no actions.</p>{% endif %}{% endfor %}
 <dl>{% for field in record.fields %}<dt>{{ field.label }}</dt><dd class="authored">{{ field.text }}</dd>{% endfor %}</dl>
 {% if record.source_refs %}<nav aria-label="Evidence for {{ record.id }}">Evidence: {% for ref in record.source_refs %}<a href="{{ link(ref) }}">{{ ref }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</nav>{% endif %}
+{% for relationship in record.relationships %}<p class="record-meta">{{ relationship.type }} · {{ relationship.revision_status }} · {{ relationship.effective_status }}</p>{% endfor %}
 </article>

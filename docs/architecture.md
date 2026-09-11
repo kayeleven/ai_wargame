@@ -16,6 +16,20 @@ The initial slice handles non-military DIME-FIL actions. Military movement/comba
 
 Living memory combines preserved source material, structured facts and relationships, temporal history, and derived retrieval views. A narrative summary is a convenience, not the sole record of truth.
 
+Phase 1C-core implements this as a scenario-independent PostgreSQL projection.
+Datasets own a minimal game and non-null root branch, visibility scopes, stable
+record and relationship identities, immutable revisions, revision-level
+disclosures, explicit references, and ordered role-labelled relationship
+endpoints. Bodies remain opaque JSON; only scalar text is indexed. Authorization
+is applied in SQL before search, counts, pagination, references, or one-hop
+relationships. An unauthorized record/action endpoint suppresses its whole
+relationship, preserving endpoint arity and topology.
+
+The `0003` migration is an exceptional development transition: it preserves
+staged source artifacts, marks them pending rebuild, and drops the reconstructable
+1B projection. Each manifest package must then be rebuilt explicitly and
+atomically. This is not a policy for future non-reconstructable user data.
+
 | Record | Essential distinctions |
 | --- | --- |
 | Game / scenario version | Configuration, initial conditions, rules, and lifecycle policy. |

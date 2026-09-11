@@ -13,8 +13,9 @@ from living_memory.seed import read_package, seed
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["migrate", "seed", "load-timeline"])
+    parser.add_argument("command", choices=["migrate", "seed", "load-memory", "load-timeline"])
     parser.add_argument("--checksum")
+    parser.add_argument("--fixture", choices=["phase0", "orchid-accord"], default="phase0")
     args = parser.parse_args()
     db = None
     try:
@@ -26,7 +27,7 @@ def main() -> None:
                 config.attributes["connection"] = connection
                 command.upgrade(config, "head")
             print("Migrations applied.")
-        elif args.command == "load-timeline":
+        elif args.command in {"load-memory", "load-timeline"}:
             url = make_url(settings.database_url.get_secret_value())
             if (
                 settings.environment != "development"
@@ -35,10 +36,15 @@ def main() -> None:
                 or not args.checksum
             ):
                 raise ValueError("Development database and explicit checksum required")
-            print("Timeline loaded." if load_timeline(db, args.checksum) else "Timeline unchanged.")
+            print("Memory loaded." if load_timeline(db, args.checksum) else "Memory unchanged.")
         else:
-            print("Package staged." if seed(settings, db, SystemClock()) else "Package unchanged.")
-            print("Checksum: " + read_package(ROOT / "fixtures/phase0")[1])
+            directory = ROOT / "fixtures" / args.fixture
+            print(
+                "Package staged."
+                if seed(settings, db, SystemClock(), directory)
+                else "Package unchanged."
+            )
+            print("Checksum: " + read_package(directory)[1])
     except SQLAlchemyError:
         parser.exit(1, "Database operation failed. Check database availability and migrations.\n")
     except (ValueError, RuntimeError, OSError, KeyError, TypeError, StopIteration):

@@ -152,7 +152,9 @@ def create_app(
         from living_memory.explorer import explorer_router
 
         if isinstance(db, Database):
-            app.include_router(explorer_router(db, templates))
+            app.include_router(
+                explorer_router(db, templates, settings.session_secret.get_secret_value().encode())
+            )
 
         def render_form(request: Request, bound: BoundForm, status: int = 200) -> Response:
             partial = request.headers.get("hx-request", "").lower() == "true"

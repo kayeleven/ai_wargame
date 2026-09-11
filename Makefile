@@ -7,6 +7,7 @@ migrate:
 	uv run --locked python -m living_memory.cli migrate
 seed:
 	uv run --locked python -m living_memory.cli seed
+	uv run --locked python -m living_memory.cli seed --fixture orchid-accord
 dev:
 	uv run --locked uvicorn living_memory.app:create_app --factory --host 127.0.0.1 --port 8000 --reload --no-access-log
 check:

@@ -65,11 +65,14 @@ def test_nine_oracles(timeline, checkpoint, audience):
         assert found.kind == record["kind"]
         assert found.effective_turn == record["effective_turn"]
         assert found.recorded_at == datetime.fromisoformat(record["recorded_at"])
-        assert found.visibility_label == {
-            "estuary": "Visible to Estuary Council",
-            "upland": "Visible to Upland Council",
-            "adjudicator": "Visible to adjudicator",
-        }[audience]
+        assert (
+            found.visibility_label
+            == {
+                "estuary": "Visible to Estuary Council",
+                "upland": "Visible to Upland Council",
+                "adjudicator": "Visible to adjudicator",
+            }[audience]
+        )
     assert timeline[0].engine.pool.checkedout() == 0
 
 
@@ -181,7 +184,7 @@ def test_authorization_and_navigation(timeline):
         assert client.get("/dev/memory").status_code == 404
 
 
-def test_embedded_references_and_scope_filtering(timeline):
+def test_undeclared_id_shaped_strings_remain_opaque_content(timeline):
     db, _, dataset_id = timeline
     with db.transaction() as session:
         note = session.scalars(
@@ -189,27 +192,16 @@ def test_embedded_references_and_scope_filtering(timeline):
                 Revision.dataset_id == dataset_id, Revision.source_id == "coordination-1"
             )
         ).one()
-        content = dict(note.content)
-        content["body"] = {
-            **content["body"],
+        note.body = {
+            **note.body,
             "private_ref": "upland-t4-v1",
             "embedded_refs": ["upland-t4-v1", "estuary-t3-v1"],
         }
-        note.content = content
-        # Even an audience disclosure cannot make another branch/game eligible.
-        for source_id, key in [("claim-open", "branch_id"), ("ruling-guarantee", "game_id")]:
-            row = session.scalars(
-                select(Revision).where(
-                    Revision.dataset_id == dataset_id, Revision.source_id == source_id
-                )
-            ).one()
-            setattr(row, key, "unrelated")
     result = read(timeline, "estuary")
-    assert not {"claim-open", "ruling-guarantee"} & {r.id for r in result.records}
     note = next(r for r in result.records if r.id == "coordination-1")
-    assert "private_ref" not in note.body
-    assert note.body["embedded_refs"] == ["estuary-t3-v1"]
-    assert "upland-t4-v1" not in note.model_dump_json()
+    assert note.body["private_ref"] == "upland-t4-v1"
+    assert note.body["embedded_refs"] == ["upland-t4-v1", "estuary-t3-v1"]
+    assert not any(ref.target_id == "upland-t4-v1" for ref in note.references)
 
 
 def test_loader_atomicity_and_changed_packages(timeline, tmp_path):
@@ -232,7 +224,7 @@ def test_loader_atomicity_and_changed_packages(timeline, tmp_path):
     with db.transaction() as session:
         assert session.scalar(select(func.count()).select_from(Timeline)) == 2
     assert "Changed scenario text." not in read(timeline, record="scenario-v1").model_dump_json()
-    package["records"][-1]["body"]["supersedes_ref"] = "nonexistent"
+    package["records"][-1]["supersedes"] = "nonexistent"
     source.write_text(json.dumps(package))
     stage_package(db, FixedClock(datetime(2035, 1, 3, tzinfo=UTC)), directory)
     with pytest.raises(ValueError, match="supersession"):
