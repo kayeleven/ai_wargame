@@ -22,6 +22,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
     select,
+    text,
     update,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -112,7 +113,16 @@ class GameRole(Base):
 
 class TeamMembership(Base):
     __tablename__ = "auth_team_membership"
-    __table_args__ = (CheckConstraint("authority IN ('member', 'submitter')", name="authority"),)
+    __table_args__ = (
+        CheckConstraint("authority IN ('member', 'submitter')", name="authority"),
+        Index(
+            "uq_auth_team_submitter",
+            "game_id",
+            "team_id",
+            unique=True,
+            postgresql_where=text("authority = 'submitter'"),
+        ),
+    )
     user_id: Mapped[UUID] = mapped_column(
         ForeignKey("auth_user.id", ondelete="CASCADE"), primary_key=True
     )

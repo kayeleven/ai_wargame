@@ -19,6 +19,7 @@ from sqlalchemy.exc import IntegrityError
 
 from living_memory.admin_access import (
     delete_membership,
+    replace_submitter,
     review_access,
     set_membership,
     set_role,
@@ -830,45 +831,26 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
             request.state.memory_query_ms = round((perf_counter() - query_started) * 1000, 3)
         return JSONResponse(view.model_dump(mode="json"), headers={"Cache-Control": "no-store"})
 
-    @router.get("/play", response_class=HTMLResponse)
-    def play_workspace(request: Request, game_id: str) -> Response:
-        """Team-scoped workspace entry point (works without HTMX as well)."""
-        user = _current_user(request, db, settings)
-        if user is None:
-            return access_changed_response(request, 401)
+    @router.post("/admin/games/{game_id}/teams/{team_id}/replace-submitter")
+    def replace_team_submitter(
+        request: Request,
+        game_id: str,
+        team_id: str,
+        expected_user_id: Annotated[UUID, Form()],
+        replacement_user_id: Annotated[UUID, Form()],
+    ) -> Response:
+        actor = signed_in(request)
         with db.transaction() as session:
-            game = session.get(AdminGame, game_id)
-            principal = resolve_principal(session, user, game_id, request.app.state.clock.now())
-            teams = [
-                grant.visibility_scope_id
-                for grant in principal.grants
-                if grant.visibility_scope_id != "adjudicator"
-            ]
-        if game is None or not teams:
-            raise HTTPException(404, "Not found")
-        return templates.TemplateResponse(
-            request=request,
-            name="play.html",
-            context={"game": game, "teams": teams, "csrf": csrf_token(request)},
-            headers={"Cache-Control": "no-store"},
-        )
-
-    @router.get("/adjudicate", response_class=HTMLResponse)
-    def adjudicate_workspace(request: Request, game_id: str) -> Response:
-        user = _current_user(request, db, settings)
-        if user is None:
-            return access_changed_response(request, 401)
-        with db.transaction() as session:
-            game = session.get(AdminGame, game_id)
-            principal = resolve_principal(session, user, game_id, request.app.state.clock.now())
-        if game is None or not principal.permits(game_id, "adjudicator"):
-            raise HTTPException(404, "Not found")
-        return templates.TemplateResponse(
-            request=request,
-            name="adjudicate.html",
-            context={"game": game, "csrf": csrf_token(request)},
-            headers={"Cache-Control": "no-store"},
-        )
+            replace_submitter(
+                session,
+                actor.id,
+                game_id,
+                team_id,
+                expected_user_id,
+                replacement_user_id,
+                request.app.state.clock.now(),
+            )
+        return RedirectResponse(f"/admin/games/{game_id}", status_code=303)
 
     return router
 

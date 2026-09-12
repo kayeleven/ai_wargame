@@ -17,6 +17,11 @@
 <h2>Memberships</h2>
 {% for member in members %}<div><p>{{ member.username }} · {{ member.team_id }} · {{ member.authority }}</p>
 <form method="post" action="/admin/games/{{ game_id }}/memberships/{{ member.user_id }}/{{ member.team_id }}/change"><input type="hidden" name="csrf_token" value="{{ csrf }}"><label>Authority<select aria-label="Authority" name="authority"><option {% if member.authority == 'member' %}selected{% endif %}>member</option><option {% if member.authority == 'submitter' %}selected{% endif %}>submitter</option></select></label><button>Change authority</button></form>
+{% if member.authority == 'submitter' %}
+<form method="post" action="/admin/games/{{ game_id }}/teams/{{ member.team_id }}/replace-submitter">
+<input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="expected_user_id" value="{{ member.user_id }}">
+<label>Replacement teammate<select name="replacement_user_id">{% for candidate in members if candidate.team_id == member.team_id and candidate.user_id != member.user_id %}<option value="{{ candidate.user_id }}">{{ candidate.username }}</option>{% endfor %}</select></label><button>Replace submitter</button></form>
+{% endif %}
 <form method="post" action="/admin/games/{{ game_id }}/memberships/{{ member.user_id }}/{{ member.team_id }}/remove"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button>Remove membership</button></form></div>{% endfor %}
 <h2>Game roles</h2>
 {% for row in roles %}<p>{{ row.username }} · {{ row.role }} · granted {{ row.granted_at }} by {{ row.granted_by }}</p>{% if row.role != 'adjudicator' or system %}<form method="post" action="/admin/games/{{ game_id }}/roles/{{ row.user_id }}/{{ row.role }}/remove"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button>Remove role</button></form>{% endif %}{% endfor %}

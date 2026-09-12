@@ -5,25 +5,65 @@ in Docker Compose. One application process serves localhost. Local authenticatio
 and game administration exist; seeding only stages fixture artifacts and does not
 create a playable game.
 
-The current checkout includes 1A/1B/1C and the 1D persistence foundation plus initial
-helpers. `/play` and `/adjudicate` are placeholders; workspace authorization,
-transitions, concurrency workflows and dedicated 1D verification remain outstanding.
-The [accepted roadmap](../roadmap.md) and [B-11–B-14](decisions.md#b-11--wrapper-ownership-and-framework-contracts)
-govern future work. Framework decoupling, white-cell lenses, AI and replay are not
-implemented by this documentation update.
+The current checkout includes 1A/1B/1C and **1D-1 shared drafting, submission, and
+amendment decisions**. Open `/play?game_id=<game>` after creating and activating a
+game in `/admin`; teammates edit shared drafts, comment, and inspect history.
+Only the designated submitter submits or proposes an amendment. Adjudicators use
+`/adjudicate?game_id=<game>` to inspect submissions and decide amendments.
+Coordination, RFIs, and imports remain 1D-2; rulings, release and turn advancement
+remain 1E. Framework decoupling, white-cell lenses, AI and replay remain planned.
 
 ## Schema and backup compatibility
 
-Current schema head is `0005`; the backup compatibility version in `backup.py` is
-`0.2.0`. Migration 0005 accepts only an empty 0004 schema and refuses populated
-databases, including staged fixtures. There is no supported in-place upgrade of
-populated 0004 data. Preserve valuable databases and archives; use a separate fresh
-development database and re-seed for this checkout. Do not delete existing data as
-part of normal setup. Older 0004/0.1.0 archives are not accepted by current restore.
+Schema head remains `0005`, but **the 1D-1 baseline revises that migration in place**.
+Application and backup compatibility version is **`0.3.0`**. Existing disposable
+0005 development/test databases must be rebuilt before running this checkout;
+`alembic upgrade head` cannot detect or upgrade the old 0005 shape. Migration 0005
+still refuses populated 0004 databases. There is no data backfill or in-place
+upgrade from those older baselines. This rebuild policy was chosen because the
+project exists only locally and has no real game data.
 
-The [1C correction record](phase1/corrections-1c.md) documents historical 0004/0.1.0
-verification, not current compatibility. Its standalone rollout report is not a
-current-head setup step. Framework-independent recovery remains a future 1W gate.
+For the default disposable Compose databases, stop the application and run
+`docker compose down -v`, then `make db-up migrate`. This deletes **all** data in
+the project's PostgreSQL volume, including its test database. Use this only for
+the agreed disposable development baseline; it is not an upgrade procedure for
+valuable data or a separate PostgreSQL installation.
+
+Restore checks both schema head and exact application version **before running
+pg_restore**. Old `0005`/`0.2.0` archives are rejected despite the identical revision
+ID, as are older 0004/0.1.0 archives. Never edit an archive manifest to bypass this
+check. Current-format backup/restore includes submissions, coordination participant
+records, package revisions, and all other workspace tables. The retained 1D-2 tables
+are empty after a fresh installation and have no application writers yet.
+
+The [1C correction record](phase1/corrections-1c.md) describes historical 0004/0.1.0
+evidence. Framework-independent recovery remains a future 1W gate.
+
+## Workspace behavior and authority
+
+All current teammates can edit shared drafts; an assigned owner indicates
+responsibility only. Save operations use version checks. A conflict preserves
+base/current/submitted content and attempted input; compare it before explicitly
+saving against the current revision. Submit freezes intention and ordered action
+content together. Later edits require an explicit amendment, with one pending
+proposal at a time. Accepting changes the effective version; rejecting retains it.
+Late submissions are permitted in the active current turn and retain their original
+deadline/timestamp. Zero-action packages require only overall intention.
+
+One designated submitter is enforced per team, including an inactive designation.
+Deactivation revokes sessions and blocks the team from submission. In `/admin`,
+use **Replace submitter** to atomically demote the old designation and promote an
+active teammate; ordinary Add/Change membership cannot create a second submitter.
+Deleting that membership removes its designation. Administrator status alone does
+not grant access to private player content or amendment decisions.
+
+Workspace commands use `/workspace/{game_id}/{team_id}/{turn}` with a typed JSON
+body (`Command` in `workspace_service.py`), or the `/form` sibling for browser
+forms. JSON clients send the session CSRF token in `X-CSRF-Token`. Commands carry
+an operation, UUID request key, expected draft version, and operation-specific
+values. Amendment proposals also carry the effective submission version; decisions
+carry amendment ID and the submission aggregate version. Request keys are scoped
+to the server-resolved root branch. No framework tables receive workspace writes.
 
 ## Fresh checkout
 

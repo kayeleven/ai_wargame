@@ -23,9 +23,9 @@ from living_memory.db import Database, DevelopmentArtifact, migration_config, re
 from living_memory.identity import AuthSession, revoke_all_sessions_after_restore
 from living_memory.memory import Dataset, RebuildState
 
-# 0005 intentionally rejects populated 0004 databases.  Archives are therefore
-# only compatible within the rebuilt Phase 1D format.
-APP_VERSION = "0.2.0"
+# 0005 was revised in place for 1D-1. Exact application-version matching rejects
+# archives from the previous 0005/0.2.0 baseline before any restore operation.
+APP_VERSION = "0.3.0"
 
 
 @dataclass(frozen=True)
@@ -253,13 +253,16 @@ def _domain_inventory_session(db_session: Session) -> dict[str, Any]:
         AmendmentDecision,
         Coordination,
         CoordinationLink,
+        CoordinationParticipant,
         Draft,
         DraftAction,
         DraftComment,
         DraftRevision,
+        PackageRevision,
         RequestKey,
         Rfi,
         RfiLink,
+        Submission,
         SubmissionVersion,
         SubmittedAction,
         WorkspaceImport,
@@ -278,6 +281,9 @@ def _domain_inventory_session(db_session: Session) -> dict[str, Any]:
         "configuration_revisions": ConfigurationRevision,
         "memory_datasets": Dataset,
         "sessions": AuthSession,
+        "submissions": Submission,
+        "coordination_participants": CoordinationParticipant,
+        "package_revisions": PackageRevision,
         "request_keys": RequestKey,
         "drafts": Draft,
         "draft_actions": DraftAction,

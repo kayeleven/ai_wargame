@@ -13,9 +13,11 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Text,
     UniqueConstraint,
     select,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError
@@ -119,6 +121,8 @@ class DraftAction(Base):
     __tablename__ = "ws_draft_action"
     __table_args__ = (
         UniqueConstraint("id", "game_id", "team_id"),
+        UniqueConstraint("draft_id", "action_id"),
+        UniqueConstraint("id", "draft_id", name="uq_ws_draft_action_draft_identity"),
         ForeignKeyConstraint(
             ["draft_id", "game_id", "team_id"],
             ["ws_draft.id", "ws_draft.game_id", "ws_draft.team_id"],
@@ -132,9 +136,12 @@ class DraftAction(Base):
     game_id: Mapped[str]
     team_id: Mapped[str]
     action_id: Mapped[str]
+    owner_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("auth_user.id"))
+    position: Mapped[int] = mapped_column(default=0)
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     origin: Mapped[str] = mapped_column(default="manual")
     import_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("ws_import.id", deferrable=True, initially="DEFERRED")
+        ForeignKey("ws_import.id", deferrable=True, initially="DEFERRED", use_alter=True)
     )
     body: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     version: Mapped[int] = mapped_column(default=0)
@@ -162,9 +169,40 @@ class DraftRevision(Base):
     author_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("auth_user.id"))
 
 
+class PackageRevision(Base):
+    __tablename__ = "ws_package_revision"
+    __table_args__ = (
+        UniqueConstraint("draft_id", "version"),
+        ForeignKeyConstraint(
+            ["draft_id", "game_id", "team_id"],
+            ["ws_draft.id", "ws_draft.game_id", "ws_draft.team_id"],
+            ondelete="CASCADE",
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    draft_id: Mapped[UUID]
+    game_id: Mapped[str]
+    team_id: Mapped[str]
+    version: Mapped[int]
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    author_user_id: Mapped[UUID] = mapped_column(ForeignKey("auth_user.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class DraftComment(Base):
     __tablename__ = "ws_draft_comment"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["draft_action_id", "draft_id"],
+            ["ws_draft_action.id", "ws_draft_action.draft_id"],
+            name="fk_ws_comment_action_draft",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["draft_id", "game_id", "team_id"],
+            ["ws_draft.id", "ws_draft.game_id", "ws_draft.team_id"],
+            ondelete="CASCADE",
+        ),
         ForeignKeyConstraint(
             ["draft_action_id", "game_id", "team_id"],
             ["ws_draft_action.id", "ws_draft_action.game_id", "ws_draft_action.team_id"],
@@ -172,7 +210,8 @@ class DraftComment(Base):
         ),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    draft_action_id: Mapped[UUID]
+    draft_id: Mapped[UUID]
+    draft_action_id: Mapped[UUID | None]
     game_id: Mapped[str]
     team_id: Mapped[str]
     author_user_id: Mapped[UUID] = mapped_column(ForeignKey("auth_user.id"))
@@ -184,6 +223,14 @@ class DraftComment(Base):
 class Submission(Base):
     __tablename__ = "ws_submission"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["id", "effective_version"],
+            ["ws_submission_version.submission_id", "ws_submission_version.version"],
+            name="fk_ws_submission_effective_version",
+            use_alter=True,
+            deferrable=True,
+            initially="DEFERRED",
+        ),
         UniqueConstraint("id", "game_id", "team_id"),
         ForeignKeyConstraint(
             ["game_id", "team_id"],
@@ -192,7 +239,7 @@ class Submission(Base):
         ),
         UniqueConstraint("game_id", "team_id", "turn"),
         CheckConstraint(
-            "status IN ('draft','submitted','amendment_pending','accepted','rejected')",
+            "status IN ('submitted','amendment_pending')",
             name="status",
         ),
     )
@@ -200,7 +247,9 @@ class Submission(Base):
     game_id: Mapped[str]
     team_id: Mapped[str]
     turn: Mapped[int]
-    status: Mapped[str] = mapped_column(default="draft")
+    status: Mapped[str] = mapped_column(default="submitted")
+    effective_version: Mapped[int] = mapped_column(default=1)
+    deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     version: Mapped[int] = mapped_column(default=0)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -210,6 +259,13 @@ class Submission(Base):
 class SubmittedAction(Base):
     __tablename__ = "ws_submitted_action"
     __table_args__ = (
+        UniqueConstraint("submission_id", "version", "action_id"),
+        ForeignKeyConstraint(
+            ["submission_id", "version"],
+            ["ws_submission_version.submission_id", "ws_submission_version.version"],
+            name="fk_ws_submitted_action_content_version",
+            ondelete="CASCADE",
+        ),
         UniqueConstraint("id", "game_id", "team_id"),
         ForeignKeyConstraint(
             ["submission_id", "game_id", "team_id"],
@@ -221,6 +277,7 @@ class SubmittedAction(Base):
     submission_id: Mapped[UUID]
     game_id: Mapped[str]
     team_id: Mapped[str]
+    version: Mapped[int]
     action_id: Mapped[str]
     body: Mapped[dict[str, Any]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -249,6 +306,12 @@ class SubmissionVersion(Base):
 class Amendment(Base):
     __tablename__ = "ws_amendment"
     __table_args__ = (
+        Index(
+            "uq_ws_amendment_pending",
+            "submission_id",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+        ),
         UniqueConstraint("submission_id", "version"),
         ForeignKeyConstraint(
             ["submission_id", "game_id", "team_id"],
@@ -261,6 +324,8 @@ class Amendment(Base):
     submission_id: Mapped[UUID]
     game_id: Mapped[str]
     team_id: Mapped[str]
+    base_version: Mapped[int]
+    proposed_by: Mapped[UUID] = mapped_column(ForeignKey("auth_user.id"))
     version: Mapped[int]
     body: Mapped[dict[str, Any]] = mapped_column(JSONB)
     status: Mapped[str] = mapped_column(default="pending")
@@ -270,6 +335,7 @@ class Amendment(Base):
 class AmendmentDecision(Base):
     __tablename__ = "ws_amendment_decision"
     __table_args__ = (
+        UniqueConstraint("amendment_id"),
         ForeignKeyConstraint(["amendment_id"], ["ws_amendment.id"], ondelete="RESTRICT"),
         CheckConstraint("decision IN ('accepted','rejected')", name="decision"),
     )
@@ -425,125 +491,3 @@ class WorkspaceImport(Base):
 # Public spelling used by the HTTP/API vocabulary; keep the original class for
 # compatibility with the Phase 1C inventory code.
 RFI = Rfi
-
-
-def save_draft_action(
-    session: Session,
-    *,
-    draft: Draft,
-    action_id: UUID | None,
-    action_key: str,
-    body: dict[str, Any],
-    expected_version: int | None,
-    author: UUID | None,
-    now: datetime,
-) -> DraftAction:
-    if action_id is None:
-        if expected_version not in (None, 0):
-            raise WorkspaceConflict("action does not exist at that version")
-        action = DraftAction(
-            draft_id=draft.id,
-            game_id=draft.game_id,
-            team_id=draft.team_id,
-            action_id=action_key,
-            body=body,
-            version=1,
-            created_at=now,
-            updated_at=now,
-        )
-        session.add(action)
-        session.flush()
-    else:
-        action = session.get(DraftAction, action_id, with_for_update=True)
-        if action is None or action.draft_id != draft.id:
-            raise LookupError("Draft action not found")
-        if expected_version != action.version:
-            raise WorkspaceConflict("stale draft action")
-        action.body, action.version, action.updated_at = body, action.version + 1, now
-    session.add(
-        DraftRevision(
-            draft_action_id=action.id,
-            game_id=action.game_id,
-            team_id=action.team_id,
-            version=action.version,
-            body=body,
-            created_at=now,
-            author_user_id=author,
-        )
-    )
-    return action
-
-
-def submit_draft(session: Session, *, draft: Draft, submitter: UUID, now: datetime) -> Submission:
-    actions = list(
-        session.scalars(
-            select(DraftAction)
-            .where(DraftAction.draft_id == draft.id)
-            .order_by(DraftAction.created_at, DraftAction.id)
-        )
-    )
-    snapshot = {
-        "header": draft.header,
-        "actions": [{"id": str(a.id), "action_id": a.action_id, "body": a.body} for a in actions],
-    }
-    submission = session.scalars(
-        select(Submission)
-        .where(
-            Submission.game_id == draft.game_id,
-            Submission.team_id == draft.team_id,
-            Submission.turn == draft.turn,
-        )
-        .with_for_update()
-    ).one_or_none()
-    if submission is None:
-        submission = Submission(
-            game_id=draft.game_id,
-            team_id=draft.team_id,
-            turn=draft.turn,
-            status="submitted",
-            version=1,
-            submitted_at=now,
-            created_at=now,
-            updated_at=now,
-        )
-        session.add(submission)
-        session.flush()
-    else:
-        submission.version += 1
-        submission.status = "amendment_pending"
-        submission.updated_at = now
-    session.add(
-        SubmissionVersion(
-            submission_id=submission.id,
-            game_id=draft.game_id,
-            team_id=draft.team_id,
-            version=submission.version,
-            snapshot=snapshot,
-            created_at=now,
-            submitted_by=submitter,
-        )
-    )
-    if submission.version > 1:
-        session.add(
-            Amendment(
-                submission_id=submission.id,
-                game_id=draft.game_id,
-                team_id=draft.team_id,
-                version=submission.version,
-                body=snapshot,
-                created_at=now,
-            )
-        )
-    else:
-        for action in actions:
-            session.add(
-                SubmittedAction(
-                    submission_id=submission.id,
-                    game_id=draft.game_id,
-                    team_id=draft.team_id,
-                    action_id=action.action_id,
-                    body=action.body,
-                    created_at=now,
-                )
-            )
-    return submission

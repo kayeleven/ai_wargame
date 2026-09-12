@@ -3,14 +3,12 @@
 Direction accepted 2026-09-11 under [B-11–B-14](docs/decisions.md#b-11--wrapper-ownership-and-framework-contracts).
 Planned capabilities below are not implementation claims.
 
-Status: Phase 0 complete. Phase 1A, 1B, 1C-core and 1C-admin (with bounded
-corrections) are implemented and verified under `docs/phase1/`. The 1D commit
-delivers **persistence foundation and initial helpers only**: the models in
-`src/living_memory/workspace.py` exist, `save_draft_action`, `submit_draft` and
-`claim_request_key` have no application callers, `templates/play.html` and
-`templates/adjudicate.html` are placeholders, and there is no 1D verification record
-or dedicated workspace behavior test. Workflows, service-level authorization, state
-transitions, concurrency behavior and verification are outstanding.
+Status: Phase 0, 1A, 1B, 1C-core, 1C-admin (with bounded corrections), and
+**1D-1 — Draft, submit, amend** are implemented and verified under `docs/phase1/`.
+1D-1 adds shared drafts/history/comments, authorized versioned writes, designated
+submission, and explicit amendment decisions. **1D-2 remains outstanding**:
+coordination, RFIs, and imports have retained persistence tables but no application
+writers or player affordances. Full 1D-remainder is not complete.
 
 **Scope exclusion, unchanged:** military movement and combat are submitted and
 adjudicated in the separate M&S tool, and integration with it remains outside this
@@ -96,8 +94,8 @@ The code transition and rebuild verification complete in 1W after 1E.
 
 ## Phase 1 — Playable human workflow and durable memory
 
-Implemented and unrevised: 1A, 1B, 1C-core, 1C-admin, and the 1D persistence foundation
-described in the status note.
+Implemented: 1A, 1B, 1C-core, 1C-admin, and 1D-1. The 1D-remainder gate below
+requires both 1D-1 and 1D-2; see [1D-1 verification](docs/phase1/verification-1d-1.md).
 
 | Milestone | Deliverable | Acceptance gate |
 | --- | --- | --- |
@@ -368,7 +366,7 @@ Coverage: OPS-01–09 and full-scale PLAY-02–04.
 
 ## Delivery order
 
-B-11 decision → 1D-remainder → 1E → 1W → Phase 2 → 2M → 1F → 3A → 3B/3C → 4 → 5.
+B-11 decision → 1D-1 (complete) → 1D-2 → 1E → 1W → Phase 2 → 2M → 1F → 3A → 3B/3C → 4 → 5.
 1G runs alongside 1D/1E. 2M authoring can begin during Phase 2.
 
 ## Delivery principles

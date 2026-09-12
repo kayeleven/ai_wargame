@@ -3,8 +3,8 @@
 Accepted implementation direction, updated 2026-09-11 under
 [B-11–B-14](../decisions.md#b-11--wrapper-ownership-and-framework-contracts).
 The existing 1C backend contracts remain documented below; the new boundary governs
-1D-remainder onward. Neither these contracts nor the roadmap imply implementation
-of the outstanding workspace, white-cell, framework or replay workflows.
+1D-remainder onward. 1D-1 implements drafting, submission and amendment decisions; 1D-2 coordination,
+RFI and import workflows remain outstanding alongside white-cell, framework and replay work.
 
 ## Wrapper and framework boundary: B-11
 
@@ -195,3 +195,26 @@ session revocation and verification complete. Populated 0004 databases and their
 archives are intentionally incompatible with 0005. See the [developer guide](../development.md)
 for current compatibility limitations; do not treat the historical correction's
 0004 rollout procedure as the current checkout's upgrade path.
+
+## 1D-1 implementation boundary
+
+The completed increment is draft → submit → explicit amendment → decision, with
+one pending amendment per submission and a separate effective content version.
+Submission status is `submitted` or `amendment_pending`; acceptance/rejection
+belongs to amendment decisions. No ruling/closure flag exists yet. 1E must add
+ruling lifecycle restrictions together with its adjudication model.
+
+Stable action identity is scoped by game/team/turn. Submitted action rows are
+immutable per content version; 1D-2 will extend coordination/RFI links to draft-time
+revision references. The retained import, coordination and RFI tables have no
+application writers in 1D-1. Request-key branch IDs always come from the game's root
+branch. A historical view never changes current authorization.
+
+One submitter designation per team is database-enforced. Inactive designation
+replacement is explicit, authorized, atomic and audited. Native text must be
+complete on submission; ownership does not restrict teammate editing; late
+submission is allowed with the governing deadline snapshotted.
+
+The disposable 0005 baseline is revised in place for application version 0.3.0.
+Exact backup-version verification rejects old 0005/0.2.0 archives before restore.
+See [1D-1 verification](verification-1d-1.md) for evidence and limitations.

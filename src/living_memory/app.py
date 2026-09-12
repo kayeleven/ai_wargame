@@ -185,6 +185,9 @@ def create_app(
             return access_changed_response(request)
 
         app.include_router(auth_admin_router(db, templates, settings))
+        from living_memory.workspace_web import workspace_router
+
+        app.include_router(workspace_router(db, templates, settings))
 
     if settings.environment == "development":
         from living_memory.explorer import explorer_router

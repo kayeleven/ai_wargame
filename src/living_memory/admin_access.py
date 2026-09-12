@@ -86,6 +86,16 @@ def set_membership(
         team.id for team in configuration.teams
     }:
         raise ValueError("Unknown configured team or authority")
+    if authority == "submitter":
+        existing = session.scalar(
+            select(TeamMembership.user_id).where(
+                TeamMembership.game_id == game_id,
+                TeamMembership.team_id == team_id,
+                TeamMembership.authority == "submitter",
+            )
+        )
+        if existing is not None and existing != user_id:
+            raise AdministrationConflict("Use Replace submitter to change the designation")
     row = session.get(TeamMembership, (user_id, game_id, team_id))
     if change:
         if row is None:
@@ -234,4 +244,52 @@ def review_access(
         str(pending.id),
         now,
         {"team_id": team_id or None, "authority": authority, "role": role or None},
+    )
+
+
+def replace_submitter(
+    session: Session,
+    actor: UUID,
+    game_id: str,
+    team_id: str,
+    expected_user_id: UUID,
+    replacement_user_id: UUID,
+    now: datetime,
+) -> None:
+    """Explicit, atomic designation replacement, including inactive predecessors."""
+    game = require_admin(session, actor, game_id)
+    for uid in sorted({actor, expected_user_id, replacement_user_id}):
+        session.get(User, uid, with_for_update=True, populate_existing=True)
+    administrator = session.get(User, actor)
+    if administrator is None or not administrator.active or administrator.pending:
+        raise PermissionError("Active administrator required")
+    eligible_target(session, actor, game_id, replacement_user_id)
+    if team_id not in {t.id for t in governing_configuration(session, game, now).teams}:
+        raise LookupError("Not found")
+    current = session.scalar(
+        select(TeamMembership).where(
+            TeamMembership.game_id == game_id,
+            TeamMembership.team_id == team_id,
+            TeamMembership.authority == "submitter",
+        )
+    )
+    target = session.get(TeamMembership, (replacement_user_id, game_id, team_id))
+    if current is None or current.user_id != expected_user_id:
+        raise AdministrationConflict("Submitter changed; reload before replacing")
+    if target is None or replacement_user_id == expected_user_id:
+        raise ValueError("Choose a different active teammate")
+    current.authority = "member"
+    session.flush()
+    target.authority = "submitter"
+    session.flush()
+    reconcile_team_state(session, game, now)
+    audit(
+        session,
+        actor,
+        game_id,
+        "submitter_replaced",
+        "team_membership",
+        team_id,
+        now,
+        {"previous": str(expected_user_id), "replacement": str(replacement_user_id)},
     )

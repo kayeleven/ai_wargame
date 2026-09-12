@@ -308,3 +308,23 @@ Consequences: preserve Phase 0 and completed verification as historical evidence
 collect human effort in the review surface and operational replay sessions.
 Requirements: EXP-01–04, MEM-06, OPS-01–09. Verification: the future milestone
 gates in the [roadmap](../roadmap.md), not new completion claims in this decision.
+
+### B-15 — Bounded 1D-1 workflow and disposable baseline
+
+Accepted by the owner during the 1D-remainder planning review, implemented 2026-09-12.
+Split 1D into draft/submit/amend (1D-1) and coordination/RFI/import (1D-2), each with
+its own verification gate. Ownership indicates accountability; all teammates edit.
+Native submission requires complete text, permits zero actions, and accepts marked
+late submissions. Explicit adjudicator amendment decisions belong to 1D-1; ruling
+closure belongs to 1E, with no speculative guard in this increment.
+
+The sole submitter designation remains occupied after deactivation. Add an explicit
+atomic replacement workflow and preserve existing deactivation/session/team-blocking
+semantics. Stable action IDs survive draft revisions and immutable submissions.
+Draft-time coordination/RFI links preserving referenced revisions belong to 1D-2.
+
+The owner confirmed all databases are local, disposable, and contain no real data.
+Revise 0005 in place using fixed DDL; rebuild old databases and reject old archives
+by bumping exact backup compatibility to 0.3.0. Retain the unused 1D-2 tables and
+import FK cycle. This is a development-baseline reset, not a supported data migration.
+Evidence: [1D-1 verification](phase1/verification-1d-1.md).

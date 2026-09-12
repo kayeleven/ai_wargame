@@ -35,9 +35,9 @@ approval of rulings and release.
 ## Status and document conventions
 
 This repository contains the Phase 1A foundation, Phase 1B/1C-core temporal memory,
-Phase 1C-admin identity and administration with bounded corrections, and the 1D
-persistence foundation and initial helpers. Player/adjudication pages remain
-placeholders; 1D workflows and dedicated verification are outstanding. Framework
+Phase 1C-admin identity and administration with bounded corrections, and 1D-1 shared drafting, submission, and amendment decisions.
+Coordination, RFIs, and imports remain in 1D-2; full 1D is not complete. See the
+[1D-1 verification record](docs/phase1/verification-1d-1.md). Framework
 decoupling, white-cell lenses, AI and replay are planned work. The selected stack is
 Python 3.12, FastAPI, Pydantic, SQLAlchemy, Alembic, PostgreSQL 16, Jinja and local
 HTMX. See [developer setup](docs/development.md) for current schema/backup

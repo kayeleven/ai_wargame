@@ -479,29 +479,39 @@ def test_core_has_no_fixture_vocabulary_or_fixed_cardinality():
 def test_populated_1b_migration_requires_0005_rebuild(database):  # noqa: F811
     db, _ = database
     config = migration_config()
-    with db.engine.begin() as connection:
-        config.attributes["connection"] = connection
-        command.downgrade(config, "0002")
-    stage_package(
-        db,
-        FixedClock(datetime(2045, 1, 1, tzinfo=UTC)),
-        ROOT / "fixtures/phase0",
-    )
-    with db.transaction() as session:
-        artifact = session.scalars(select(DevelopmentArtifact)).one()
-        preserved = dict(artifact.contents)
-        preserved.pop("_manifest.json")
-        preserved.pop("_records.json")
-        preserved.pop("manifest.json")
-        artifact.contents = preserved
-        artifact.package = "phase0"
-        session.execute(
-            text(
-                "INSERT INTO memory_timeline (id, game_id, branch_id) VALUES (:id, :game, :branch)"
-            ),
-            {"id": artifact.id, "game": "harbor-relief", "branch": "main"},
+    try:
+        with db.engine.begin() as connection:
+            config.attributes["connection"] = connection
+            command.downgrade(config, "0002")
+        stage_package(
+            db,
+            FixedClock(datetime(2045, 1, 1, tzinfo=UTC)),
+            ROOT / "fixtures/phase0",
         )
-    with db.engine.begin() as connection:
-        config.attributes["connection"] = connection
-        with pytest.raises(RuntimeError, match="empty 0004 schema"):
+        with db.transaction() as session:
+            artifact = session.scalars(select(DevelopmentArtifact)).one()
+            preserved = dict(artifact.contents)
+            preserved.pop("_manifest.json")
+            preserved.pop("_records.json")
+            preserved.pop("manifest.json")
+            artifact.contents = preserved
+            artifact.package = "phase0"
+            session.execute(
+                text(
+                    "INSERT INTO memory_timeline (id, game_id, branch_id) "
+                    "VALUES (:id, :game, :branch)"
+                ),
+                {"id": artifact.id, "game": "harbor-relief", "branch": "main"},
+            )
+        with db.engine.begin() as connection:
+            config.attributes["connection"] = connection
+            with pytest.raises(RuntimeError, match="empty 0004 schema"):
+                command.upgrade(config, "head")
+    finally:
+        # This destructive legacy-schema exercise must not poison later tests.
+        with db.engine.begin() as connection:
+            assert connection.scalar(text("SELECT current_database()")) == "living_memory_test"
+            connection.execute(text("DROP SCHEMA public CASCADE"))
+            connection.execute(text("CREATE SCHEMA public"))
+            config.attributes["connection"] = connection
             command.upgrade(config, "head")
