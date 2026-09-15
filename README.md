@@ -30,6 +30,8 @@ approval of rulings and release.
 | [docs/architecture.md](docs/architecture.md) | Proposed boundaries, memory model, workflows, deployment, and replay semantics. |
 | [docs/evaluation.md](docs/evaluation.md) | Research hypotheses, comparison methods, measurements, and test cases. |
 | [docs/decisions.md](docs/decisions.md) | Established direction, provisional choices, and unresolved decisions. |
+| [docs/design-guide.md](docs/design-guide.md) | Planning-session baseline for shared page, interaction and visual design rules. |
+| [Design examples](docs/design-examples.md) and [navigation inventory](docs/navigation-inventory.md) | Initial structural trials and proposed placement; includes a shared visual reference. |
 | [docs/revision.md](docs/revision.md) | Operational addendum incorporated under B-16; ADD-01–09 trace to requirements and roadmap gates. |
 | [Phase 0 acceptance package](docs/phase0/README.md) | Non-military fixtures, submission contracts, acceptance cases, and human walkthrough. |
 
