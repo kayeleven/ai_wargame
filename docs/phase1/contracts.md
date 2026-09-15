@@ -1,7 +1,7 @@
 # Phase 1 architectural contracts
 
-Accepted implementation direction, updated 2026-09-11 under
-[B-11–B-14](../decisions.md#b-11--wrapper-ownership-and-framework-contracts).
+Accepted implementation direction, updated 2026-09-15 under
+[B-11–B-16](../decisions.md#b-11--wrapper-ownership-and-framework-contracts).
 The existing 1C backend contracts remain documented below; the new boundary governs
 1D-remainder onward. 1D-1 implements drafting, submission and amendment decisions; 1D-2 coordination,
 RFI and import workflows remain outstanding alongside white-cell, framework and replay work.
@@ -21,7 +21,7 @@ tables directly, and the wrapper does not depend on a candidate's schema.
 | --- | --- |
 | Input | Immutable submissions, premise, prior rulings/facts, RFI status, disclosures and temporal cutoff. Preserve player prose verbatim. |
 | Output | Review packet, proposed god view and per-actor fog-of-war views. Independent provenance class (game record/world knowledge/assumption) and truth status (established/claimed/disputed/unresolved). |
-| Lookup | Automatically resolve authorized game-memory needs; flag world-specific questions for human verification. A reference corpus is out of scope but can register later. |
+| Lookup | Automatically resolve authorized game-memory needs; flag world-specific questions for human verification. Limited approved game/scenario references are permitted with provenance, authorization and cutoff controls; full RAG is outside this application, with an external resolver seam. |
 
 This **supersedes the former admin-to-memory projection prerequisite for 1D writes**.
 1D and 1E use wrapper-owned records. Existing activation/dataset and query/reader
@@ -126,6 +126,43 @@ Test concurrent conflicts, repeated and simultaneous effects, stale amendments
 and reviews, prospective late answers preserving historical rulings, and release
 audience boundaries.
 
+## Operational detail contracts: 1D-2, 1E and Phase 2
+
+- **Ingest:** retain the four free-text fields; Intended effect means Intent of Action.
+  Preserve optional supplied context, source attachments/metadata and exact submitted
+  versions. Imports retain omissions. Preparation reads authorized immutable packages
+  without re-entry; derived tags/trigger interpretations never overwrite player prose.
+- **Trigger and feasibility review:** link proposed statuses (satisfied, not satisfied,
+  uncertain, not applicable) to statements, dependency/source versions, temporal and
+  visibility constraints, rationale and operational human decisions. Preserve distinct
+  intent interpretation, feasibility, applicability, effect and release records.
+  Amendments, RFI answers and state changes invalidate affected current evaluations;
+  preserve prior ones, require reassessment and apply approved effects once only.
+  An unresolved or merely submitted conditional action does not become active.
+- **State:** variable definitions and value revisions are wrapper-owned. Capture type,
+  units where applicable, baseline, source, authority, visibility, effective/recording
+  times, uncertainty/dispute and update rationale. Link rulings/effects; use atomic
+  version checks. Canonical values and actor beliefs/disclosures remain distinct.
+- **Packets:** retain supplied source versions, retrieval query basis, provenance and
+  independent truth status, authorization/cutoff, unsupported assumptions, unresolved
+  needs, raw output and validation failures, plus exactly what reviewers saw.
+- **Observations:** preserve source/collection method, actor/team/action/turn/time,
+  assessment and review history. Imported/automated capture is unverified until reviewed;
+  source evidence and approved player-facing release are separate records/decisions.
+- **Operational validation:** retain cases/results and approval for a specified game
+  context and method/model/prompt/retrieval configuration before operational AI-method activation.
+  Record known limitations, acceptance criteria and human fallback; define material
+  change criteria and invalidate approval when they apply. Test approval/configuration
+  mismatch. Research mode follows B-13 and does not inherit operational release authority.
+- **Measurement:** retain workflow/review events and method identity; distinguish
+  active time, queue/processing time and elapsed time. Link proposal/duplicate/trigger
+  outcomes to original artifacts. Report external bypass/re-entry explicitly; absence
+  of events is not evidence of absence. The existing evaluation plan governs analysis.
+
+1D-2 owns ingest and baseline workflow events; 1E owns manual decisions, state,
+observations and review events; Phase 2 adds machine proposals and validation approval.
+These are future contracts, not extensions of the completed 1D-1 verification claim.
+
 ## White-cell lens and release: 1E
 
 White-cell users retain god view while playing unrepresented actors. An optional
@@ -175,6 +212,8 @@ PowerShell with optional WSL, documented prerequisites and generated secrets.
 Dependencies must be pinned and packageable offline. This is not full installer
 parity or offline provisioning evidence. Phase 3A delivers offline research
 install/update/recovery and internal reporting; results cannot be exported.
+Future external export is required under OPS-10/B-16, but scope, contents, mechanism,
+authorization and delivery phase remain unresolved; no current egress is authorized.
 Organizational identity, TLS, VDI and full-scale capacity remain Phase 5 qualification.
 Phase 2 inference uses separate processes/budgets, with queued status, priority,
 retry, cancellation and failure recovery, never waiting in interactive transactions.

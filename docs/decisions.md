@@ -1,6 +1,6 @@
 # Decisions and open questions
 
-Status: updated 2026-09-11. B-11–B-14 record the accepted roadmap revision and owner-selected defaults. They govern remaining work, not claims of implementation. Historical decisions and evidence are retained; candidate backend, worker and model selections remain open.
+Status: updated 2026-09-15; B-16 incorporates the operational addendum. B-11–B-14 record the accepted roadmap revision and owner-selected defaults. They govern remaining work, not claims of implementation. Historical decisions and evidence are retained; candidate backend, worker and model selections remain open.
 
 ## Established direction
 
@@ -42,7 +42,8 @@ Status: updated 2026-09-11. B-11–B-14 record the accepted roadmap revision and
 | O-08 | What reviewer protocol and practical success thresholds will determine whether preparation helps? | First comparison study |
 | O-09 | B-13 resolves the Phase 2 default as retain as attempted (N-05); detailed human revision/controller regeneration remains Phase 4 work. | Phase 2 baseline resolved / Phase 4 extension |
 | O-10 | What representative workload, latency targets, inference queue targets, backup frequency, and recovery objectives define full-game readiness? | Set before phase 5 testing |
-| O-11 | Results cannot leave the operational environment (B-14). What retention, audit-access and internal diagnostic-handling policies apply? | Before 3A |
+| O-11 | Current operational results remain internal (B-14/B-16). What retention, audit-access and internal diagnostic-handling policies apply? | Before 3A |
+| O-12 | Future external export is required (OPS-10/B-16); what scope, contents, mechanism, authorization and delivery phase apply? | Unresolved; before export design |
 
 These questions do not block all progress. Resolve each before implementing behavior that depends on it; keep independent work moving.
 
@@ -328,3 +329,36 @@ Revise 0005 in place using fixed DDL; rebuild old databases and reject old archi
 by bumping exact backup compatibility to 0.3.0. Retain the unused 1D-2 tables and
 import FK cycle. This is a development-baseline reset, not a supported data migration.
 Evidence: [1D-1 verification](phase1/verification-1d-1.md).
+
+### B-16 — Operational addendum incorporation — 2026-09-15
+
+Status: accepted by the project owner following review of [the addendum](revision.md).
+This records intended work, not new implementation or verification evidence.
+
+- Incorporate ADD-01–09 into existing requirements/contracts and milestone gates.
+  Keep B-14's delivery order, including 1W after 1E; A/B/C are thematic groupings.
+- Human authority governs operational games and release. Preserve B-13's automated
+  research default, human-review toggle and isolated, policy-recorded histories.
+- Keep the four free-text action fields and minimal player metadata. “Intended
+  effect” means “Intent of Action.” No new mandatory tags, modifiers or structured
+  targets/resources/timing; optional supplied material and derived interpretations
+  remain distinct, with original versions preserved.
+- Permit limited relevant game/scenario reference inclusion. Full, robust RAG is
+  beyond this application; B-11's retrieval seam remains. This refines the earlier
+  blanket reference-corpus exclusion without introducing general corpus ingestion.
+- External export is a future requirement (OPS-10), with contents, scope, mechanism,
+  authorization and delivery phase unresolved. B-14's current operational deployment
+  and internal-analysis constraints remain; no present egress is authorized.
+- Add explicit trigger review, bounded configurable state (GAME-06), advisory volume
+  support (PLAY-06), retained operational validation approval (EXP-05), and reviewed
+  observations (MEM-07). State/decisions/approvals belong to the wrapper; machine
+  proposals and retrieval projections use the existing framework contracts.
+- Keep the existing evaluation plan unchanged. Additional friction/trigger events
+  support its human-effort and quality measures, not substitute success criteria.
+  Learning Demand integration and broader capture adapters are not initial gates.
+
+Alternatives: replace the roadmap with A/B/C, add mandatory player structure,
+require human research rulings, or build full RAG now. These were not selected.
+Evidence: the owner's explicit responses to the documentation review and instruction
+to incorporate operational detail without code changes. Verification remains the
+future gates in the roadmap; completed Phase 0/1 records remain historical evidence.

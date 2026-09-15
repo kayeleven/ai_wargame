@@ -1,6 +1,6 @@
 # Requirements
 
-Status: revised 2026-09-11 under B-11–B-14 in the [decision log](docs/decisions.md). This document specifies intended capabilities, not current implementation. Requirement identifiers are preserved. Acceptance evidence describes what must be demonstrated; detailed performance thresholds remain to be established.
+Status: revised 2026-09-15 under B-11–B-16 in the [decision log](docs/decisions.md). This document specifies intended capabilities, not current implementation. Requirement identifiers are preserved. Acceptance evidence describes what must be demonstrated; detailed performance thresholds remain to be established.
 
 ## Purpose and scope
 
@@ -29,6 +29,11 @@ through input, output and lookup contracts; rebuilding must not lose historical
 evidence. One framework is active per game, with alternatives compared through replay.
 
 Each player submits one overall free-text intention for the turn and a variable-length collection of actions. Each action has four free-text fields: **Title**, **Description**, **Intent of Action**, and **Anticipated reaction**. There is no fixed game-level action limit; the Phase 0 baseline permits an intention-only submission. Preserve the original text. Structured resources, targets, timing, and classifications may be separately interpreted for review but are not mandatory player-authored fields. Anticipated reactions are expectations, not observations. See the [Phase 0 contract](docs/phase0/contracts.md).
+
+“Intended effect” and “Intent of Action” are synonymous, not separate fields.
+Keep player entry minimal: optional supplied context and attachments retain source
+metadata and immutable version references; extracted tags and trigger interpretations
+remain separate. Authorized preparation consumes the submitted package without re-entry.
 
 ## Game configuration and participation
 
@@ -101,6 +106,28 @@ Each player submits one overall free-text intention for the turn and a variable-
 | OPS-08 | Support configurable local model endpoints with capability checks and output validation. | Unsupported capabilities and invalid responses produce actionable, recoverable failures. |
 | OPS-09 | Keep state updates, submissions, and background processing safe under concurrency, retries, and service restarts. | Tests show no duplicate applied effects, silent lost edits, or partially committed rulings. |
 
+## Operational detail from the integration addendum
+
+These obligations incorporate [ADD-01–09](docs/revision.md) under B-16. Existing
+requirement IDs retain their meaning; the following rows extend their acceptance
+criteria. They are planned work unless covered by an existing verification record.
+
+| Requirement coverage | Additional obligation and acceptance evidence |
+| --- | --- |
+| PLAY-01/02, GAME-04 (ADD-01) | Native and imported packages preserve original text, author/team/actor and scenario/turn context, supplied supporting material and source metadata, and submission/amendment versions. Authorized review and preparation consume the same immutable package without transcription; original attachments remain recoverable. |
+| MEM-02/03/05, ADJ-01/02/03 (ADD-02/05) | Represent On Action conditions, branches/sequels, prerequisites and action/ruling/RFI/state/time dependencies separately from player prose. Preserve trigger statement, source versions, cutoff, visibility, proposed satisfied/not satisfied/uncertain/not applicable status, rationale and recorded decision. Submission alone never activates an action. Changed dependencies require reassessment, preserving earlier evaluations and preventing duplicate effects. |
+| MEM-01/04/06, ADJ-01, EXP-02 (ADD-03) | Packets preserve supplied sources, provenance and independent truth status, query basis, authorization and temporal constraints, unresolved needs, unsupported assumptions, raw output and validation status. Limited approved game/scenario material is retrievable; full RAG is outside this application. Backend replacement preserves original packets and reviewer-visible versions. |
+| ADJ-02/03/04, MEM-01 (ADD-05) | Separately record submitted intent, interpretation, feasibility, trigger applicability and approved effects. Operational reviewers can mark an action infeasible, deferred, conditional, incomplete or requiring clarification; material interpretations/links, effects and release have recorded human decisions or applicable human-approved policy. AI proposals alone confer no operational authority. Research follows its recorded ruling policy. |
+| EXP-02/03 (ADD-08) | Extend workflow evidence with re-entry/bypass reports, processing latency/failures, submission-to-ruling and release timing, active review time, proposed/accepted/rejected links, merged duplicates, trigger outcomes, missing-context/RFI rates and substantive edits. Link events to method/configuration and review history; use the existing evaluation plan for comparisons and independent assessment of missed interactions. External activity must be reported or otherwise explicitly observed, not inferred from absent events. |
+
+| New ID | Requirement | Acceptance evidence |
+| --- | --- | --- |
+| GAME-06 (ADD-04) | Define selected scenario-state variables without code changes: categories, types, units where applicable, baselines, sources, update authority and visibility. Preserve effective/recording times, uncertainty/dispute status, rationale and submission/ruling/effect links for value revisions. This supplements free-text adjudication, not a universal simulation. | An authorized user defines a variable and records an attributable update; reviewers recover baseline and earlier values, source and effective time. Canonical values remain distinct from actor beliefs/disclosures; updates obey authority and concurrency controls. |
+| PLAY-06 (ADD-06) | Provide action-volume counts and optional scenario-configured advisory scope/duplicate flags and grouping. No new mandatory player tags; domain breakdowns require supplied or separately derived classifications. | Facilitators inspect counts and advisory flags without silently losing or modifying submissions. Any restrictive policy is explicit and scenario-specific. |
+| EXP-05 (ADD-07) | Retain pre-game validation and human approval for operational AI use, scoped to game context and method/model/prompt/retrieval configuration, with known limitations, acceptance criteria and fallback. Material behavioral changes require revalidation. | Before operational AI-method activation, a retained record covers representative normal/cross-player/conditional/incomplete cases, visibility, state, RFIs, expected sources, failures, latency and recovery. Changed configuration cannot silently inherit approval. Existing evaluation and deployment gates still apply. |
+| MEM-07 (ADD-09) | Capture observations/significant activities with title, narrative, source/collection method, actor/team/action/turn/time links, visibility, confidence/assessment status and review history. Link to issues, state changes and RFIs where relevant; imported/automated capture remains unverified until reviewed. | Authorized users create, review, retrieve and separately release records; collected evidence remains distinct from approved player-facing observations and canonical facts. Broader capture adapters follow later; Learning Demand integration is unspecified. |
+| OPS-10 | Provide an external export capability in future. Export scope, contents, format, mechanism, authorization and delivery phase remain unresolved. | Acceptance criteria will be defined when the export scope is agreed; this requirement does not authorize current operational data egress or select an integration. |
+
 ## Boundaries and unresolved specifications
 
 The initial scope does not require a comprehensive domain simulation, a universal import format for all wargames, simultaneous character-level document editing, or multi-platform installer parity. These are possible extensions, not established requirements.
@@ -109,7 +136,10 @@ Native Windows development/evaluation setup is required by 1G; it does not imply
 Windows production-server support or full installer parity. The white-cell lens
 selects an actor only; a separate time selector, truth/belief toggle and side-by-side
 lenses are not required. Temporal reconstruction remains a separate memory/replay
-obligation. A reference/RAG corpus is outside scope, with a future resolver seam.
+obligation. Limited approved game/scenario reference material may be included through the retrieval
+contract. Full, robust RAG is beyond this application; preserve an interface for
+external retrieval implementations. Future external export is required by OPS-10,
+with scope and implementation unresolved; current operational analysis stays internal.
 
 The wrapper stack is selected under B-06. Candidate backends, workers, identity
 integration, model/hardware sizing, numerical targets and recovery objectives remain

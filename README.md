@@ -30,6 +30,7 @@ approval of rulings and release.
 | [docs/architecture.md](docs/architecture.md) | Proposed boundaries, memory model, workflows, deployment, and replay semantics. |
 | [docs/evaluation.md](docs/evaluation.md) | Research hypotheses, comparison methods, measurements, and test cases. |
 | [docs/decisions.md](docs/decisions.md) | Established direction, provisional choices, and unresolved decisions. |
+| [docs/revision.md](docs/revision.md) | Operational addendum incorporated under B-16; ADD-01–09 trace to requirements and roadmap gates. |
 | [Phase 0 acceptance package](docs/phase0/README.md) | Non-military fixtures, submission contracts, acceptance cases, and human walkthrough. |
 
 ## Status and document conventions
@@ -46,7 +47,11 @@ for its bounded verification evidence.
 
 Requirements consolidate the project owner's objectives. The revised roadmap direction
 is accepted under [B-11–B-14](docs/decisions.md#b-11--wrapper-ownership-and-framework-contracts);
-it does not imply implementation. Open technology choices remain proposals.
+B-16 incorporates operational detail while preserving that sequence and the evaluation
+plan. Player structure stays minimal; limited game/scenario references are permitted,
+full RAG stays outside this application, and future external export is required with
+scope unresolved. These decisions do not imply implementation. Open technology
+choices remain proposals.
 
 `requirements.md` describes product requirements. Software dependencies are defined in `pyproject.toml` and locked in `uv.lock`.
 

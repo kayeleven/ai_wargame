@@ -1,7 +1,9 @@
 # Living Memory — Adjudication Workflow and Context Integration Addendum
 
-**Status:** Draft for development planning  
-**Date:** 14 September 2026  
+**Status:** Incorporated planning detail under [B-16](decisions.md#b-16--operational-addendum-incorporation--2026-09-15); not implementation evidence
+
+**Date:** 14 September 2026; reconciled 15 September 2026
+
 **Purpose:** Define targeted improvements to Living Memory that reduce adjudication friction, improve context quality, preserve human authority, and support an integrated, auditable wargaming workflow.
 
 ---
@@ -12,13 +14,21 @@ Living Memory will serve as the durable operational backbone for turn submission
 
 The platform will preserve the following design principles:
 
-1. **Human authority remains decisive.** AI may identify, summarize, retrieve, compare, and propose; it does not independently determine feasibility, adjudicate outcomes, apply effects, or release player feedback.
+1. **Human authority remains decisive in operational games.** AI may identify, summarize, retrieve, compare, and propose; it does not independently determine feasibility, adjudicate outcomes, apply effects, or release player feedback there. Research follows its recorded ruling policy.
 2. **Authoritative records remain durable.** Player input, adjudicator decisions, effects, disclosures, review actions, and original AI run artifacts remain preserved independently of any retrieval or model implementation.
 3. **Context must be inspectable.** Every proposed issue, relationship, trigger determination, or suggested consequence must identify the records, sources, assumptions, and temporal cutoff used.
 4. **Workflow integration is a product requirement.** Users should not need to retype turn-card content into a separate AI or triage tool.
 5. **Automation must reduce—not redistribute—human workload.** Features that create redundant links, excessive recommendations, delays, or opaque output do not meet the intended outcome.
 
-This addendum supplements, but does not replace, existing requirement identifiers, scope boundaries, and architectural decisions.
+This addendum supplements, but does not replace, existing requirement identifiers,
+scope boundaries, and architectural decisions. [Requirements](../requirements.md)
+and the [roadmap](../roadmap.md#operational-addendum-allocation-and-gates) incorporate
+ADD-01–09; their phase order governs delivery. The [evaluation plan](evaluation.md)
+remains unchanged and governs measurement and comparison.
+
+Human approval requirements here apply to operational games and release. Research
+replay retains B-13's automated default, human-review toggle and recorded policy in
+an isolated history; research automation cannot authorize operational effects or release.
 
 ---
 
@@ -49,12 +59,16 @@ Each turn package shall preserve:
 - overall intent;
 - action title;
 - action description;
-- intended effect;
+- Intent of Action (synonymous with intended effect);
 - anticipated reaction;
 - timing or trigger conditions when supplied;
 - targets, resources, dependencies, and supporting material when supplied;
 - source attachments and source metadata;
 - drafting, revision, submission, and amendment history.
+
+Player entry retains overall intention and the four free-text action fields. No
+additional mandatory tags, modifiers, targets, resources or timing fields are
+introduced. Optional supplied context is preserved; extraction remains separate.
 
 The canonical original player text shall remain immutable after submission. Derived tags, interpretations, classifications, summaries, and extracted entities shall remain separate from the original submission.
 
@@ -90,7 +104,11 @@ Each trigger evaluation shall record:
 - adjudicator confirmation, modification, or rejection;
 - resulting effect, if any.
 
-AI may recommend a trigger status but shall not apply the trigger or initiate downstream effects without human approval.
+In operational games, AI may recommend a trigger status but shall not apply the trigger or initiate downstream effects without human approval. Research follows its recorded ruling policy.
+
+Dependency references identify exact source versions. Amendments, RFI answers and
+state changes require reassessment of affected evaluations, preserving prior results
+and preventing duplicate effect application.
 
 **Acceptance evidence:**
 
@@ -112,7 +130,10 @@ For an adjudication request, the retrieval contract shall support authorized ret
 - actor beliefs and approved disclosures;
 - linked actions, commitments, effects, and conditional triggers;
 - structured scenario-state variables;
-- approved scenario references and other registered knowledge sources.
+- limited approved game/scenario reference material, with source versions and authorization.
+
+Full, robust RAG is beyond this application. Preserve an external resolver seam;
+this requirement does not introduce general reference-corpus ingestion.
 
 Every AI-generated review packet shall include:
 
@@ -154,6 +175,10 @@ Structured state records shall support:
 - actor visibility and disclosure rules;
 - linkage to relevant submissions, rulings, and effects.
 
+Variable definitions and value revisions are separate wrapper-owned records;
+canonical values remain distinct from actor beliefs and disclosures. Updates use
+authority, concurrency and once-only effect controls.
+
 Structured state is supplemental to free-text adjudication. It shall not force all scenarios into a common simulation model.
 
 **Acceptance evidence:**
@@ -176,7 +201,7 @@ The adjudication workflow shall explicitly separate:
 
 AI may flag apparent ambiguity, infeasibility, inconsistency, missing context, or competing interpretations. AI shall not treat all submitted actions as feasible, triggered, or adjudicable.
 
-The review surface shall require a human decision or recorded policy for:
+In operational games, the review surface shall require a human decision or applicable human-approved policy for:
 
 - feasibility determinations;
 - interpretation of player intent when ambiguous;
@@ -187,7 +212,7 @@ The review surface shall require a human decision or recorded policy for:
 
 **Acceptance evidence:**
 
-- An AI-proposed adjudication cannot become authoritative without a recorded human approval.
+- An AI-proposed adjudication cannot become authoritative in an operational game without recorded human approval; research follows its recorded ruling policy.
 - Reviewers can record that an action is infeasible, deferred, conditional, incomplete, or requires clarification.
 - The system preserves the distinction between player intent, adjudicator interpretation, and final ruling.
 
@@ -204,6 +229,9 @@ The platform may support:
 - flags for actions lacking sufficient operational relevance or required context;
 - identification of potentially duplicative actions;
 - queueing or grouping support for high-volume adjudication.
+
+Counts use existing package metadata; domain or other classifications, when needed,
+are supplied optionally or derived separately rather than required from players.
 
 These features are advisory. They shall not automatically reject or modify player submissions unless a scenario-specific policy explicitly requires it.
 
@@ -245,7 +273,7 @@ The validation record shall document:
 
 - A live-game method has a retained validation record before activation.
 - Known failure modes and fallback procedures are available to adjudicators.
-- Configuration changes that materially affect behavior trigger revalidation.
+- Approval identifies the game context and exact method/model/prompt/retrieval configuration. Defined material behavioral changes invalidate that approval and trigger revalidation; a changed configuration cannot silently inherit approval.
 
 ---
 
@@ -267,7 +295,11 @@ At minimum, the platform shall capture:
 - feedback-release timing;
 - method, model, and retrieval configuration.
 
-Metrics shall support comparison across methods, turns, scenarios, and validation exercises without substituting automated metrics for human assessment.
+Metrics shall support comparison across methods, turns, scenarios, and validation
+exercises under the existing evaluation plan, without substituting automated metrics
+for human assessment. Separate active reviewer time from elapsed/queue time. External
+re-entry and bypass require explicit reporting or observation; missing interactions
+require independently assessed cases, not merely acceptance logs.
 
 **Acceptance evidence:**
 
@@ -288,8 +320,12 @@ An observation record shall support:
 - associated actors, teams, actions, turn, and time;
 - visibility and disclosure controls;
 - confidence and assessment status;
-- links to adjudication issues, state changes, RFIs, and Learning Demands where applicable;
+- links to adjudication issues, state changes and RFIs; Learning Demand integration remains unspecified and is not an initial delivery gate;
 - reviewer and approval history.
+
+Collected source evidence, established facts and approved player-facing observations
+remain distinct. Manual review/release belongs to 1E; broader capture adapters follow
+in Phase 3/4 as use cases establish need.
 
 The platform may accept observation records from manual entry, imported structured data, or approved transcription/capture workflows. Automated capture outputs shall remain unverified until reviewed.
 
@@ -331,7 +367,9 @@ Frameworks shall not become the sole holder of authoritative game history, adjud
 
 ### 4.3 Integration Responsibilities
 
-Living Memory shall expose stable, versioned interfaces for:
+Living Memory shall define stable, versioned contracts within the modular application
+as the owning milestones are delivered; separate services or public APIs are not
+required for every record. These contracts cover:
 
 - structured turn-card ingest;
 - scenario-state import and update;
@@ -351,9 +389,8 @@ This addendum does not require:
 
 - a universal import format for all wargames;
 - a complete economic, political, or military simulation;
-- autonomous AI adjudication;
-- automatic application of AI-proposed effects;
-- unrestricted reference-corpus ingestion;
+- autonomous AI adjudication or automatic AI-proposed effects in operational games; research follows its recorded policy;
+- full, robust RAG or unrestricted reference-corpus ingestion; limited relevant game/scenario inclusion is permitted;
 - replacement of specialized M&S tools;
 - direct integration with external systems before interface contracts and governance are defined.
 
@@ -361,11 +398,16 @@ Military movement and combat remain outside the initial Living Memory adjudicati
 
 ---
 
-## 6. Recommended Delivery Order
+## 6. Delivery themes and roadmap allocation
+
+A/B/C below are thematic groupings, not a replacement delivery sequence. The accepted
+order remains 1D-2 → 1E → 1W → Phase 2 → 2M → 1F → 3A → 3B/3C → 4 → 5,
+with 1G alongside 1D/1E. See the roadmap's operational allocation for explicit gates.
+Native 1D-1 entry is already delivered; its completed verification is unchanged.
 
 ### Increment A — Workflow and Data Foundation
 
-1. Complete wrapper/framework separation.
+1. Apply the accepted wrapper/framework contracts now; complete code separation in 1W after 1E.
 2. Deliver native structured turn-card entry and a narrow import contract.
 3. Add scenario-defined structured state records.
 4. Complete RFI workflow and controlled context injection.
@@ -382,12 +424,16 @@ Military movement and combat remain outside the initial Living Memory adjudicati
 ### Increment C — Retrieval, Analysis, and Knowledge Capture
 
 1. Introduce and compare retrieval implementations behind the stable contract.
-2. Add observation/significant-activity capture and links to adjudication.
-3. Provide analysis-oriented exports or interfaces for authorized reporting workflows.
+2. Expand observation/significant-activity capture beyond the reviewed records and release workflow established in 1E.
+3. Provide authorized internal analysis/reporting interfaces. External export is required eventually, but scope, contents, mechanism, authorization and delivery phase remain unresolved; current operational results remain internal.
 4. Expand replay and counterfactual analysis using preserved run and review artifacts.
 5. Use measured operational evidence to select or refine AI and retrieval methods.
 
 ---
+
+Future external export is acknowledged by OPS-10, without committing to an export
+format, payload, transport or external integration. It does not authorize current
+data egress and has no implementation gate until its scope is agreed.
 
 ## 7. Definition of Success
 

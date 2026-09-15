@@ -1,6 +1,6 @@
 # Architecture and data model
 
-Status: accepted direction updated 2026-09-11 under B-11–B-14. The [Phase 1 contracts](phase1/contracts.md) govern remaining work; the [developer guide](development.md) describes the current runtime. The implemented 1C store and 1D persistence foundation do not yet implement the framework boundary, white-cell lens, AI or replay described here.
+Status: accepted direction updated 2026-09-15 under B-11–B-16. The [Phase 1 contracts](phase1/contracts.md) govern remaining work; the [developer guide](development.md) describes the current runtime. The implemented 1C store and 1D persistence foundation do not yet implement the framework boundary, white-cell lens, AI or replay described here.
 
 ## System boundaries
 
@@ -79,6 +79,43 @@ Use stable identifiers. Track simulated effective time and recording time separa
 
 Distinguish canonical world state from actor knowledge and adjudicator context. The god-view includes hidden canonical information and unresolved facts, but should not pretend unknown facts are settled. Adjudicator context can be a bounded selection of that view for a particular experiment.
 
+## Operational records and review detail
+
+Under [B-16](decisions.md#b-16--operational-addendum-incorporation--2026-09-15), extend
+the modular wrapper rather than add a separate triage application. Reuse immutable
+workspace package/action IDs and versions for direct preparation and narrow imports.
+“Intended effect” is the existing Intent of Action; optional source attachments and
+metadata do not create mandatory player tags or a structured action language.
+
+- **Trigger evaluations:** wrapper-owned records link player statements and action,
+  ruling, RFI, state and temporal dependencies to exact source versions. Preserve
+  proposed status, evidence, uncertainty, cutoff, audience and decision history.
+  Relevant changes mark affected reviews stale; reevaluation never erases prior
+  evidence or independently reapplies effects. Operational applicability, feasibility,
+  interpretation and effects are separate recorded decisions; research uses its policy.
+- **Scenario state:** separate versioned variable definitions (category, type, unit,
+  source, update authority and visibility) from baseline/subsequent value revisions.
+  Revisions carry effective and recording times, uncertainty/dispute, rationale and
+  ruling/effect links. Canonical values, beliefs and disclosures are distinct. Use
+  existing atomic authority/version checks; no universal simulation is implied.
+- **Observations:** store collected evidence with source, collection method, subject,
+  time, confidence and review status. Review can establish a fact or authorize a
+  player-facing disclosure through distinct decisions. Imported/automated material
+  starts unverified. Broader capture adapters follow the same write boundary;
+  Learning Demand integration remains unspecified.
+- **Validation records:** the wrapper retains cases/results, known limitations,
+  acceptance criteria, fallback, reviewer approval and the game context and exact
+  method/model/prompt/retrieval configuration approved for operational use. Material
+  behavioral changes require revalidation; research execution retains its own policy.
+- **Instrumentation:** wrapper events retain workflow/review history and configuration
+  identity. Counts and advisory flags need no new player fields. Capture active time
+  separately from elapsed time; record re-entry/bypass through explicit reporting
+  where activity is external. Interpret evidence using the unchanged evaluation plan.
+
+Frameworks propose evaluations, relationships and retrieval results; they do not own
+these authoritative histories. Introduce versioned contracts in the existing modular
+application, without requiring independent services or a public API for every record.
+
 ## Storage proposal
 
 Use an append-only event/decision history and periodic snapshots or materialized views for efficient current-state access. Preserve original submissions and model artifacts. The precise degree of event sourcing is an implementation decision, not a requirement to adopt a specific framework.
@@ -119,8 +156,9 @@ actual output; do not require a model's private internal reasoning.
 Methods may request more context through a permission- and time-scoped retrieval interface. Record what was requested, returned, and unavailable. Reconciliation must retain access to an all-action index and continuing effects rather than relying exclusively on lossy batch summaries.
 
 The lookup contract resolves game-memory requests automatically under authorization;
-world-specific questions are flagged for human verification. A reference/RAG corpus
-is out of scope but can register as a resolver later. Prompts, pass structure, batch
+world-specific questions are flagged for human verification. Limited approved game/scenario reference material may be included with
+source versions, provenance, visibility and cutoff controls. Full, robust RAG is
+beyond this application; external retrieval can use the resolver seam. Prompts, pass structure, batch
 strategy, lookup budgets and model settings are versioned configuration so operational
 method iteration does not require an application code update.
 
@@ -187,3 +225,10 @@ reporting and diagnostics run inside the operational environment; results cannot
 be exported. Phase 5 qualifies the full deployment and 150-user/VDI workloads.
 
 Measure interactive latency separately from inference throughput. Queue AI work with status, priority, retry, and cancellation; protect interactive operations during submission bursts. Identity provider, supported Ubuntu/browser versions, inference hardware, and performance/recovery targets remain open in [decisions.md](decisions.md).
+
+## Future external export
+
+External export is required eventually (OPS-10/B-16). Contents, scope, formats,
+mechanism, authorization and delivery timing remain open. Current operational
+analysis and reporting remain inside the environment. This acknowledges a future
+capability without defining a payload, authorizing egress, or requiring M&S integration.

@@ -1,6 +1,7 @@
 # Roadmap
 
-Direction accepted 2026-09-11 under [B-11–B-14](docs/decisions.md#b-11--wrapper-ownership-and-framework-contracts).
+Direction accepted 2026-09-11 under [B-11–B-14](docs/decisions.md#b-11--wrapper-ownership-and-framework-contracts),
+with operational detail incorporated 2026-09-15 under [B-16](docs/decisions.md#b-16--operational-addendum-incorporation--2026-09-15).
 Planned capabilities below are not implementation claims.
 
 Status: Phase 0, 1A, 1B, 1C-core, 1C-admin (with bounded corrections), and
@@ -60,8 +61,10 @@ nothing but recomputable indexes.
    These are orthogonal. A citable game record may contain a player's lie: "game record"
    never implies "established fact."
 3. **Lookup contract.** Game-memory needs resolve automatically under authorization;
-   world-specific needs are flagged for the human in the loop. A reference/RAG corpus is
-   out of scope but must be able to register as a resolver later.
+   world-specific needs are flagged for the human in the loop. Limited approved
+   game/scenario references may be included with source, visibility
+   and cutoff controls. Full, robust RAG is beyond this application; retain an
+   external resolver seam.
 
 One framework is active per game. Comparison happens by reprocessing saved moves.
 
@@ -369,6 +372,26 @@ Coverage: OPS-01–09 and full-scale PLAY-02–04.
 B-11 decision → 1D-1 (complete) → 1D-2 → 1E → 1W → Phase 2 → 2M → 1F → 3A → 3B/3C → 4 → 5.
 1G runs alongside 1D/1E. 2M authoring can begin during Phase 2.
 
+## Operational addendum allocation and gates
+
+[ADD-01–09](docs/revision.md) refine the phases below under B-16; they do not replace
+the delivery order or reopen completed 1D-1. Preserve the four free-text fields;
+Intended effect is Intent of Action. No additional mandatory player tags or modifiers.
+
+| Phase | Added operational detail and acceptance gate |
+| --- | --- |
+| **1D-2** | Extend native package references and narrow imports to preserve supplied supporting material, attachments/source metadata and omissions. Authorized review consumes exact versions without transcription. Add baseline workflow events and action counts; any scope flags are advisory and need no new player fields (ADD-01/06/08; PLAY-01/06, GAME-04, EXP-02/03). |
+| **1E** | Add explicit manual trigger/feasibility/intent decisions with dependency versions, cutoff, uncertainty and evidence; changed inputs require reassessment and approved effects apply once. Define selected scenario variables without code changes and recover their attributable value history. Create/review/link observations with separate disclosure decisions. Record active review time, edits, link/duplicate/trigger outcomes and release timing (ADD-02/04/05/08/09; ADJ-01–04, MEM-01–05/07, GAME-06, EXP-02/03). |
+| **1W** | Preserve new authoritative records, attachments and review artifacts through framework-independent recovery. Route authorized limited scenario-reference retrieval through the existing seam; preserve the existing atomic rebuild gate (ADD-03; MEM-06). |
+| **Phase 2** | Preparation consumes immutable packages and source-linked packets; machine trigger/relationship suggestions use 1E decisions. Include limited approved scenario references with provenance/cutoff controls. Deliver retained operational validation records and AI-method activation approval tied to game context and exact configuration; test revalidation on material change and continued human workflow during AI failure (ADD-01–03/05/07/08; EXP-05). Research retains B-13 policies. |
+| **2M → 1F → Phase 3** | Extend representative cases to triggers/branches/sequels, contradictory or missing information, RFI dependencies, state updates, expected retrieval sources, visibility, volume, latency and recovery. Retain validation evidence and fallback/limitations for operational approval. Existing mock narrowing, integrated restore and operational comparison gates remain; evaluate added friction events under the unchanged evaluation plan (ADD-06–08). |
+| **Phase 3 / 4** | Expand observation/significant-activity capture adapters and authorized internal reporting as operational use cases establish need; imported/automated observations remain unverified until reviewed. Retain existing replay/counterfactual gates. Learning Demand integration is unspecified and not an initial acceptance gate (ADD-09; MEM-07). |
+
+**Future external export (OPS-10):** required, with scope, contents, mechanism,
+authorization and delivery phase unresolved. Define these before assigning an
+implementation gate. Current Phase 3 internal-analysis constraints remain; this
+requirement neither authorizes egress nor commits to M&S integration.
+
 ## Delivery principles
 
 - Military movement and combat stay in the separate M&S workflow. Open-world latitude
@@ -404,3 +427,4 @@ B-11 decision → 1D-1 (complete) → 1D-2 → 1E → 1W → Phase 2 → 2M → 
 | N-03 | Does the local model engage with required scenario content and hold to contradicted premises? | Phase 2 model selection |
 | N-04 | Actor-only lens, using the current game or replay context. | Resolved in B-12; 1E |
 | N-05 | Retain incompatible recorded moves as attempted by default. | Resolved in B-13; Phase 2 |
+| N-06 | What scope, contents, mechanism, authorization and phase should future external export have? | Required by OPS-10/B-16; specification unresolved |
