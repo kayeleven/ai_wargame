@@ -1,0 +1,19 @@
+{
+  "teams": [
+    {"id": "blue", "name": "Blue Team", "actor_ids": ["blue_actor"], "controllers": [{"kind": "human"}]},
+    {"id": "red", "name": "Red Team", "actor_ids": ["red_actor"], "controllers": [{"kind": "human"}]}
+  ],
+  "actors": [
+    {"id": "blue_actor", "name": "Blue Government"},
+    {"id": "red_actor", "name": "Red Government"}
+  ],
+  "rules": ["Non-military actions only. Human adjudicators approve outcomes."],
+  "objectives": {
+    "blue": ["Secure a cooperative agreement to deliver humanitarian aid."],
+    "red": ["Protect local interests while maintaining humanitarian access."]
+  },
+  "turns": [
+    {"number": 1, "simulated_duration_minutes": 1440, "submission_deadline": "2026-09-22T18:00:00Z"},
+    {"number": 2, "simulated_duration_minutes": 1440, "submission_deadline": "2026-09-23T18:00:00Z"}
+  ]
+}

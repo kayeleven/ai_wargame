@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
 
+from living_memory import administration  # noqa: F401 — register memory's admin-game FK target
 from living_memory.backup import RecoveryFailure, create_backup, restore_backup
 from living_memory.clocks import SystemClock
 from living_memory.config import DEV_DATABASE, load_settings
