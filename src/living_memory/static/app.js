@@ -134,6 +134,16 @@
   }
   function incomingEditor(parsed, id) { return parsed?.querySelector(`form[data-editor="${CSS.escape(id || "")}"]`); }
   function freshToken(form, parsed) { const next = incomingEditor(parsed, editorId(form)); ["expected_version", "key", "csrf_token"].forEach(name => { const from = next?.elements.namedItem(name), to = form.elements.namedItem(name); if (from && to) to.value = from.value; }); return next; }
+  function acknowledgeEditor(form, authored, version) {
+    setBaseline(form, authored);
+    const expected = form.elements.namedItem("expected_version"); if (expected) expected.value = String(version);
+    const key = form.elements.namedItem("key"); if (key) key.value = crypto.randomUUID();
+    form.dataset.authoritative = JSON.stringify(authored);
+    for (const name of ["expected_version", "key", "csrf_token"]) {
+      const control = form.elements.namedItem(name); if (control) form.dataset[authoritativeKey(name)] = control.value;
+    }
+    if (equal(formValues(form), authored)) erase(keyFor(form)); else mark(form);
+  }
   function applyConflictCurrent(form, current) {
     if (!current || typeof current !== "object") return;
     if (current.body && typeof current.body === "object") applyValues(form, {...current.body, owner_user_id: current.owner_user_id || ""});
@@ -186,7 +196,7 @@
   const classify = response => [401, 403, 404].includes(response.status) ? "rejected" : response.status >= 500 ? "uncertain" : response.status === 409 ? "conflict" : response.status === 422 ? "validation" : response.ok ? "acknowledged" : "uncertain";
   const success = operation => ({intention:"Overall intention saved.",action:"Action saved.",comment:"Comment added.",submit:"Turn package submitted.",amend:"Amendment proposed.",remove:"Action removed.",reorder:"Action order updated.",decide:"Amendment decision recorded."})[operation] || "Saved.";
   async function refresh(form, destination = location.href) {
-    try { const response = await fetch(destination, { headers: { Accept:"text/html", "X-Workspace-Enhanced":"1" } }); if (!response.ok) throw new Error(); const parsed = new DOMParser().parseFromString(await response.text(), "text/html"); replaceCleanRegions(parsed, form); freshToken(form, parsed); if (form.isConnected && editorId(form)) mark(form); workspace().dataset.refreshPending = ""; document.querySelector("[data-retry-refresh]")?.remove(); }
+    try { const response = await fetch(destination, { headers: { Accept:"text/html", "X-Workspace-Enhanced":"1" } }); if (!response.ok) throw new Error(); const parsed = new DOMParser().parseFromString(await response.text(), "text/html"); replaceCleanRegions(parsed, form); if (form.isConnected && editorId(form)) { if (form.dataset.dirty === "true") { const next = incomingEditor(parsed, editorId(form)); const csrf = next?.elements.namedItem("csrf_token"), current = form.elements.namedItem("csrf_token"); if (csrf && current) current.value = csrf.value; mark(form); } else freshToken(form, parsed); } workspace().dataset.refreshPending = ""; document.querySelector("[data-retry-refresh]")?.remove(); }
     catch {
       workspace().dataset.refreshPending = "true";
       announce("Saved; current view could not be refreshed.", "notice error", true);
@@ -194,8 +204,8 @@
     }
   }
   async function submit(form, retry = false) {
-    if (form.dataset.packageCommand !== undefined && workspace()?.dataset.refreshPending === "true") { announce("Refresh the saved workspace before using a package command.", "notice error", true); return; }
-    if (form.dataset.packageCommand !== undefined && dirtyEditors().length) { const dirty = dirtyEditors(); announce(`Save or discard these editors first: ${dirty.map(editorLabel).join(", ")}.`, "notice error", true); dirty[0].querySelector("textarea,input,select")?.focus(); return; }
+    if (!retry && form.dataset.packageCommand !== undefined && workspace()?.dataset.refreshPending === "true") { announce("Refresh the saved workspace before using a package command.", "notice error", true); return; }
+    if (!retry && form.dataset.packageCommand !== undefined && dirtyEditors().length) { const dirty = dirtyEditors(); announce(`Save or discard these editors first: ${dirty.map(editorLabel).join(", ")}.`, "notice error", true); dirty[0].querySelector("textarea,input,select")?.focus(); return; }
     if (workspace()?.dataset.inflight) { announce("Wait for the current save to finish before starting another operation.", "notice error", true); return; }
     if (workspace()?.dataset.unresolved === "true" && !form.dataset.pending) { announce("Resolve the uncertain save before starting another operation.", "notice error", true); return; }
     const frozen = retry ? read(stateKey(form)) : freeze(form); if (!frozen) return;
@@ -221,7 +231,8 @@
       }
       if (kind === "validation") { clearPending(form); workspace().dataset.unresolved = ""; showValidation(form, payload || {}); return; }
       const editorMatches = frozen.editor === "new-action" ? payload?.editor?.startsWith("action-") : payload?.editor === (frozen.editor || null);
-      if (!enhancedType || !payload || payload.outcome !== "committed" || payload.operation !== frozen.operation || payload.key !== frozen.key || !editorMatches || typeof payload.refresh !== "string" || !payload.refresh) throw new Error();
+      const revisionMatches = frozen.operation === "decide" ? payload?.committed_draft_version === null : Number.isInteger(payload?.committed_draft_version) && payload.committed_draft_version > 0;
+      if (!enhancedType || !payload || payload.outcome !== "committed" || payload.operation !== frozen.operation || payload.key !== frozen.key || !editorMatches || !revisionMatches || typeof payload.refresh !== "string" || !payload.refresh) throw new Error();
       clearPending(form); form.dataset.pending = ""; workspace().dataset.unresolved = "";
       const acknowledgedAuthoredKey = keyFor(form);
       if (frozen.editor === "new-action" && payload?.editor?.startsWith("action-")) {
@@ -233,8 +244,7 @@
         form.querySelector("button[type=submit],button:not([type])").textContent = "Save action";
       }
       if (acknowledgedAuthoredKey !== keyFor(form)) erase(acknowledgedAuthoredKey);
-      setBaseline(form, frozen.authored);
-      if (equal(formValues(form), frozen.authored)) erase(acknowledgedAuthoredKey); else mark(form);
+      if (editorId(form)) acknowledgeEditor(form, frozen.authored, payload.committed_draft_version);
       announce(payload?.message || success(frozen.operation)); await refresh(form, payload?.refresh || location.href);
     } catch { retainPending(form, frozen); form.dataset.pending = "true"; workspace().dataset.unresolved = "true"; announce("Save outcome unknown. Retry will use the exact original save; other saves are paused.", "notice error", true); }
     finally { workspace().dataset.inflight = ""; form.dataset.inflight = ""; form.removeAttribute("aria-busy"); form.querySelectorAll("button[type=submit],button:not([type])").forEach(button => { button.disabled = Boolean(form.querySelector("[data-unavailable-recovery]")); if (form.dataset.pending) button.textContent = "Retry save"; }); }

@@ -602,6 +602,12 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                         if len(added) == 1:
                             editor = f"action-{added[0]}"
                 result["editor"] = editor
+                revision = (
+                    session.get(PackageRevision, UUID(result["id"]))
+                    if result.get("kind") == "package_revision"
+                    else None
+                )
+                result["committed_draft_version"] = revision.version if revision else None
                 return result
 
         def enhanced_error(
@@ -735,6 +741,7 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                     "key": str(command.key),
                     "editor": result.get("editor"),
                     "refresh": result["redirect"],
+                    "committed_draft_version": result.get("committed_draft_version"),
                 },
                 media_type=ENHANCED_MEDIA_TYPE,
                 headers={

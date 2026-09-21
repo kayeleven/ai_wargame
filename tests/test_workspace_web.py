@@ -232,6 +232,7 @@ def test_enhanced_success_acknowledges_commit_and_legacy_form_redirects(world):
         "key": key,
         "editor": "intention",
         "refresh": f"/play?game_id={GAME}&team_id=team-0&turn=1",
+        "committed_draft_version": 2,
     }
 
 
@@ -250,10 +251,13 @@ def test_enhanced_new_action_returns_durable_editor_identity_on_replay(world):
     first = client.post(url, data=data, headers=ENHANCED)
     assert first.status_code == 200
     editor = first.json()["editor"]
+    assert first.json()["committed_draft_version"] == 1
     assert re.fullmatch(r"action-[0-9a-f-]{36}", editor)
+    run(world, "intention", overall_intention="Later unrelated change")
     replay = client.post(url, data=data, headers=ENHANCED)
     assert replay.status_code == 200
     assert replay.json()["editor"] == editor
+    assert replay.json()["committed_draft_version"] == 1
     with world[0].transaction() as session:
         assert session.scalar(select(func.count()).select_from(DraftAction)) == 1
 

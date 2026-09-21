@@ -292,6 +292,59 @@ def test_unknown_outcome_retries_frozen_command_once(workspace_server, world):
         browser.close()
 
 
+def test_dirty_editor_keeps_acknowledged_revision_across_teammate_refresh(
+    workspace_server, world
+):
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        editing = page_for(browser, url, tokens, "player", True)
+        teammate = page_for(browser, url, tokens, "teammate", True)
+        for page in (editing, teammate):
+            page.goto(f"{url}/play?game_id={GAME}")
+        editing.evaluate(
+            """() => {
+                const original = window.fetch.bind(window);
+                let postHeld = false;
+                let refreshHeld = false;
+                window.fetch = (...args) => {
+                    if ((args[1]?.method || "GET") === "POST" && !postHeld) {
+                        postHeld = true;
+                        return original(...args).then(response => new Promise(resolve => {
+                            window.releaseSave = () => resolve(response);
+                        }));
+                    }
+                    if ((args[1]?.method || "GET") !== "POST" && !refreshHeld) {
+                        refreshHeld = true;
+                        return new Promise(resolve => {
+                            window.releaseRefresh = () => resolve(original(...args));
+                        });
+                    }
+                    return original(...args);
+                };
+            }"""
+        )
+        intention = editing.get_by_label("Overall intention", exact=True)
+        intention.fill("Acknowledged value")
+        editing.get_by_role("button", name="Save intention", exact=True).click()
+        editing.wait_for_function("window.releaseSave !== undefined")
+        intention.fill("Newer local value")
+        editing.evaluate("window.releaseSave()")
+        editing.wait_for_function("window.releaseRefresh !== undefined")
+
+        teammate.reload()
+        teammate.get_by_label("Overall intention", exact=True).fill("Teammate value")
+        teammate.get_by_role("button", name="Save intention", exact=True).click()
+        expect(teammate.get_by_text("Draft revision 2.", exact=False)).to_be_visible()
+        editing.evaluate("window.releaseRefresh()")
+        expect(intention).to_have_value("Newer local value")
+        editing.get_by_role("button", name="Save intention", exact=True).click()
+        expect(editing.get_by_role("heading", name="Edit conflict", exact=True)).to_be_visible()
+        expect(editing.locator("[data-conflict]")).to_contain_text("Teammate value")
+        expect(editing.locator("[data-conflict]")).to_contain_text("Newer local value")
+        browser.close()
+
+
 def test_rejected_retry_preserves_original_unknown_command(workspace_server, world):
     from sqlalchemy import func, select
 
@@ -443,11 +496,12 @@ def test_committed_save_with_failed_refresh_retries_only_read(workspace_server, 
             "Refresh the saved workspace before using a package command."
         )
         assert page.evaluate("window.postCount") == 1
-        page.get_by_role("button", name="Retry refresh", exact=True).click()
-        expect(page.get_by_text("Draft revision 1.", exact=False)).to_be_visible()
-        assert page.evaluate("window.postCount") == 1
+        page.get_by_label("Overall intention", exact=True).fill("Saved after failed refresh")
+        page.get_by_role("button", name="Save intention", exact=True).click()
+        expect(page.get_by_text("Draft revision 2.", exact=False)).to_be_visible()
+        assert page.evaluate("window.postCount") == 2
         with world[0].transaction() as session:
-            assert session.scalar(select(func.count()).select_from(PackageRevision)) == 1
+            assert session.scalar(select(func.count()).select_from(PackageRevision)) == 2
         browser.close()
 
 
@@ -870,8 +924,15 @@ def test_unknown_package_command_restores_after_reload(workspace_server, world):
         expect(page.get_by_role("button", name="Retry save", exact=True)).to_be_visible()
         page.reload()
         expect(page.get_by_text("A previous submit has an unknown outcome.")).to_be_visible()
+        page.get_by_label("Overall intention", exact=True).fill("Unsaved text after submit")
+        page.locator("[data-workspace]").evaluate(
+            "workspace => { workspace.dataset.refreshPending = 'true'; }"
+        )
         page.get_by_role("button", name="Retry original operation", exact=True).click()
         expect(page.get_by_text("Effective version 1 · submitted.", exact=True)).to_be_visible()
+        expect(page.get_by_label("Overall intention", exact=True)).to_have_value(
+            "Unsaved text after submit"
+        )
         with world[0].transaction() as session:
             assert session.scalar(select(func.count()).select_from(SubmissionVersion)) == 1
         browser.close()
