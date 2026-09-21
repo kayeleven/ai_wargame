@@ -1,12 +1,27 @@
 # Guided application verification — 2026-09-15
 
+## Delivery status update — 2026-09-21
+
+The subsequent design session is complete; applying the revised design to existing
+application templates and resolving these findings remain outstanding. The owner
+has designated this work as the next session, before 1D-2. Use the workstreams and
+acceptance checks below together with the [design guide](../design-guide.md),
+[examples](../design-examples.md), and [navigation inventory](../navigation-inventory.md).
+See the [roadmap](../../roadmap.md#immediate-next-work--usability-remediation-and-template-implementation)
+and [B-17](../decisions.md#b-17--usability-delivery-and-agent-played-research-games--2026-09-21).
+The original findings and observed results below remain historical evidence;
+this update claims no fixes or new verification. The coworker's Execution Context
+alternative is not the implementation baseline. Open lifecycle policies below are
+not resolved by the design samples.
+
 ## Consolidated assessment and delivery plan
 
 Walkthrough closed after the memory explorer blocked the final step. This document
-is the single planning artifact: consolidated workstreams below, original user
+is the consolidated findings artifact: workstreams below, original user
 comments by step, screenshots, and traceable findings/acceptance checks. The user's
-latest instruction is to record issues for future fixes, not implement them during
-this review. Priorities are recommendations; policy questions remain explicit.
+instruction during that review was to record issues for future fixes, not implement
+them during the walkthrough; the delivery status above records the subsequent plan.
+Priorities are recommendations; policy questions remain explicit.
 
 ### Assessment
 

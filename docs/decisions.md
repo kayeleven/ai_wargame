@@ -362,3 +362,48 @@ require human research rulings, or build full RAG now. These were not selected.
 Evidence: the owner's explicit responses to the documentation review and instruction
 to incorporate operational detail without code changes. Verification remains the
 future gates in the roadmap; completed Phase 0/1 records remain historical evidence.
+
+### B-17 — Usability delivery and agent-played research games — 2026-09-21
+
+Status: accepted by the project owner following review of the player-capture
+proposal and research scope. Documentation only; no new implementation evidence.
+
+- Retain the application as both a playable wargame environment and the research
+  platform that generates and preserves experimental histories. Do not replace it
+  with a standalone synthetic-action generator or graph benchmark.
+- The immediate next session resolves the recorded usability issues and implements
+  the revised design in existing templates before advancing to 1D-2. Use the
+  usability review's workstreams and acceptance checks, the design guide, examples,
+  and navigation inventory. Proposed layouts are not implemented behavior; unresolved
+  lifecycle choices still require explicit resolution, not a styling-side change.
+- Preserve B-14's major phase order and B-16's operational scope. Complete the
+  minimum game loop through 1D-2/1E and the framework boundary in 1W. Within Phase 2,
+  make a small end-to-end agent-played research game an explicit checkpoint before
+  the full two-method/two-backend comparison. One initial working framework suffices
+  for that checkpoint, not for the Phase 2 exit gate.
+- Use DATE World for this game. Region, countries, crisis, participants, turn count,
+  action volume and reference-package selection are deferred until closer to the
+  test. Earlier illustrative numbers and scenario suggestions are not requirements.
+  Retain non-military DIME-FIL scope; military context does not add combat/movement
+  adjudication or M&S integration.
+- Preserve a versioned DATE reference package, exercise-specific additions and
+  generated game history as distinct sources. Agents act through supported
+  application operations under authorized views. Browser versus agent-tool access
+  remains open; both must obey the same authority, validation and version rules.
+- Use agent-played histories alongside curated cases with known expectations.
+  Inspect generated histories for meaningful adaptation and cross-turn relationships;
+  diversity and realism are hypotheses, not guaranteed properties. Freeze histories
+  for controlled comparisons; separately report divergent trajectory experiments.
+- Do not adopt the coworker's structured Execution Context form as a new player
+  requirement. Keep natural-language submissions. Team confirmation of a system
+  interpretation remains a later experiment, not a submission prerequisite or
+  first-game gate. Confirmation would establish intended meaning, not game truth;
+  timing, reviewer eligibility and correction mechanics remain undecided.
+- Preserve the larger 2M narrowing workload, 1F integrated recovery gate, human
+  evaluation and operational selection. Agent play supplies no human-usability or
+  human-effort evidence and does not select graph storage in advance.
+
+This refines B-14's delivery sequence with an immediate usability gate and a
+Phase 2 checkpoint, and extends B-16's evaluation planning without changing its
+human-authority or minimal-input boundaries. Verification is through the future
+[roadmap gates](../roadmap.md); completed verification remains historical evidence.

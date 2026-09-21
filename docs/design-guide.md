@@ -7,6 +7,12 @@ shared-control patterns are accepted for now. Further review-workflow design is
 deferred until a concrete need arises; it is not a planned feature or next task.
 The retained comparison study illustrates presentation only.
 
+Delivery update (2026-09-21, B-17): implementing this direction in existing templates
+and resolving the usability findings is the next session's work, before 1D-2.
+No template migration is claimed. Preserve proposed/accepted distinctions and settle
+open lifecycle policies explicitly. The later Execution Context proposal is not
+adopted; interpretation confirmation remains a separate future experiment.
+
 Purpose: give existing and new pages consistent navigation, interaction and visual
 rules. Keep the guide small enough to use during every UI change. Source:
 [usability review](phase1/usability-review-2026-09-15.md).

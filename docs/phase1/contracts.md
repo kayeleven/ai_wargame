@@ -1,10 +1,28 @@
 # Phase 1 architectural contracts
 
-Accepted implementation direction, updated 2026-09-15 under
+Accepted implementation direction, updated 2026-09-21 under B-17 and
 [B-11–B-16](../decisions.md#b-11--wrapper-ownership-and-framework-contracts).
 The existing 1C backend contracts remain documented below; the new boundary governs
 1D-remainder onward. 1D-1 implements drafting, submission and amendment decisions; 1D-2 coordination,
 RFI and import workflows remain outstanding alongside white-cell, framework and replay work.
+
+## Immediate delivery and research checkpoint: B-17
+
+Before advancing to 1D-2, implement the revised design in existing templates and
+resolve the [usability review](usability-review-2026-09-15.md) findings through the
+[roadmap's immediate gate](../../roadmap.md#immediate-next-work--usability-remediation-and-template-implementation).
+This does not silently change late-submission or amendment policy; unresolved
+lifecycle decisions must be settled explicitly. Historical verification is not
+acceptance of the unimplemented design.
+
+The remaining phase order stands. Phase 2 adds an early complete agent-played
+DATE World game before its full method/backend comparison. Scenario specifics are
+deferred until nearer the test. Controllers use supported operations under the
+same authorization and version rules; browser versus tool access remains open.
+Reference baseline, exercise additions and generated history remain distinguishable.
+The small game supplements curated cases and 2M volume tests; it supplies no human
+usability evidence. No mandatory structured player fields or interpretation
+confirmation gate are added. See [B-17](../decisions.md#b-17--usability-delivery-and-agent-played-research-games--2026-09-21).
 
 ## Wrapper and framework boundary: B-11
 

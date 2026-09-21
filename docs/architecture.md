@@ -1,6 +1,6 @@
 # Architecture and data model
 
-Status: accepted direction updated 2026-09-15 under B-11–B-16. The [Phase 1 contracts](phase1/contracts.md) govern remaining work; the [developer guide](development.md) describes the current runtime. The implemented 1C store and 1D persistence foundation do not yet implement the framework boundary, white-cell lens, AI or replay described here.
+Status: accepted direction updated 2026-09-21 under B-11–B-17. The [Phase 1 contracts](phase1/contracts.md) govern remaining work; the [developer guide](development.md) describes the current runtime. The implemented 1C store and 1D persistence foundation do not yet implement the framework boundary, white-cell lens, AI or replay described here.
 
 ## System boundaries
 
@@ -225,6 +225,27 @@ reporting and diagnostics run inside the operational environment; results cannot
 be exported. Phase 5 qualifies the full deployment and 150-user/VDI workloads.
 
 Measure interactive latency separately from inference throughput. Queue AI work with status, priority, retry, and cancellation; protect interactive operations during submission bursts. Identity provider, supported Ubuntu/browser versions, inference hardware, and performance/recovery targets remain open in [decisions.md](decisions.md).
+
+## Agent-played research game — B-17
+
+The application also produces experimental histories through complete agent play.
+Phase 2 first proves a small DATE World game with one working framework before the
+full comparison gate. DATE region, actors and run size remain deferred. Preserve
+versioned reference material, exercise additions and generated game history as
+distinct source classes; this introduces no general DATE ingestion requirement.
+
+Controllers receive authorized views and invoke supported application operations
+for actions, RFIs and coordination. Adjudication, effects, released feedback and
+turn advancement close the loop under the recorded research policy. Browser versus
+agent-tool interaction remains undecided; either path shares application authority,
+validation and version semantics and cannot bypass them through direct DB writes.
+Freeze generated histories for controlled comparisons; framework-dependent play is
+a separate trajectory experiment. Operational human authority remains unchanged.
+
+Player interpretation confirmation is a later experiment, not a new mandatory
+schema or submission gate. Preserve source-linked interpretations and review
+artifacts separately from verbatim submissions. Confirmation establishes intended
+meaning rather than canonical world state; detailed interaction policy remains open.
 
 ## Future external export
 

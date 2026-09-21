@@ -1,7 +1,9 @@
 # Roadmap
 
 Direction accepted 2026-09-11 under [B-11–B-14](docs/decisions.md#b-11--wrapper-ownership-and-framework-contracts),
-with operational detail incorporated 2026-09-15 under [B-16](docs/decisions.md#b-16--operational-addendum-incorporation--2026-09-15).
+with operational detail incorporated 2026-09-15 under [B-16](docs/decisions.md#b-16--operational-addendum-incorporation--2026-09-15),
+and usability delivery and agent-played research clarified 2026-09-21 under
+[B-17](docs/decisions.md#b-17--usability-delivery-and-agent-played-research-games--2026-09-21).
 Planned capabilities below are not implementation claims.
 
 Status: Phase 0, 1A, 1B, 1C-core, 1C-admin (with bounded corrections), and
@@ -17,6 +19,32 @@ build. This roadmap covers non-military DIME-FIL activity only.
 
 The remaining work includes adapting existing boundaries as well as new workflows.
 It incorporates the 2026-09-11 clarifications and roadmap reviews.
+
+## Immediate next work — usability remediation and template implementation
+
+The next session addresses the [usability review](docs/phase1/usability-review-2026-09-15.md)
+before advancing to 1D-2. The design session is complete; implementation of the
+revised design in existing application templates remains outstanding. Use the
+[design guide](docs/design-guide.md), [examples](docs/design-examples.md),
+[reference](docs/design-reference.html), and [navigation inventory](docs/navigation-inventory.md)
+as the implementation baseline, respecting their proposed/accepted distinctions.
+The coworker's Execution Context alternative has not replaced that baseline.
+
+Follow the review's ordered workstreams: protect input and restore navigation;
+make submit/review/revise coherent; support realistic action volume; consolidate
+participant administration; improve setup; repeat focused acceptance and the
+blocked memory checks. Include behavior/service fixes needed to resolve findings,
+not only visual changes. Resolve open revision, deadline/lock and collaboration
+policies explicitly before changing existing behavior. Further speculative review
+workflow design is not a prerequisite to correcting the delivered workflow.
+
+Gate before 1D-2: trace addressed findings to implemented behavior and focused
+verification, deliver the applicable revised template patterns, and repeat the
+relevant player/admin/adjudicator walkthrough and deferred checks. Record unresolved
+findings and explicit disposition rather than treating mockups or earlier workflow
+tests as usability acceptance. Preserve authorization, authored input, immutable
+history and effective-version integrity. This gate does not claim full-game or
+capacity readiness.
 
 ## Architecture premise for all remaining phases
 
@@ -197,6 +225,10 @@ Coverage: OPS-02/03/06, development scope only.
 
 ## Phase 2 — Framework seam, first two methods, queued processing, replay
 
+Phase 2 is staged: establish queued processing, an initial working framework and
+agent controllers; pass the agent-played-game checkpoint below; then complete the
+required method/backend and replay comparisons. No change to the full exit gate.
+
 - **Local model adapter.** Configurable endpoint (OpenAI-compatible local servers),
   capability probing, structured-output validation, timeouts, recoverable failure. Record
   model identity and settings with every run.
@@ -256,6 +288,39 @@ Coverage: OPS-02/03/06, development scope only.
   validation failures, human edits, timing, comparison mode, incompatible-move policy and
   applicability rules.
 
+### Early checkpoint — complete agent-played DATE World research game
+
+After the 1D-2/1E game loop and 1W boundary, run a small multi-turn game using
+DATE World. Select the region, countries, crisis, participants, turn count and
+volume closer to execution; none are fixed by this roadmap. Preserve a frozen,
+versioned official reference package, distinguish exercise additions from DATE
+baseline facts, and retain generated history separately with source provenance.
+Official source entry points: [DATE overview](https://oe.t2com.army.mil/date-decisive-action-training-environment/)
+and [ODIN](https://odin.t2com.army.mil/). This is bounded scenario preparation, not
+full DATE ingestion or expanded RAG scope.
+
+The loop supports authorized briefings, natural-language submissions, RFIs and
+coordination, research adjudication, recorded effects, audience-specific feedback,
+and turn advancement. Agents respond to previous events through supported
+application operations without manual database intervention. Browser interaction
+versus agent tools remains open; shared authority, validation and version rules
+are required either way. Record controller/model configuration, inputs, outputs,
+failures and the research ruling policy. Operational human authority is unchanged.
+
+Checkpoint evidence: a completed inspectable game with source-linked actions,
+questions/answers, commitments, decisions, effects and disclosures; verification of
+information boundaries; and an audit of adaptation and cross-turn relationships.
+Completing turns alone does not establish diversity, realism or memory usefulness.
+Freeze the inspected history for controlled method/backend comparisons; evaluate
+framework-dependent play and divergent trajectories separately.
+
+Keep player interpretation confirmation as a later optional research experiment,
+not a submission dependency or this checkpoint's gate. Compare narrative alone,
+unconfirmed interpretations and team-reviewed interpretations if pursued, measuring
+errors, correction effort and delay. Confirmation concerns intended meaning, not
+world truth; its interaction policy remains open. No mandatory Execution Context
+fields are introduced.
+
 Exit gate: the same saved game runs end to end under both methods and both backends;
 reviewers can trace, edit and reject any proposal; interactive work continues during model
 failure and saturation; a replayed turn shows no post-cutoff leakage; replay histories are
@@ -265,6 +330,12 @@ backend or method.
 Coverage: GAME-03/05, ADJ-01–03, EXP-01–02/04 (initial), REP-01–02/04 (initial), OPS-05/08.
 
 ## Phase 2M — Mock narrowing set (new)
+
+Curated scenarios and agent-played histories jointly narrow candidates and support
+regression tests. Author curated cases early, alongside the remaining Phase 1 work;
+add audited DATE World histories after the Phase 2 checkpoint. Preserve known
+expectations independently of candidate output. The small DATE game supplements,
+and does not replace, the larger workload below.
 
 Mock scenarios narrow candidates and act as regression tests. They establish behavior **on
 the tested cases only** and do not prove unrestricted model behavior. Harbor Relief remains
@@ -369,13 +440,18 @@ Coverage: OPS-01–09 and full-scale PLAY-02–04.
 
 ## Delivery order
 
-B-11 decision → 1D-1 (complete) → 1D-2 → 1E → 1W → Phase 2 → 2M → 1F → 3A → 3B/3C → 4 → 5.
-1G runs alongside 1D/1E. 2M authoring can begin during Phase 2.
+B-11 decision → 1D-1 (complete) → usability remediation/template implementation
+(next) → 1D-2 → 1E → 1W → Phase 2 (initial framework and agent-played DATE game
+checkpoint, then full method/backend comparison) → 2M → 1F → 3A → 3B/3C → 4 → 5.
+1G runs alongside 1D/1E. Curated 2M case authoring can begin during remaining
+Phase 1 work; agent-played histories enter after the Phase 2 checkpoint.
 
 ## Operational addendum allocation and gates
 
 [ADD-01–09](docs/revision.md) refine the phases below under B-16; they do not replace
-the delivery order or reopen completed 1D-1. Preserve the four free-text fields;
+the delivery order or reopen completed 1D-1. B-17 adds the immediate usability
+gate and the Phase 2 agent-played-game checkpoint described above. Preserve the four
+free-text fields;
 Intended effect is Intent of Action. No additional mandatory player tags or modifiers.
 
 | Phase | Added operational detail and acceptance gate |

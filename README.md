@@ -21,6 +21,14 @@ determine suitability. Research replay defaults to automated mode with a human-r
 toggle and retains incompatible moves as attempted. Operational games retain human
 approval of rulings and release.
 
+The next session resolves the recorded usability issues and implements the revised
+design in existing templates before 1D-2. The application will also generate
+experimental histories through agent play: Phase 2 includes a complete small
+multi-turn DATE World game before its full method/backend comparison. Scenario
+specifics are deferred until nearer testing. Agent-played histories supplement
+curated cases, not human evaluation; player interpretation confirmation remains a
+later experiment rather than required structured entry.
+
 ## Project documents
 
 | Document | Purpose |
@@ -50,7 +58,9 @@ for its bounded verification evidence.
 Requirements consolidate the project owner's objectives. The revised roadmap direction
 is accepted under [B-11–B-14](docs/decisions.md#b-11--wrapper-ownership-and-framework-contracts);
 B-16 incorporates operational detail while preserving that sequence and the evaluation
-plan. Player structure stays minimal; limited game/scenario references are permitted,
+plan. [B-17](docs/decisions.md#b-17--usability-delivery-and-agent-played-research-games--2026-09-21)
+adds the immediate usability gate and agent-played research checkpoint. Player
+structure stays minimal; limited game/scenario references are permitted,
 full RAG stays outside this application, and future external export is required with
 scope unresolved. These decisions do not imply implementation. Open technology
 choices remain proposals.

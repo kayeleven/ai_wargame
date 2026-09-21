@@ -1,6 +1,7 @@
 # Evaluation plan
 
-Status: research direction revised 2026-09-11 under B-13/B-14. Protocol details and
+Status: research direction revised 2026-09-11 under B-13/B-14, with agent-played
+history generation clarified 2026-09-21 under B-17. Protocol details and
 numerical success thresholds remain to be established; no new evaluation results
 are claimed by this update.
 
@@ -14,6 +15,38 @@ Compare frameworks through their review packets, god views and per-actor fog-of-
 views. Mock scenarios establish behavior on tested cases and narrow candidates;
 selection requires operational-environment evidence from real game complexity.
 Use one framework per live game and reprocess saved moves with alternatives.
+
+## Agent-played history generation — B-17
+
+Accepted 2026-09-21: use the application to generate evolving histories through
+end-to-end agent play as well as evaluate adjudication preparation. The first small
+multi-turn research game uses DATE World; scenario specifics and run size are
+selected closer to testing. This is an explicit early Phase 2 checkpoint, before
+its full two-method/two-backend comparison, not a replacement for 2M or human tests.
+
+Use a frozen versioned DATE reference package; distinguish official baseline,
+exercise additions and play-generated claims/outcomes. Supply agents only authorized
+information and retain controller configuration, actual inputs/outputs and research
+ruling policy. Audit histories for contingent adaptation, cross-turn dependencies,
+contradictions and information boundaries. Greater diversity or realism than direct
+action generation is a hypothesis; completed agent turns alone do not establish it.
+
+Curated cases retain independently established expected sources and relationships.
+Agent-played histories add emerging interactions but require independent assessment
+before serving as evaluation cases; generation or adjudicator output is not its own
+ground truth. Begin curated case authoring during remaining Phase 1 work. Freeze
+inspected histories and tasks for controlled comparisons. Runs where different
+frameworks change subsequent play belong to separately reported trajectory studies.
+The small game does not replace the larger 2M workload or operational selection.
+
+Player confirmation of interpretations remains a later experiment, not required
+input. If pursued, compare original narrative, narrative with an unconfirmed
+interpretation, and narrative with a team-reviewed interpretation. Retain exact
+source versions, what reviewers saw, corrections and reviewer identity; assess
+interpretation errors, downstream corrections, effort and delay. Confirmation means
+faithful representation of intent, not feasibility or game truth. Timing, eligible
+reviewers and correction mechanics remain open. Agent exercise of this mechanism
+cannot establish human usability or human-effort savings.
 
 ## Hypotheses and methods
 

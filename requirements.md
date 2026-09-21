@@ -1,6 +1,6 @@
 # Requirements
 
-Status: revised 2026-09-15 under B-11–B-16 in the [decision log](docs/decisions.md). This document specifies intended capabilities, not current implementation. Requirement identifiers are preserved. Acceptance evidence describes what must be demonstrated; detailed performance thresholds remain to be established.
+Status: revised 2026-09-21 under B-11–B-17 in the [decision log](docs/decisions.md). This document specifies intended capabilities, not current implementation. Requirement identifiers are preserved. Acceptance evidence describes what must be demonstrated; detailed performance thresholds remain to be established.
 
 ## Purpose and scope
 
@@ -10,6 +10,14 @@ The platform has two related purposes:
 2. Run actual configurable DIME-FIL wargames through integrated player and adjudicator interfaces.
 
 Initial adjudication accuracy is secondary to usefulness as a starting point for human review. Accuracy, coherence, and information handling still constrain whether assistance is useful. Automated AI-v-AI experiments are supported, but operational games retain human authority over rulings and state publication.
+
+Under [B-17](docs/decisions.md#b-17--usability-delivery-and-agent-played-research-games--2026-09-21),
+AI participation also generates experimental histories through complete multi-turn
+play. The first small research game uses DATE World; scenario specifics are deferred
+until nearer execution. This stages existing game/AI/evaluation requirements rather
+than replacing them with a graph-only benchmark or adding mandatory player fields.
+Agent-played histories supplement curated tests; human and operational evaluation
+remain required. The roadmap defines the checkpoint and immediate usability work.
 
 ## Initial action scope and submission baseline
 
