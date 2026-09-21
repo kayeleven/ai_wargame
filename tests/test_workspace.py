@@ -217,6 +217,50 @@ def test_conflict_preserves_base_and_rolls_back_everything(world):
     assert counts(db) == before
 
 
+def test_independent_editor_baselines_do_not_conflict(world):
+    db, _, ids = world
+    ready(world)
+    with db.transaction() as session:
+        action = session.scalar(select(DraftAction))
+        assert action is not None
+        action_id = action.id
+    # Both editors started from revision 2. Saving intention must not invalidate
+    # an action editor whose own scope is still unchanged.
+    run(world, "intention", 2, overall_intention="Saved independently")
+    run(
+        world,
+        "action",
+        2,
+        action_id=action_id,
+        body={**BODY, "description": "My independent action edit"},
+        owner_user_id=ids["teammate"],
+    )
+    with db.transaction() as session:
+        assert package(session, get_draft(session, GAME, "team-0", 1)).actions[
+            0
+        ].body.description == "My independent action edit"
+
+    # A stale editor for that same action still conflicts after a teammate edit.
+    run(
+        world,
+        "action",
+        4,
+        who="teammate",
+        action_id=action_id,
+        body={**BODY, "description": "Teammate edit"},
+        owner_user_id=ids["teammate"],
+    )
+    with pytest.raises(Conflict):
+        run(
+            world,
+            "action",
+            4,
+            action_id=action_id,
+            body={**BODY, "description": "Stale local edit"},
+            owner_user_id=ids["teammate"],
+        )
+
+
 def test_validation_zero_actions_and_implicit_resubmit_rejected(world):
     db, _, _ = world
     before = counts(db)

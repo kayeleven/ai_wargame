@@ -9,12 +9,15 @@ import pytest
 import uvicorn
 from playwright.sync_api import expect, sync_playwright
 from sqlalchemy import select
+from test_admin_database import config
 from test_database import database  # noqa: F401
 from test_memory import timeline  # noqa: F401
 
+from living_memory.administration import activate_game, create_game
 from living_memory.app import create_app
 from living_memory.clocks import FixedClock
 from living_memory.db import ROOT, DevelopmentArtifact
+from living_memory.identity import GameRole, TeamMembership, create_local_user
 from living_memory.memory import load_timeline
 from living_memory.seed import stage_package
 
@@ -54,6 +57,44 @@ def dual_memory_server(database):  # noqa: F811
     for artifact in artifacts:
         assert load_timeline(db, artifact.checksum)
     datasets = {artifact.package: str(artifact.id) for artifact in artifacts}
+    with db.transaction() as session:
+        administrator = create_local_user(
+            session,
+            "fixture-admin",
+            "Fixture administrator",
+            "test password",
+            clock.now(),
+            system_admin=True,
+        )
+        game = create_game(
+            session,
+            "operational-alongside-fixtures",
+            "Operational game",
+            config(),
+            administrator.id,
+            clock.now(),
+        )
+        session.add(
+            GameRole(
+                user_id=administrator.id,
+                game_id=game.id,
+                role="adjudicator",
+                granted_at=clock.now(),
+                granted_by=administrator.id,
+            )
+        )
+        session.add_all(
+            TeamMembership(
+                user_id=administrator.id,
+                game_id=game.id,
+                team_id=team_id,
+                authority="submitter",
+                granted_at=clock.now(),
+                granted_by=administrator.id,
+            )
+            for team_id in ("team-0", "team-1")
+        )
+        activate_game(session, game, administrator.id, clock.now())
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     app = create_app(settings.model_copy(update={"environment": "development"}), db)

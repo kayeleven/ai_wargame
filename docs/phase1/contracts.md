@@ -255,6 +255,13 @@ for current compatibility limitations; do not treat the historical correction's
 
 ## 1D-1 implementation boundary
 
+The amendment-only lifecycle below records the delivered 1D-1 implementation.
+[B-18](../decisions.md#b-18--usability-alignment-policies-1u) supersedes it as
+current policy: revisions strictly before the stored deadline become effective
+immediately, while revisions at or after it require adjudicator acceptance. That
+policy, confirmation contract and effective-version event history are delivered
+together in 1U-2; 1U-1 does not partially change submission behavior.
+
 The completed increment is draft → submit → explicit amendment → decision, with
 one pending amendment per submission and a separate effective content version.
 Submission status is `submitted` or `amendment_pending`; acceptance/rejection

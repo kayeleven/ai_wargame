@@ -8,7 +8,7 @@ from typing import Protocol
 from uuid import uuid4
 
 import anyio.to_thread
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -105,20 +105,44 @@ def create_app(
                 except SQLAlchemyError:
                     blocked = True
             if blocked:
-                response = JSONResponse(
-                    {
-                        "detail": "Database recovery is blocked",
-                        "request_id": request.state.request_id,
-                    },
-                    status_code=503,
-                )
+                if "text/html" in request.headers.get("accept", ""):
+                    response = templates.TemplateResponse(
+                        request=request,
+                        name="error.html",
+                        context={
+                            "shell": {"signed_in": False},
+                            "title": "Service unavailable",
+                            "message": "Database recovery is in progress. Try again later.",
+                        },
+                        status_code=503,
+                    )
+                else:
+                    response = JSONResponse(
+                        {
+                            "detail": "Database recovery is blocked",
+                            "request_id": request.state.request_id,
+                        },
+                        status_code=503,
+                    )
             else:
                 response = await call_next(request)
         except Exception:
-            response = JSONResponse(
-                {"detail": "Unexpected error", "request_id": request.state.request_id},
-                status_code=500,
-            )
+            if "text/html" in request.headers.get("accept", ""):
+                response = templates.TemplateResponse(
+                    request=request,
+                    name="error.html",
+                    context={
+                        "shell": {"signed_in": False},
+                        "title": "Something went wrong",
+                        "message": "The request could not be completed. Return home and try again.",
+                    },
+                    status_code=500,
+                )
+            else:
+                response = JSONResponse(
+                    {"detail": "Unexpected error", "request_id": request.state.request_id},
+                    status_code=500,
+                )
         response.headers["X-Request-ID"] = request.state.request_id
         route = request.scope.get("route")
         logger.info(
@@ -137,8 +161,23 @@ def create_app(
         return response
 
     @app.exception_handler(SQLAlchemyError)
-    async def database_failure(request: Request, exc: SQLAlchemyError) -> JSONResponse:
+    async def database_failure(request: Request, exc: SQLAlchemyError) -> Response:
         request.state.db_timeout_category = timeout_category(exc)
+        if "text/html" in request.headers.get("accept", ""):
+            return templates.TemplateResponse(
+                request=request,
+                name="error.html",
+                context={
+                    "shell": {"signed_in": False},
+                    "title": "Service temporarily unavailable",
+                    "message": (
+                        "The database did not respond. Your browser input has not "
+                        "been confirmed as saved."
+                    ),
+                },
+                status_code=503,
+                headers={"Retry-After": "2"},
+            )
         return JSONResponse(
             {
                 "detail": "Database temporarily unavailable. Please retry.",
@@ -150,12 +189,18 @@ def create_app(
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request) -> Response:
+        shell: dict[str, object] = {"signed_in": False}
+        if isinstance(db, Database):
+            from living_memory.web import shell_context
+
+            shell = shell_context(request, db, settings)
         return templates.TemplateResponse(
             request=request,
             name="home.html",
             context={
                 "development": settings.environment == "development",
                 "message": pop_flash(request),
+                "shell": shell,
             },
         )
 
@@ -177,12 +222,39 @@ def create_app(
             AccessChangedError,
             access_changed_response,
             auth_admin_router,
+            shell_context,
         )
 
         @app.exception_handler(AccessChangedError)
         async def access_changed(request: Request, exc: AccessChangedError) -> HTMLResponse:
             del exc
-            return access_changed_response(request)
+            return access_changed_response(
+                request,
+                templates=templates,
+                shell=shell_context(request, db, settings),
+            )
+
+        @app.exception_handler(HTTPException)
+        async def browser_error(request: Request, exc: HTTPException) -> Response:
+            if "text/html" not in request.headers.get("accept", ""):
+                return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+            title = "Page not found" if exc.status_code == 404 else "Access unavailable"
+            message = (
+                "This page does not exist or is not available with your current access."
+                if exc.status_code in {401, 403, 404}
+                else str(exc.detail)
+            )
+            return templates.TemplateResponse(
+                request=request,
+                name="error.html",
+                context={
+                    "shell": shell_context(request, db, settings),
+                    "title": title,
+                    "message": message,
+                },
+                status_code=exc.status_code,
+                headers={"Cache-Control": "no-store"},
+            )
 
         app.include_router(auth_admin_router(db, templates, settings))
         from living_memory.workspace_web import workspace_router

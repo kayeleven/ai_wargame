@@ -44,6 +44,26 @@ def test_workspace_routes_authorized_and_split(world):
     assert judge.get(f"/adjudicate?game_id={GAME}").status_code == 200
 
 
+def test_home_exposes_only_authorized_tasks_and_shared_account_controls(world):
+    player = client_for(world)
+    home = player.get("/")
+    assert home.status_code == 200
+    assert "Player" in home.text
+    assert f'/play?game_id={GAME}&team_id=team-0' in home.text
+    assert "Amendment review" not in home.text
+    assert "Game administration" not in home.text
+    assert 'action="/logout"' in home.text
+
+    judge = client_for(world, "judge")
+    judge_home = judge.get("/")
+    assert "Amendment review · 0 pending" in judge_home.text
+    assert f"/adjudicate?game_id={GAME}" in judge_home.text
+    ready(world)
+    run(world, "submit")
+    run(world, "amend", effective_version=1)
+    assert "Amendment review · 1 pending" in judge.get("/").text
+
+
 @pytest.mark.parametrize("htmx", [False, True])
 def test_form_validation_conflict_recovery_and_csrf(world, htmx):
     client = client_for(world)
@@ -79,6 +99,29 @@ def test_form_validation_conflict_recovery_and_csrf(world, htmx):
         url, data=dict(csrf_token=csrf, operation="submit", expected_version=3, key=str(uuid4()))
     )
     assert response.status_code == 422 and "Complete all four fields" in response.text
+
+
+def test_malformed_form_retains_non_secret_values(world):
+    client = client_for(world)
+    page = client.get(f"/play?game_id={GAME}&edit=new-action")
+    csrf = re.search(r'name="csrf_token" value="([^"]+)"', page.text)[1]
+    response = client.post(
+        f"/workspace/{GAME}/team-0/1/form",
+        data={
+            "csrf_token": csrf,
+            "operation": "action",
+            "expected_version": "0",
+            "key": str(uuid4()),
+            "owner_user_id": "not-a-uuid",
+            "title": "Retained title",
+            "description": "Retained description",
+            "intent": "Retained intent",
+            "anticipated_reaction": "Retained reaction",
+        },
+    )
+    assert response.status_code == 422
+    for value in ("Retained title", "Retained description", "Retained intent", "Retained reaction"):
+        assert value in response.text
 
 
 def test_submission_view_stays_frozen(world):

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · Living Memory{% endblock %}
+{% block content %}
+<section class="notice error" role="alert">
+  <h1>{{ title }}</h1>
+  <p>{{ message }}</p>
+</section>
+<p><a href="/">Return to your authorized work</a></p>
+{% endblock %}

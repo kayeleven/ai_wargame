@@ -126,6 +126,11 @@ Derived summaries and indexes must identify their source versions and be refresh
 
 ## Turn and review workflow
 
+The Phase 0 sequence below is historical architecture context. B-18 now governs
+submission and revision policy for 1U, including immediate pre-deadline revisions
+and approval-required revisions at or after the stored deadline. The preserving
+history and confirmation implementation is assigned to 1U-2.
+
 Phase 0 default: simultaneous submission followed by joint review, with versioned amendments accepted by the adjudicator before ruling. Sequential resolution is a future configurable policy, not part of the initial fixture. See decision B-02.
 
 1. Players draft actions and coordinate under team/sharing permissions.

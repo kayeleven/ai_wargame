@@ -35,7 +35,8 @@ class DatasetView(ReadModel):
     id: UUID
     label: str
     status: str
-    manifest: PackageManifest
+    manifest: PackageManifest | None
+    error: str | None = None
 
 
 def _principal(manifest: PackageManifest, identity: str) -> Principal:
@@ -80,22 +81,41 @@ def explorer_router(
                     .outerjoin(RebuildState, RebuildState.artifact_id == DevelopmentArtifact.id)
                     .order_by(DevelopmentArtifact.staged_at.desc())
                 )
-                datasets = tuple(
-                    DatasetView(
-                        id=artifact.id,
-                        label=(loaded.label if loaded else artifact.package),
-                        status=(state.status if state else ("loaded" if loaded else "pending")),
-                        manifest=artifact_manifest(
+                found = []
+                for artifact, loaded, state in rows:
+                    # Activation creates an operational artifact to satisfy the historical
+                    # dataset FK. It is not a staged fixture source package.
+                    if loaded is not None and loaded.source_kind == "operational":
+                        continue
+                    status = state.status if state else ("loaded" if loaded else "pending")
+                    try:
+                        source = artifact.contents.get("_records.json") or artifact.contents.get(
+                            "source.json"
+                        )
+                        manifest = artifact_manifest(
                             artifact.package,
-                            SourcePackage.model_validate_json(
-                                artifact.contents.get("_records.json")
-                                or artifact.contents.get("source.json")
-                            ),
+                            SourcePackage.model_validate_json(source),
                             artifact.contents,
-                        ),
-                    )
-                    for artifact, loaded, state in rows
-                )
+                        )
+                        found.append(
+                            DatasetView(
+                                id=artifact.id,
+                                label=(loaded.label if loaded else artifact.package),
+                                status=status,
+                                manifest=manifest,
+                            )
+                        )
+                    except (TypeError, ValueError):
+                        found.append(
+                            DatasetView(
+                                id=artifact.id,
+                                label=(loaded.label if loaded else artifact.package),
+                                status="unavailable",
+                                manifest=None,
+                                error="Fixture metadata is invalid.",
+                            )
+                        )
+                datasets = tuple(found)
             chosen = next((item for item in datasets if item.id == dataset), None)
             if chosen is None:
                 chosen = next((item for item in datasets if item.status == "loaded"), None)
@@ -109,35 +129,40 @@ def explorer_router(
                         "view": None,
                         "records": (),
                         "identities": (),
+                        "dataset_error": chosen.error if chosen else None,
                     },
                     headers={"Cache-Control": "no-store"},
                 )
-            manifest = chosen.manifest
-            identities = tuple(item.id for item in manifest.development_principals)
+            selected_manifest = chosen.manifest
+            assert selected_manifest is not None
+            identities = tuple(item.id for item in selected_manifest.development_principals)
             identity_was_valid = identity in identities
             selected_identity = (
                 identity
                 if identity_was_valid and identity is not None
-                else (manifest.default_principal or identities[0])
+                else (selected_manifest.default_principal or identities[0])
             )
             identity = selected_identity
-            principal = _principal(manifest, selected_identity)
+            principal = _principal(selected_manifest, selected_identity)
             audiences = principal.audiences
             if audience is not None and audience not in audiences and identity_was_valid:
                 raise PermissionError("Visibility scope not permitted")
             audience = audience if audience in audiences else audiences[0]
-            checkpoints = {item.id: item for item in manifest.checkpoints}
+            checkpoints = {item.id: item for item in selected_manifest.checkpoints}
             checkpoint = (
                 checkpoint
                 if checkpoint in checkpoints
-                else (manifest.default_checkpoint or next(iter(checkpoints)))
+                else (selected_manifest.default_checkpoint or next(iter(checkpoints)))
             )
             selected_checkpoint = checkpoints[checkpoint]
-            presets = {item.id: item for item in manifest.explorer_presets}
+            presets = {item.id: item for item in selected_manifest.explorer_presets}
             task = (
                 task
                 if task in presets
-                else (manifest.default_preset or (next(iter(presets)) if presets else "all"))
+                else (
+                    selected_manifest.default_preset
+                    or (next(iter(presets)) if presets else "all")
+                )
             )
             preset = presets.get(task)
             requested_types: tuple[str, ...] = (record_type,) if record_type else ()
@@ -153,9 +178,9 @@ def explorer_router(
             )
             view = reader.read_memory(
                 principal,
-                manifest.game_id,
+                selected_manifest.game_id,
                 audience,
-                BranchLineage(root=manifest.root_branch_id),
+                BranchLineage(root=selected_manifest.root_branch_id),
                 selected_checkpoint.known_at,
                 GameTime(elapsed_microseconds=selected_checkpoint.effective_at),
                 query,
@@ -190,18 +215,19 @@ def explorer_router(
                 name="memory.html",
                 context={
                     "identities": identities,
+                    "dataset_error": None,
                     "identity": identity,
                     "audiences": audiences,
                     "audience": audience,
                     "datasets": datasets,
                     "dataset": chosen.id,
-                    "checkpoints": tuple(manifest.checkpoints),
+                    "checkpoints": tuple(selected_manifest.checkpoints),
                     "checkpoint": checkpoint,
                     "task": task,
-                    "tasks": tuple(manifest.explorer_presets),
-                    "record_types": tuple(manifest.record_types),
+                    "tasks": tuple(selected_manifest.explorer_presets),
+                    "record_types": tuple(selected_manifest.record_types),
                     "record_type": record_type,
-                    "relationship_types": tuple(manifest.relationship_types),
+                    "relationship_types": tuple(selected_manifest.relationship_types),
                     "relationship_type": relationship_type,
                     "search": search or "",
                     "view": ViewContext(

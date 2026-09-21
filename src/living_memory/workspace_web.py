@@ -17,7 +17,7 @@ from living_memory.config import Settings
 from living_memory.db import Database, run_retryable
 from living_memory.forms import csrf_token
 from living_memory.identity import TeamMembership, User, resolve_principal
-from living_memory.web import _current_user
+from living_memory.web import _current_user, shell_context
 from living_memory.workspace import (
     Amendment,
     AmendmentDecision,
@@ -71,6 +71,7 @@ class WorkspaceView(BaseModel):
     title: str
     team_id: str
     teams: list[str]
+    team_names: dict[str, str]
     turn: int
     turns: list[int]
     editable: bool
@@ -210,6 +211,7 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                 title=game.title,
                 team_id=selected,
                 teams=teams,
+                team_names={team.id: team.name for team in config.teams if team.id in teams},
                 turn=selected_turn,
                 turns=[t.number for t in config.turns],
                 editable=game.status == "active" and selected_turn == game.current_turn,
@@ -239,6 +241,7 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
         error: str | None = None,
         attempted: Command | None = None,
         conflict: Conflict | None = None,
+        raw: dict[str, Any] | None = None,
         status: int = 200,
     ) -> Response:
         try:
@@ -246,16 +249,47 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
         except LookupError:
             raise HTTPException(404, "Not found") from None
         # Full documents for ordinary navigation and HTMX body swaps alike.
+        selected_editor = request.query_params.get("edit")
+        if selected_editor is None and attempted is not None:
+            if attempted.operation == "intention":
+                selected_editor = "intention"
+            elif attempted.operation == "action":
+                selected_editor = (
+                    f"action-{attempted.action_id}" if attempted.action_id else "new-action"
+                )
+            elif attempted.operation == "comment":
+                selected_editor = (
+                    f"comment-{attempted.action_id}"
+                    if attempted.action_id
+                    else "package-comment"
+                )
+            elif attempted.operation == "decide" and attempted.amendment_id:
+                selected_editor = f"decision-{attempted.amendment_id}"
+        if selected_editor is None and raw is not None:
+            operation = raw.get("operation")
+            action_id = raw.get("action_id")
+            amendment_id = raw.get("amendment_id")
+            if operation == "intention":
+                selected_editor = "intention"
+            elif operation == "action":
+                selected_editor = f"action-{action_id}" if action_id else "new-action"
+            elif operation == "comment":
+                selected_editor = f"comment-{action_id}" if action_id else "package-comment"
+            elif operation == "decide" and amendment_id:
+                selected_editor = f"decision-{amendment_id}"
         return templates.TemplateResponse(
             request=request,
             name="adjudicate.html" if review else "play.html",
             context={
                 "view": view,
+                "shell": shell_context(request, db, settings),
                 "csrf": csrf_token(request),
                 "new_key": lambda: str(uuid4()),
                 "error": error,
                 "attempted": attempted,
+                "raw": raw or {},
                 "conflict": conflict,
+                "editor": selected_editor,
                 "conflict_base": (
                     Package.model_validate(conflict.base)
                     if conflict and isinstance(conflict.base, dict) and "actions" in conflict.base
@@ -345,8 +379,22 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
             values["order"] = str(values["order"]).split()
         try:
             command = Command.model_validate(values)
-        except ValidationError:
-            raise HTTPException(422, "Invalid workspace form") from None
+        except ValidationError as exc:
+            message = "; ".join(
+                f"{'.'.join(map(str, item['loc']))}: {item['msg']}" for item in exc.errors()
+            )
+            return await anyio.to_thread.run_sync(
+                lambda: render(
+                    request,
+                    game_id,
+                    team_id,
+                    turn,
+                    values.get("operation") == "decide",
+                    error=message,
+                    raw=values,
+                    status=422,
+                )
+            )
         return await anyio.to_thread.run_sync(
             lambda: apply(request, game_id, team_id, turn, command)
         )

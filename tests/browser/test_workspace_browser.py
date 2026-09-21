@@ -59,7 +59,7 @@ def test_draft_submit_smoke(workspace_server, javascript):
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = page_for(browser, url, tokens, "player", javascript)
-        page.goto(f"{url}/play?game_id={GAME}")
+        page.goto(f"{url}/play?game_id={GAME}" + ("" if javascript else "&edit=intention"))
         page.get_by_label("Overall intention", exact=True).fill("Observe and report")
         page.get_by_role("button", name="Save intention", exact=True).click()
         expect(page.get_by_text("Draft revision 1.", exact=False)).to_be_visible()
@@ -80,7 +80,9 @@ def test_shared_conflict_and_amendment_decision(workspace_server, javascript):
         mate = page_for(browser, url, tokens, "teammate", javascript)
         judge = page_for(browser, url, tokens, "judge", javascript)
         for page in (player, mate):
-            page.goto(f"{url}/play?game_id={GAME}")
+            page.goto(
+                f"{url}/play?game_id={GAME}" + ("" if javascript else "&edit=intention")
+            )
         player.get_by_label("Overall intention", exact=True).fill("First intention")
         player.get_by_role("button", name="Save intention", exact=True).click()
         expect(player.get_by_text("Draft revision 1.", exact=False)).to_be_visible()
@@ -95,12 +97,16 @@ def test_shared_conflict_and_amendment_decision(workspace_server, javascript):
         player.reload()
         player.get_by_role("button", name="Submit turn package", exact=True).click()
         expect(player.get_by_text("Effective version 1 · submitted.", exact=True)).to_be_visible()
+        if not javascript:
+            player.get_by_role("link", name="Edit overall intention").click()
         player.get_by_label("Overall intention", exact=True).fill("Proposed change")
         player.get_by_role("button", name="Save intention", exact=True).click()
         expect(player.get_by_text("Draft revision 4.", exact=False)).to_be_visible()
         player.get_by_role("button", name="Propose amendment", exact=True).click()
         expect(player.get_by_text("amendment_pending", exact=False)).to_be_visible()
         judge.goto(f"{url}/adjudicate?game_id={GAME}")
+        if not javascript:
+            judge.get_by_role("link", name="Review amendment decision").click()
         judge.get_by_label("Reason", exact=True).fill("Clarifies the intent")
         judge.get_by_role("button", name="Record amendment decision", exact=True).click()
         expect(judge.get_by_text("Effective version 2 · submitted.", exact=True)).to_be_visible()
@@ -119,6 +125,8 @@ def test_rejected_decision_survives_validation(workspace_server, world, javascri
         browser = p.chromium.launch()
         judge = page_for(browser, url, tokens, "judge", javascript)
         judge.goto(f"{url}/adjudicate?game_id={GAME}")
+        if not javascript:
+            judge.get_by_role("link", name="Review amendment decision").click()
         judge.get_by_label("Decision", exact=True).select_option("rejected")
         judge.get_by_role("button", name="Record amendment decision", exact=True).click()
         expect(judge.get_by_role("heading", name="Please check your input")).to_be_visible()
@@ -129,4 +137,35 @@ def test_rejected_decision_survives_validation(workspace_server, world, javascri
         expect(
             judge.get_by_role("heading", name="Version 2 proposed against version 1 — rejected")
         ).to_be_visible()
+        browser.close()
+
+
+def test_independent_dirty_editor_survives_save_and_blocks_submission(workspace_server, world):
+    from test_workspace import BODY, ready
+
+    ready(world)
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "player", True)
+        page.goto(f"{url}/play?game_id={GAME}")
+        action = page.get_by_role("region", name="Action 1")
+        action.get_by_label("Description", exact=True).fill("Unsaved action text")
+        page.get_by_label("Overall intention", exact=True).fill("Saved intention")
+        page.get_by_role("button", name="Save intention", exact=True).click()
+        expect(action.get_by_label("Description", exact=True)).to_have_value(
+            "Unsaved action text"
+        )
+        page.get_by_role("button", name="Submit turn package", exact=True).click()
+        expect(page.get_by_role("alert")).to_contain_text("Save or discard")
+        with world[0].transaction() as session:
+            from living_memory.workspace_service import get_draft, package
+
+            saved = package(session, get_draft(session, GAME, "team-0", 1))
+            assert saved.overall_intention == "Saved intention"
+            assert saved.actions[0].body.description == BODY["description"]
+        action.get_by_role("button", name="Save action", exact=True).click()
+        expect(page.get_by_text("Draft revision 4.", exact=False)).to_be_visible()
+        page.get_by_role("button", name="Submit turn package", exact=True).click()
+        expect(page.get_by_text("Effective version 1 · submitted.", exact=True)).to_be_visible()
         browser.close()

@@ -59,6 +59,8 @@ from living_memory.identity import (
     resolve_session,
     rotate_session,
 )
+from living_memory.team_authority import effective_memberships
+from living_memory.workspace import Amendment, Submission
 
 AUTH_COOKIE = "lm_auth"
 ADMIN_DUPLICATE_CONSTRAINTS = {
@@ -99,10 +101,150 @@ def _current_user(request: Request, db: Database, settings: Settings) -> User | 
     return user
 
 
-def access_changed_response(request: Request, status: int = 403) -> HTMLResponse:
+def shell_context(
+    request: Request, db: Database, settings: Settings, user: User | None = None
+) -> dict[str, Any]:
+    """Build the authorized, shared signed-in navigation model."""
+    user = user or _current_user(request, db, settings)
+    if user is None:
+        return {"signed_in": False}
+    now = request.app.state.clock.now()
+    with db.transaction() as session:
+        memberships = tuple(
+            session.execute(
+                select(TeamMembership.game_id, TeamMembership.team_id, TeamMembership.authority)
+                .where(TeamMembership.user_id == user.id)
+                .order_by(TeamMembership.game_id, TeamMembership.team_id)
+            )
+        )
+        roles = tuple(
+            session.execute(
+                select(GameRole.game_id, GameRole.role)
+                .where(GameRole.user_id == user.id)
+                .order_by(GameRole.game_id, GameRole.role)
+            )
+        )
+        game_ids = {row.game_id for row in memberships} | {row.game_id for row in roles}
+        games = {
+            game.id: game
+            for game in session.scalars(
+                select(AdminGame).where(AdminGame.id.in_(game_ids)).order_by(AdminGame.title)
+            )
+        }
+        team_names: dict[tuple[str, str], str] = {}
+        effective_by_game: dict[str, frozenset[str]] = {}
+        for game_id in game_ids:
+            game = games.get(game_id)
+            if game is None:
+                continue
+            try:
+                configuration = ScenarioConfiguration.model_validate(
+                    configuration_at(
+                        session, game_id, now, max(1, game.current_turn)
+                    ).configuration
+                )
+                team_names.update(
+                    {(game_id, team.id): team.name for team in configuration.teams}
+                )
+                effective_by_game[game_id] = effective_memberships(
+                    session, user.id, game_id, now
+                )
+            except (LookupError, ValueError):
+                pass
+        by_game: dict[str, dict[str, Any]] = {}
+        for membership in memberships:
+            if membership.team_id not in effective_by_game.get(membership.game_id, frozenset()):
+                continue
+            game = games.get(membership.game_id)
+            if game is None:
+                continue
+            entry = by_game.setdefault(
+                membership.game_id,
+                {
+                    "id": membership.game_id,
+                    "title": game.title,
+                    "turn": game.current_turn,
+                    "status": game.status,
+                    "teams": [],
+                    "adjudicator": False,
+                    "administrator": False,
+                    "pending_reviews": 0,
+                },
+            )
+            entry["teams"].append(
+                {
+                    "id": membership.team_id,
+                    "name": team_names.get(
+                        (membership.game_id, membership.team_id), membership.team_id
+                    ),
+                    "authority": membership.authority,
+                }
+            )
+        for role_row in roles:
+            game = games.get(role_row.game_id)
+            if game is None:
+                continue
+            entry = by_game.setdefault(
+                role_row.game_id,
+                {
+                    "id": role_row.game_id,
+                    "title": game.title,
+                    "turn": game.current_turn,
+                    "status": game.status,
+                    "teams": [],
+                    "adjudicator": False,
+                    "administrator": False,
+                    "pending_reviews": 0,
+                },
+            )
+            entry["adjudicator"] |= role_row.role == "adjudicator"
+            entry["administrator"] |= role_row.role == "game_admin"
+        adjudicated_games = [key for key, value in by_game.items() if value["adjudicator"]]
+        if adjudicated_games:
+            pending_counts = session.execute(
+                select(Submission.game_id, func.count(Amendment.id))
+                .join(Amendment, Amendment.submission_id == Submission.id)
+                .where(
+                    Submission.game_id.in_(adjudicated_games),
+                    Amendment.status == "pending",
+                )
+                .group_by(Submission.game_id)
+            )
+            for game_id, count in pending_counts:
+                by_game[game_id]["pending_reviews"] = count
+        system = is_system_admin(session, user.id)
+    return {
+        "signed_in": True,
+        "display_name": user.display_name,
+        "user_id": str(user.id),
+        "games": tuple(by_game.values()),
+        "administrator": system or any(item["administrator"] for item in by_game.values()),
+        "csrf": csrf_token(request),
+    }
+
+
+def access_changed_response(
+    request: Request,
+    status: int = 403,
+    *,
+    templates: Jinja2Templates | None = None,
+    shell: dict[str, Any] | None = None,
+) -> HTMLResponse:
     headers = {"Cache-Control": "no-store"}
     if request.headers.get("hx-request", "").lower() == "true":
         headers.update({"HX-Retarget": "body", "HX-Reswap": "innerHTML"})
+    if templates is not None:
+        return templates.TemplateResponse(
+            request=request,
+            name="error.html",
+            context={
+                "shell": shell or {"signed_in": False},
+                "title": "Access changed",
+                "message": "This task is no longer available with your current access.",
+            },
+            status_code=status,
+            headers=headers,
+        )
     return HTMLResponse(
         "<!doctype html><html lang='en'><head><title>Access changed</title></head>"
         "<body><main><h1>Your access changed</h1>"
@@ -124,7 +266,11 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
                 try:
                     return await original(request)
                 except PermissionError:
-                    return access_changed_response(request)
+                    return access_changed_response(
+                        request,
+                        templates=templates,
+                        shell=shell_context(request, db, settings),
+                    )
                 except LookupError:
                     raise HTTPException(404, "Not found") from None
                 except (ValueError, RequestValidationError, IntegrityError, HTTPException) as exc:
@@ -245,6 +391,18 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
         response.delete_cookie(AUTH_COOKIE, path="/", httponly=True, samesite="lax")
         return response
 
+    @router.get("/account", response_class=HTMLResponse)
+    def account(request: Request) -> Response:
+        user = _current_user(request, db, settings)
+        if user is None:
+            return RedirectResponse("/login", status_code=303)
+        return templates.TemplateResponse(
+            request=request,
+            name="account.html",
+            context={"shell": shell_context(request, db, settings, user)},
+            headers={"Cache-Control": "no-store"},
+        )
+
     def admin(
         request: Request,
         *,
@@ -266,7 +424,11 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
                 )
             )
             if not system and not game_ids:
-                return access_changed_response(request)
+                return access_changed_response(
+                    request,
+                    templates=templates,
+                    shell=shell_context(request, db, settings, user),
+                )
             game_query = select(AdminGame).order_by(AdminGame.id)
             if not system:
                 game_query = game_query.where(AdminGame.id.in_(game_ids))
@@ -352,6 +514,7 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
             name="admin.html",
             status_code=status,
             context={
+                "shell": shell_context(request, db, settings, user),
                 "csrf": csrf_token(request),
                 "display_name": user.display_name,
                 "games": games,
@@ -456,6 +619,7 @@ def auth_admin_router(db: Database, templates: Jinja2Templates, settings: Settin
                 "problem": problem,
                 "system": is_system_admin(session, actor.id),
             }
+        context["shell"] = shell_context(request, db, settings, actor)
         return templates.TemplateResponse(
             request=request,
             name="admin_game.html",
