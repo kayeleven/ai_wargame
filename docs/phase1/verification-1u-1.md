@@ -28,11 +28,15 @@ implementation; they do not constitute owner usability acceptance.
   reconciliation. Existing authorization-before-replay and once-only results remain.
 - A committed save whose refresh fails remains committed, exposes a read-only refresh
   retry and blocks package commands until visible baselines are current. A 2xx response
-  is acknowledged only when it carries the complete enhanced media contract.
+  is acknowledged only when it carries the complete enhanced media contract. A refresh
+  that returns 401, 403 or the authorization-preserving 404 reports that the workspace is
+  unavailable, links Home and keeps package commands blocked without offering a futile retry.
 - Conflicts show labelled Base, Current and Mine values with readable teammate names.
   Current, mine and combined recovery are explicit for editable content; aggregate
-  commands require review and renewal. Validation messages use field labels and retain
-  non-secret comment, decision and reason values.
+  commands require review and renewal. Combined mode keeps the comparison visible with
+  its choices disabled, names the editor's save control and makes Current plus its matching
+  metadata the confirmed-Cancel target. Acknowledged saves remove resolved comparisons.
+  Validation messages use field labels and retain non-secret comment, decision and reason values.
 - The development fixture browser excludes operational datasets before fixture
   parsing. Invalid fixture metadata is isolated as unavailable rather than blocking
   valid fixtures.
@@ -83,13 +87,15 @@ no application projection writers, so 1U-1 does not advertise an empty destinati
   Harbor/Orchid fixture recovery scenario.
 - Correction regressions cover dirty package-command retry, failed-refresh resave,
   same-scope teammate changes during refresh, replayed committed revisions, retained
-  conflict comparisons, manual-copy fallback, post-commit access changes, literal stored
-  operation labels, inline package-comment validation and access loss during error rendering.
+  conflict comparisons, disabled combined choices, combined cancellation to Current,
+  acknowledgement cleanup with dirty typing and failed refresh, manual-copy fallback,
+  membership-loss refresh handling and package-command blocking, literal stored operation
+  labels, inline package-comment validation and access loss during error rendering.
 - Final automated run:
 
   ```text
   PATH=/tmp/lm-pg16-bin:$PATH LD_LIBRARY_PATH=/tmp/lm-pg16-bin .venv/bin/pytest -q
-  162 passed, 2 warnings in 112.13s
+  164 passed, 2 warnings in 116.84s
 
   .venv/bin/ruff check .
   All checks passed!
@@ -98,7 +104,7 @@ no application projection writers, so 1U-1 does not advertise an empty destinati
   Success: no issues found in 20 source files
 
   UV_CACHE_DIR=/tmp/lm-uv-cache uv lock --check --offline
-  Resolved 47 packages in 1ms
+  Resolved 47 packages in 5ms
   ```
 
 The warnings are the existing Starlette/httpx and AnyIO deprecations. PostgreSQL

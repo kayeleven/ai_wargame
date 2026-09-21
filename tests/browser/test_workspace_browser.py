@@ -205,7 +205,12 @@ def test_typing_during_save_stays_dirty_and_keeps_editor_dom(workspace_server, w
                         window.releaseWorkspaceSave = () => resolve(response);
                     });
                 });
-                document.querySelector('[data-editor="intention"]').testMarker = "same-node";
+                const form = document.querySelector('[data-editor="intention"]');
+                form.testMarker = "same-node";
+                form.insertAdjacentHTML(
+                    "beforeend",
+                    '<section data-conflict="true">Old comparison</section>'
+                );
             }"""
         )
         intention = page.get_by_label("Overall intention", exact=True)
@@ -219,6 +224,7 @@ def test_typing_during_save_stays_dirty_and_keeps_editor_dom(workspace_server, w
         expect(page.get_by_text("Draft revision 1.", exact=False)).to_be_visible()
         expect(intention).to_have_value("Newer text typed during save")
         expect(page.locator('[data-editor="intention"]')).to_have_attribute("data-dirty", "true")
+        expect(page.locator('[data-editor="intention"] [data-conflict]')).to_have_count(0)
         assert page.evaluate(
             "document.querySelector('[data-editor=\"intention\"]').testMarker"
         ) == "same-node"
@@ -486,6 +492,9 @@ def test_committed_save_with_failed_refresh_retries_only_read(workspace_server, 
                     }
                     return original(...args);
                 };
+                document.querySelector('[data-editor="intention"]').insertAdjacentHTML(
+                    "beforeend", '<section data-conflict="true">Old comparison</section>'
+                );
             }"""
         )
         page.get_by_label("Overall intention", exact=True).fill("Committed before refresh")
@@ -493,6 +502,7 @@ def test_committed_save_with_failed_refresh_retries_only_read(workspace_server, 
         expect(page.get_by_role("alert")).to_contain_text(
             "Saved; current view could not be refreshed."
         )
+        expect(page.locator('[data-editor="intention"] [data-conflict]')).to_have_count(0)
         page.get_by_role("button", name="Submit turn package", exact=True).click()
         expect(page.get_by_role("alert")).to_contain_text(
             "Refresh the saved workspace before using a package command."
@@ -565,7 +575,12 @@ def test_acknowledgement_without_committed_revision_remains_uncertain(workspace_
         browser.close()
 
 
-def test_access_denied_after_commit_reports_access_change(workspace_server):
+def test_access_denied_after_commit_reports_access_change(workspace_server, world):
+    from sqlalchemy import select
+
+    from living_memory.identity import TeamMembership, remove_membership
+    from living_memory.workspace_service import get_draft, package
+
     url, tokens = workspace_server
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -574,19 +589,50 @@ def test_access_denied_after_commit_reports_access_change(workspace_server):
         page.evaluate(
             """() => {
                 const original = window.fetch.bind(window);
-                window.fetch = (...args) => (args[1]?.method || "GET") === "POST"
-                    ? original(...args)
-                    : Promise.resolve(new Response("denied", {status: 403}));
+                window.postCount = 0;
+                window.fetch = (...args) => {
+                    if ((args[1]?.method || "GET") === "POST") {
+                        window.postCount += 1;
+                        return original(...args);
+                    }
+                    return new Promise(resolve => {
+                        window.releaseAccessRefresh = () => resolve(original(...args));
+                    });
+                };
             }"""
         )
         page.get_by_label("Overall intention", exact=True).fill("Committed before access loss")
         page.get_by_role("button", name="Save intention", exact=True).click()
-        expect(page.get_by_role("alert")).to_contain_text("Saved. Your access changed.")
+        page.wait_for_function("window.releaseAccessRefresh !== undefined")
+        with world[0].transaction() as session:
+            membership = session.scalar(
+                select(TeamMembership).where(
+                    TeamMembership.user_id == world[2]["player"],
+                    TeamMembership.game_id == GAME,
+                    TeamMembership.team_id == "team-0",
+                )
+            )
+            assert membership is not None
+            remove_membership(session, membership, world[2]["admin"], NOW)
+        page.evaluate("window.releaseAccessRefresh()")
+        expect(page.get_by_role("alert")).to_contain_text(
+            "Saved. This workspace is no longer available to you."
+        )
         expect(page.get_by_role("link", name="Go to Home", exact=True)).to_be_visible()
         expect(page.get_by_role("button", name="Retry refresh", exact=True)).to_have_count(0)
         expect(page.get_by_label("Overall intention", exact=True)).to_have_value(
             "Committed before access loss"
         )
+        page.get_by_role("button", name="Submit turn package", exact=True).click()
+        expect(page.get_by_role("alert")).to_contain_text(
+            "Refresh the saved workspace before using a package command."
+        )
+        assert page.evaluate("window.postCount") == 1
+        with world[0].transaction() as session:
+            assert (
+                package(session, get_draft(session, GAME, "team-0", 1)).overall_intention
+                == "Committed before access loss"
+            )
         browser.close()
 
 
@@ -671,6 +717,16 @@ def test_action_use_current_and_intention_save_combined(workspace_server, world)
         stale = page_for(browser, url, tokens, "teammate", True)
         for page in (current, stale):
             page.goto(f"{url}/play?game_id={GAME}")
+        stale.evaluate(
+            """() => {
+                const original = window.fetch.bind(window);
+                window.postCount = 0;
+                window.fetch = (...args) => {
+                    if ((args[1]?.method || "GET") === "POST") window.postCount += 1;
+                    return original(...args);
+                };
+            }"""
+        )
         current_action = current.get_by_role("region", name="Action 1")
         stale_action = stale.get_by_role("region", name="Action 1")
         current_action.get_by_label("Description", exact=True).fill("Current action text")
@@ -679,7 +735,12 @@ def test_action_use_current_and_intention_save_combined(workspace_server, world)
         stale_action.get_by_label("Description", exact=True).fill("Mine action text")
         stale_action.get_by_role("button", name="Save action", exact=True).click()
         stale_action.get_by_role("button", name="Save combined", exact=True).click()
+        expect(stale.get_by_role("status")).to_contain_text(
+            "Edit the combined value, then choose Save action."
+        )
         expect(stale_action.locator("[data-conflict]")).to_contain_text("Current action text")
+        for choice in ("Use current", "Save mine", "Save combined"):
+            expect(stale_action.get_by_role("button", name=choice, exact=True)).to_be_disabled()
         stale_action.get_by_label("Responsible teammate", exact=True).evaluate(
             """select => {
                 const option = document.createElement("option");
@@ -689,26 +750,136 @@ def test_action_use_current_and_intention_save_combined(workspace_server, world)
         stale_action.get_by_role("button", name="Save action", exact=True).click()
         expect(stale_action.get_by_role("heading", name="Please check your input")).to_be_visible()
         expect(stale_action.locator("[data-conflict]")).to_contain_text("Current action text")
-        stale_action.get_by_role("button", name="Use current", exact=True).click()
         expect(stale_action.get_by_label("Description", exact=True)).to_have_value(
-            "Current action text"
+            "Mine action text"
         )
-        expect(stale_action.locator('form[data-editor^="action-"]')).to_have_attribute(
-            "data-dirty", "false"
+        action_state = stale_action.locator('form[data-editor^="action-"]').evaluate(
+            """form => ({
+                description: form.elements.description.value,
+                key: form.elements.key.value,
+                version: form.elements.expected_version.value,
+                posts: window.postCount
+            })"""
         )
+        stale_action.locator("[data-choice]").evaluate_all(
+            """buttons => buttons.forEach(button =>
+                button.dispatchEvent(new MouseEvent("click", {bubbles:true})))"""
+        )
+        assert stale_action.locator('form[data-editor^="action-"]').evaluate(
+            """form => ({
+                description: form.elements.description.value,
+                key: form.elements.key.value,
+                version: form.elements.expected_version.value,
+                posts: window.postCount
+            })"""
+        ) == action_state
+        for choice in ("Use current", "Save mine", "Save combined"):
+            expect(stale_action.get_by_role("button", name=choice, exact=True)).to_be_disabled()
 
         current.get_by_label("Overall intention", exact=True).fill("Current intention")
         current.get_by_role("button", name="Save intention", exact=True).click()
         expect(current.get_by_text("Draft revision 4.", exact=False)).to_be_visible()
         stale.get_by_label("Overall intention", exact=True).fill("Mine intention")
         stale.get_by_role("button", name="Save intention", exact=True).click()
-        stale.get_by_role("button", name="Save combined", exact=True).click()
-        expect(stale.get_by_role("status")).to_contain_text("Edit the combined value")
-        expect(stale.locator("[data-conflict]")).to_contain_text("Current intention")
+        intention_form = stale.locator('[data-editor="intention"]')
+        intention_form.get_by_role("button", name="Save combined", exact=True).click()
+        expect(stale.get_by_role("status")).to_contain_text(
+            "Edit the combined value, then choose Save intention."
+        )
+        expect(intention_form.locator("[data-conflict]")).to_contain_text("Current intention")
         stale.get_by_label("Overall intention", exact=True).fill("Combined intention")
+        intention_state = intention_form.evaluate(
+            """form => ({
+                value: form.elements.overall_intention.value,
+                key: form.elements.key.value,
+                version: form.elements.expected_version.value,
+                posts: window.postCount
+            })"""
+        )
+        intention_form.locator("[data-choice]").evaluate_all(
+            """buttons => buttons.forEach(button =>
+                button.dispatchEvent(new MouseEvent("click", {bubbles:true})))"""
+        )
+        assert intention_form.evaluate(
+            """form => ({
+                value: form.elements.overall_intention.value,
+                key: form.elements.key.value,
+                version: form.elements.expected_version.value,
+                posts: window.postCount
+            })"""
+        ) == intention_state
+        for choice in ("Use current", "Save mine", "Save combined"):
+            expect(
+                intention_form.get_by_role("button", name=choice, exact=True)
+            ).to_be_disabled()
         stale.get_by_role("button", name="Save intention", exact=True).click()
         expect(stale.get_by_text("Draft revision 5.", exact=False)).to_be_visible()
-        expect(stale.locator("[data-conflict]")).to_have_count(0)
+        expect(intention_form.locator("[data-conflict]")).to_have_count(0)
+        browser.close()
+
+
+@pytest.mark.parametrize("editor_kind", ["intention", "action"])
+def test_cancel_combined_uses_current_as_authoritative(workspace_server, world, editor_kind):
+    from test_workspace import ready
+
+    ready(world)
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        current = page_for(browser, url, tokens, "player", True)
+        stale = page_for(browser, url, tokens, "teammate", True)
+        for page in (current, stale):
+            page.goto(f"{url}/play?game_id={GAME}")
+
+        if editor_kind == "intention":
+            current_form = current.locator('[data-editor="intention"]')
+            stale_form = stale.locator('[data-editor="intention"]')
+            current_field = current_form.get_by_label("Overall intention", exact=True)
+            stale_field = stale_form.get_by_label("Overall intention", exact=True)
+            save_label = "Save intention"
+            cancel_label = "Cancel intention edits"
+        else:
+            current_form = current.get_by_role("region", name="Action 1").locator(
+                'form[data-editor^="action-"]'
+            )
+            stale_form = stale.get_by_role("region", name="Action 1").locator(
+                'form[data-editor^="action-"]'
+            )
+            current_field = current_form.get_by_label("Description", exact=True)
+            stale_field = stale_form.get_by_label("Description", exact=True)
+            save_label = "Save action"
+            cancel_label = "Cancel action edits"
+
+        current_value = f"Current {editor_kind} value"
+        current_field.fill(current_value)
+        current_form.get_by_role("button", name=save_label, exact=True).click()
+        stale_field.fill(f"Mine {editor_kind} value")
+        stale_form.get_by_role("button", name=save_label, exact=True).click()
+        stale_form.get_by_role("button", name="Save combined", exact=True).click()
+        stale_field.fill(f"Combined {editor_kind} value")
+
+        stale_form.get_by_role("link", name=cancel_label, exact=True).click()
+        stale.get_by_role("button", name="Keep editing", exact=True).click()
+        expect(stale_field).to_have_value(f"Combined {editor_kind} value")
+        expect(stale_form.locator("[data-conflict]")).to_be_visible()
+
+        stale_form.get_by_role("link", name=cancel_label, exact=True).click()
+        stale.get_by_role("button", name="Discard changes", exact=True).click()
+        expect(stale_field).to_have_value(current_value)
+        expect(stale_form).to_have_attribute("data-dirty", "false")
+        expect(stale_form.locator("[data-conflict]")).to_have_count(0)
+        assert stale_form.evaluate(
+            """form =>
+                form.elements.expected_version.value ===
+                    form.dataset.authoritativeExpectedVersion &&
+                form.elements.key.value === form.dataset.authoritativeKey &&
+                form.elements.csrf_token.value === form.dataset.authoritativeCsrfToken"""
+        )
+
+        stale_field.fill(f"Saved after cancelling {editor_kind}")
+        stale_form.get_by_role("button", name=save_label, exact=True).click()
+        expect(stale_form.locator("[data-conflict]")).to_have_count(0)
+        expect(stale.get_by_role("status")).to_contain_text("saved.")
         browser.close()
 
 

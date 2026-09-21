@@ -277,8 +277,12 @@ the original unknown operation.
 
 Conflict recovery presents labelled Base, Current and Mine values. Editable text offers
 Use current, Save mine and Save combined; aggregate commands require current-state review
-and a newly selected operation from the refreshed state. If an editor disappears or
-becomes read-only, its authored text remains available for copy or explicit discard.
+and a newly selected operation from the refreshed state. Entering combined mode retains
+the comparison but disables its choices; the editor's own save control commits the combined
+value. Current and its matching revision, request key and anti-forgery token become the
+discard target, so confirmed Cancel loads Current without creating another stale save.
+An acknowledged save removes its resolved comparison before refresh. If an editor disappears
+or becomes read-only, its authored text remains available for copy or explicit discard.
 When a dirty editor survives a scoped refresh, its latest authoritative snapshot is
 retained separately and becomes the discard target without changing its save baseline.
 Internal identifiers are not presentation labels. Recovery

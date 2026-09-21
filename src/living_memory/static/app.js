@@ -178,14 +178,20 @@
     };
     const displayLabel = item => item ? `${item.state === "removed" ? "(removed)\n" : item.state === "missing" ? "(missing)\n" : ""}${item.fields.map(field => `${escape(field.label)}: ${field.empty ? "(empty)" : escape(field.value)}`).join("\n") || "(empty)"}` : null;
     const editableText = ["intention", "action", "comment"].includes(frozen.operation);
+    const currentEditor = documentFromResponse ? incomingEditor(documentFromResponse, editorId(form)) : null;
+    if (editableText && currentEditor) {
+      applyConflictCurrent(currentEditor, conflict.current);
+      rememberAuthoritative(form, currentEditor);
+    }
     const buttons = editableText ? `<button type="button" data-choice="current">Use current</button><button type="button" data-choice="mine">Save mine</button><button type="button" data-choice="combined">Save combined</button>` : `<button type="button" data-choice="review">Review current state and renew this operation</button>`;
     panel.innerHTML = `<h3>Edit conflict</h3><p>Resolve the saved-value conflict</p><dl><dt>Base</dt><dd><pre>${displayLabel(display.base) || label(conflict.base)}</pre></dd><dt>Current</dt><dd><pre>${displayLabel(display.current) || label(conflict.current)}</pre></dd><dt>Mine</dt><dd><pre>${displayLabel(display.mine) || label(conflict.mine)}</pre></dd></dl><div class="button-row">${buttons}</div>`;
     panel.querySelectorAll("[data-choice]").forEach(button => button.addEventListener("click", () => {
+      if (button.disabled || panel.dataset.combining === "true") return;
       const mode = button.dataset.choice;
       if (mode === "review") { if (documentFromResponse) replaceCleanRegions(documentFromResponse, null); panel.remove(); announce("Current saved state loaded. Review it before renewing the operation.", "notice", true); return; }
-      if (mode === "current") { applyConflictCurrent(form, conflict.current); if (documentFromResponse) freshToken(form, documentFromResponse); setBaseline(form); delete form.dataset.authoritative; erase(keyFor(form)); panel.remove(); announce("Current saved value loaded.", "notice", true); return; }
+      if (mode === "current") { if (currentEditor) discardToAuthoritative(form); else { applyConflictCurrent(form, conflict.current); if (documentFromResponse) freshToken(form, documentFromResponse); setBaseline(form); erase(keyFor(form)); } panel.remove(); announce("Current saved value loaded.", "notice", true); return; }
       fillFrozen(form, frozen); const version = form.elements.namedItem("expected_version"); if (version && payload.current_version != null) version.value = payload.current_version; const key = form.elements.namedItem("key"); if (key) key.value = crypto.randomUUID(); mark(form);
-      if (mode === "combined") { announce("Edit the combined value, then save it with the current revision.", "notice", true); form.querySelector("textarea,input,select")?.focus(); return; }
+      if (mode === "combined") { panel.dataset.combining = "true"; panel.querySelectorAll("[data-choice]").forEach(choice => { choice.disabled = true; }); const saveLabel = form.querySelector("button[type=submit],button:not([type])")?.dataset.defaultLabel || "Save"; announce(`Edit the combined value, then choose ${saveLabel}.`, "notice", true); form.querySelector("textarea,input,select")?.focus(); return; }
       submit(form);
     }));
     form.append(panel); panel.focus();
@@ -206,7 +212,7 @@
   const classify = response => [401, 403, 404].includes(response.status) ? "rejected" : response.status >= 500 ? "uncertain" : response.status === 409 ? "conflict" : response.status === 422 ? "validation" : response.ok ? "acknowledged" : "uncertain";
   const success = operation => ({intention:"Overall intention saved.",action:"Action saved.",comment:"Comment added.",submit:"Turn package submitted.",amend:"Amendment proposed.",remove:"Action removed.",reorder:"Action order updated.",decide:"Amendment decision recorded."})[operation] || "Saved.";
   async function refresh(form, destination = location.href) {
-    try { const response = await fetch(destination, { headers: { Accept:"text/html", "X-Workspace-Enhanced":"1" } }); if ([401, 403].includes(response.status)) { workspace().dataset.refreshPending = "true"; document.querySelector("[data-retry-refresh]")?.remove(); announce("Saved. Your access changed.", "notice error", true); if (!document.querySelector("[data-access-changed-home]")) { const home = document.createElement("a"); home.href = "/"; home.dataset.accessChangedHome = "true"; home.textContent = "Go to Home"; document.querySelector("#workspace-status")?.after(home); } return; } if (!response.ok) throw new Error(); const parsed = new DOMParser().parseFromString(await response.text(), "text/html"); replaceCleanRegions(parsed, form); if (form.isConnected && editorId(form)) { if (form.dataset.dirty === "true") { const next = incomingEditor(parsed, editorId(form)); const csrf = next?.elements.namedItem("csrf_token"), current = form.elements.namedItem("csrf_token"); if (csrf && current) current.value = csrf.value; mark(form); } else freshToken(form, parsed); } workspace().dataset.refreshPending = ""; document.querySelector("[data-retry-refresh]")?.remove(); document.querySelector("[data-access-changed-home]")?.remove(); }
+    try { const response = await fetch(destination, { headers: { Accept:"text/html", "X-Workspace-Enhanced":"1" } }); if ([401, 403, 404].includes(response.status)) { workspace().dataset.refreshPending = "true"; document.querySelector("[data-retry-refresh]")?.remove(); announce("Saved. This workspace is no longer available to you.", "notice error", true); if (!document.querySelector("[data-access-changed-home]")) { const home = document.createElement("a"); home.href = "/"; home.dataset.accessChangedHome = "true"; home.textContent = "Go to Home"; document.querySelector("#workspace-status")?.after(home); } return; } if (!response.ok) throw new Error(); const parsed = new DOMParser().parseFromString(await response.text(), "text/html"); replaceCleanRegions(parsed, form); if (form.isConnected && editorId(form)) { if (form.dataset.dirty === "true") { const next = incomingEditor(parsed, editorId(form)); const csrf = next?.elements.namedItem("csrf_token"), current = form.elements.namedItem("csrf_token"); if (csrf && current) current.value = csrf.value; mark(form); } else freshToken(form, parsed); } workspace().dataset.refreshPending = ""; document.querySelector("[data-retry-refresh]")?.remove(); document.querySelector("[data-access-changed-home]")?.remove(); }
     catch {
       workspace().dataset.refreshPending = "true";
       announce("Saved; current view could not be refreshed.", "notice error", true);
@@ -255,6 +261,7 @@
       }
       if (acknowledgedAuthoredKey !== keyFor(form)) erase(acknowledgedAuthoredKey);
       if (editorId(form)) acknowledgeEditor(form, frozen.authored, payload.committed_draft_version);
+      form.querySelector("[data-conflict]")?.remove();
       announce(payload?.message || success(frozen.operation)); await refresh(form, payload?.refresh || location.href);
     } catch { retainPending(form, frozen); form.dataset.pending = "true"; workspace().dataset.unresolved = "true"; announce("Save outcome unknown. Retry will use the exact original save; other saves are paused.", "notice error", true); }
     finally { workspace().dataset.inflight = ""; form.dataset.inflight = ""; form.removeAttribute("aria-busy"); form.querySelectorAll("button[type=submit],button:not([type])").forEach(button => { button.disabled = Boolean(form.querySelector("[data-unavailable-recovery]")); if (form.dataset.pending) button.textContent = "Retry save"; }); }
