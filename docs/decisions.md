@@ -407,3 +407,59 @@ This refines B-14's delivery sequence with an immediate usability gate and a
 Phase 2 checkpoint, and extends B-16's evaluation planning without changing its
 human-authority or minimal-input boundaries. Verification is through the future
 [roadmap gates](../roadmap.md); completed verification remains historical evidence.
+
+### B-18 — Usability alignment policies (1U)
+
+Status: decided by the project owner, recorded 2026-09-21. Governs the
+[1U milestones](phase1/usability-alignment.md); no implementation is claimed.
+Supersedes earlier policy statements where they conflict, including B-15's
+requirement for explicit adjudicator decisions on every revision. Historical
+verification remains evidence of the behavior tested at that time.
+
+#### Submission and revision
+
+- **Late first submissions are allowed.** A first submission may be made in the active turn at or after the deadline. Players and adjudicators see a visible late indicator.
+- **Revisions before the deadline take effect immediately.** A revision submitted strictly before the deadline becomes the effective submission when it commits. This does not create an adjudicator decision.
+- **Revisions at or after the deadline need acceptance.** They become effective only when an adjudicator accepts them. The existing accept/reject workflow is kept, and rejection reasons stay visible to players.
+- **Which deadline governs.** The deadline is copied from the governing configuration at first submission. Every later revision is judged against `Submission.deadline`. Turns that have started can't be redefined.
+- **Server time decides.** The deadline and authorization are checked against server time read after acquiring the mutation locks, immediately before the policy check.
+- **One pending revision at a time.** A pending revision blocks another submission. Teammates can keep editing the draft, and the UI explains why submission is blocked. Withdrawing a pending revision is deferred.
+- **Wording.** The action is labelled Submit revision. The confirmation states the actual consequence: effective immediately, or adjudicator acceptance required.
+
+#### Confirmation and retries
+
+- **Confirmation states what the user expects.** It carries the effective version, the deadline and the outcome the user expects (immediate or approval required). If any of these changes before commit, the server returns "confirmation required," writes nothing and does not claim the request key.
+- **A renewed confirmation is a new request.** It uses a fresh request key. If an outcome is uncertain, the application must first reconcile or retry the original command with its original key.
+- **Retries keep their original meaning.** On retry, authorization is checked first. A completed matching request is then recognized before the deadline is re-evaluated, so a retry never duplicates a submission or changes what an operation meant.
+
+#### Turns and history
+
+- **Only the current turn is writable.** Writes stay limited to the active current turn. No new turn-lock, ruling or release lifecycle is introduced.
+- **Existing history is preserved.** Submitted versions, decisions and pending amendments are kept. Existing pending amendments still require a decision.
+- **How versions become effective is recorded.** Each change of effective version gets an append-only record of the mechanism (`initial`, `immediate_revision` or `adjudicator_acceptance`), the responsible user and the time. Existing records are backfilled from immutable data, with no invented events.
+
+#### Collaboration and ordering
+
+- **Explicit saves.** Users save explicitly, and saved changes from teammates appear automatically. There's no simultaneous text editing and no autosave.
+- **Teammate updates never overwrite unsaved work.** Clean regions refresh on their own. Regions with unsaved edits are kept, and conflicts offer three choices: current, mine, or combined.
+- **Sorting is not ordering.** Display sorting is local presentation only. Only explicit reorder commands change the saved submission order.
+
+#### Accounts and participants
+
+- **Reactivation.** Reactivating an account restores sign-in and the grants that still exist, re-checked against current authorization, roster and team-authority rules. The consequences are previewed first. Revoked sessions, removed grants and replaced submitter authority are never restored.
+- **Password reset.** Resetting a password revokes existing sessions. The existing password policy is unchanged: no temporary passwords and no forced change at first sign-in.
+- **Credentials stay out of records.** Passwords never appear in logs, history, operation records, result artifacts, retained form values or error echoes.
+- **Submitter invariant.** Each team keeps exactly one designated submitter. When a replacement isn't available, the UI explains why.
+- **LDAP is out of scope.** It remains a future integration.
+
+#### Setup
+
+- **Teams can be added only before activation.** Adding a team is allowed only in draft games and keeps the configuration and team state consistent. Roster changes in active games stay prohibited.
+- **Identifiers are generated.** The server generates stable identifiers. Users select games and teams by name and never type internal IDs.
+- **Configuration stays strict.** Editing preserves every supported configuration field. Unknown fields are rejected explicitly, consistent with the strict model.
+
+#### Scope boundaries
+
+- **What 1U excludes.** Coordination, RFIs, imports, 1E ruling/release workflows, simultaneous editing, LDAP and the Execution Context alternative are all outside 1U.
+- **Adjudicator review.** 1U delivers a dedicated adjudicator page for the existing amendment accept/reject flow only.
+- **No-JS limitation.** Without JavaScript, a browser reload can't trigger an application-controlled warning about unsaved changes. This limitation is documented and not claimed as passing.

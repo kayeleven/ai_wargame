@@ -34,8 +34,11 @@ Follow the review's ordered workstreams: protect input and restore navigation;
 make submit/review/revise coherent; support realistic action volume; consolidate
 participant administration; improve setup; repeat focused acceptance and the
 blocked memory checks. Include behavior/service fixes needed to resolve findings,
-not only visual changes. Resolve open revision, deadline/lock and collaboration
-policies explicitly before changing existing behavior. Further speculative review
+not only visual changes. The [1U milestone plan](docs/phase1/usability-alignment.md)
+is the entry point for this work; all milestones are currently proposed, with no
+implementation or acceptance claimed. [B-18](docs/decisions.md#b-18--usability-alignment-policies-1u)
+settles submission, revision, collaboration, account and setup policies for 1U.
+Apply those policies through the milestone review gates. Further speculative review
 workflow design is not a prerequisite to correcting the delivered workflow.
 
 Gate before 1D-2: trace addressed findings to implemented behavior and focused
