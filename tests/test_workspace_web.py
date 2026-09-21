@@ -366,6 +366,9 @@ def test_enhanced_key_conflict_and_readable_retained_validation(world):
         headers=ENHANCED,
     )
     assert malformed.status_code == 422
+    assert malformed.headers["content-type"].startswith(
+        "application/vnd.living-memory.workspace+json"
+    )
     payload = malformed.json()
     assert payload["outcome"] == "validation_error"
     assert payload["errors"] == [
@@ -426,3 +429,34 @@ def test_enhanced_direct_rejections_keep_status_and_error_pages_do_not_disclose(
     assert missing_page.status_code == 404
     assert "<h1>Page unavailable</h1>" in denied_page.text
     assert "<h1>Page unavailable</h1>" in missing_page.text
+
+
+def test_access_revoked_before_enhanced_error_render_is_confirmed_rejection(
+    world, monkeypatch
+):
+    from living_memory.identity import User
+
+    client = client_for(world)
+    csrf = workspace_csrf(client)
+
+    def revoke_then_fail(*args, **kwargs):
+        with world[0].transaction() as session:
+            session.get(User, world[2]["player"]).active = False
+        raise ValueError("Enter a comment")
+
+    monkeypatch.setattr("living_memory.workspace_web.execute", revoke_then_fail)
+    response = client.post(
+        f"/workspace/{GAME}/team-0/1/form",
+        data={
+            "csrf_token": csrf,
+            "operation": "comment",
+            "expected_version": 0,
+            "key": str(uuid4()),
+            "comment": "Attempted comment",
+        },
+        headers=ENHANCED,
+    )
+    with world[0].transaction() as session:
+        session.get(User, world[2]["player"]).active = True
+    assert response.status_code == 401
+    assert response.json()["outcome"] == "rejected"

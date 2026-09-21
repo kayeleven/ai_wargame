@@ -76,7 +76,7 @@
     const matching = [...document.querySelectorAll("form[data-workspace-form]")].find(form => form.elements.namedItem("operation")?.value === frozen.operation && stateKey(form) === unresolved.state);
     if (matching) return;
     const panel = document.createElement("section"); panel.className = "notice error"; panel.dataset.pendingRecovery = "true"; panel.setAttribute("role", "alert");
-    panel.innerHTML = `<p>A previous ${String(frozen.operation).replaceAll("_", " ")} has an unknown outcome.</p>`;
+    const message = document.createElement("p"); message.textContent = `A previous ${String(frozen.operation).replaceAll("_", " ")} has an unknown outcome.`; panel.append(message);
     const form = document.createElement("form"); form.method = "post"; form.action = frozen.action; form.dataset.workspaceForm = "true"; form.dataset.packageCommand = "true"; form.dataset.pendingRecovery = "true"; form.dataset.pending = "true";
     for (const [name, value] of Object.entries(frozen.values)) { const input = document.createElement("input"); input.type = "hidden"; input.name = name; input.value = value; form.append(input); }
     const csrf = document.createElement("input"); csrf.type = "hidden"; csrf.name = "csrf_token"; csrf.value = document.querySelector('[name="csrf_token"]')?.value || ""; form.append(csrf);
@@ -101,7 +101,15 @@
     if (form.querySelector("[data-unavailable-recovery]")) return;
     form.querySelectorAll("textarea,input:not([type=hidden]),select,button[type=submit],button:not([type])").forEach(control => { control.disabled = true; });
     const panel = document.createElement("section"); panel.dataset.unavailableRecovery = "true"; panel.className = "notice error"; panel.innerHTML = "<p>This editor is no longer available. Copy your text before discarding it.</p>";
-    const copy = document.createElement("button"); copy.type = "button"; copy.textContent = "Copy retained text"; copy.addEventListener("click", async () => { const text = controls(form).map(item => item.value).filter(Boolean).join("\n"); await navigator.clipboard.writeText(text); announce("Retained text copied."); });
+    const copy = document.createElement("button"); copy.type = "button"; copy.textContent = "Copy retained text"; copy.addEventListener("click", async () => {
+      const text = controls(form).map(item => item.value).filter(Boolean).join("\n");
+      try { if (!navigator.clipboard?.writeText) throw new Error(); await navigator.clipboard.writeText(text); announce("Retained text copied."); }
+      catch {
+        let fallback = panel.querySelector("[data-copy-fallback]");
+        if (!fallback) { fallback = document.createElement("textarea"); fallback.dataset.copyFallback = "true"; fallback.readOnly = true; fallback.setAttribute("aria-label", "Retained text for manual copy"); panel.append(fallback); }
+        fallback.value = text; announce("Automatic copy failed. Copy the selected retained text manually.", "notice error", true); fallback.focus(); fallback.select();
+      }
+    });
     const discard = document.createElement("button"); discard.type = "button"; discard.textContent = "Discard retained text"; discard.addEventListener("click", () => { erase(keyFor(form)); form.remove(); });
     panel.append(copy, discard); form.append(panel);
   }
@@ -150,6 +158,7 @@
     else applyValues(form, current);
   }
   function showConflict(form, payload, frozen) {
+    form.querySelector("[data-conflict]")?.remove();
     const panel = document.createElement("section"); panel.className = "notice error conflict-resolution"; panel.dataset.conflict = "true"; panel.tabIndex = -1;
     const documentFromResponse = payload.html ? new DOMParser().parseFromString(payload.html, "text/html") : null;
     const conflict = payload.conflict || {}, display = payload.conflict_display || {};
@@ -175,7 +184,7 @@
       const mode = button.dataset.choice;
       if (mode === "review") { if (documentFromResponse) replaceCleanRegions(documentFromResponse, null); panel.remove(); announce("Current saved state loaded. Review it before renewing the operation.", "notice", true); return; }
       if (mode === "current") { applyConflictCurrent(form, conflict.current); if (documentFromResponse) freshToken(form, documentFromResponse); setBaseline(form); delete form.dataset.authoritative; erase(keyFor(form)); panel.remove(); announce("Current saved value loaded.", "notice", true); return; }
-      fillFrozen(form, frozen); const version = form.elements.namedItem("expected_version"); if (version && payload.current_version != null) version.value = payload.current_version; const key = form.elements.namedItem("key"); if (key) key.value = crypto.randomUUID(); panel.remove(); mark(form);
+      fillFrozen(form, frozen); const version = form.elements.namedItem("expected_version"); if (version && payload.current_version != null) version.value = payload.current_version; const key = form.elements.namedItem("key"); if (key) key.value = crypto.randomUUID(); mark(form);
       if (mode === "combined") { announce("Edit the combined value, then save it with the current revision.", "notice", true); form.querySelector("textarea,input,select")?.focus(); return; }
       submit(form);
     }));
@@ -186,9 +195,10 @@
     const panel = document.createElement("section"); panel.dataset.validationErrors = "true"; panel.className = "notice error"; panel.setAttribute("role", "alert"); panel.tabIndex = -1;
     const errors = payload?.errors || [];
     panel.innerHTML = `<h3>Please check your input</h3><ul>${errors.map(error => `<li>${String(error.message).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</li>`).join("")}</ul>`;
+    form.querySelectorAll("[aria-describedby]").forEach(control => control.getAttribute("aria-describedby").split(/\s+/).forEach(id => { const target = document.getElementById(id); if (target) target.textContent = ""; }));
     for (const error of errors) {
-      const described = [...form.querySelectorAll("[aria-describedby]")].find(item => item.getAttribute("aria-describedby")?.startsWith(`error-${error.field}`));
-      const target = described ? document.getElementById(described.getAttribute("aria-describedby")) : null;
+      const described = form.querySelector(`[name="${CSS.escape(error.field)}"][aria-describedby]`);
+      const target = described ? described.getAttribute("aria-describedby").split(/\s+/).map(id => document.getElementById(id)).find(Boolean) : null;
       if (target) target.textContent = error.message;
     }
     form.prepend(panel); panel.focus(); mark(form);
@@ -196,7 +206,7 @@
   const classify = response => [401, 403, 404].includes(response.status) ? "rejected" : response.status >= 500 ? "uncertain" : response.status === 409 ? "conflict" : response.status === 422 ? "validation" : response.ok ? "acknowledged" : "uncertain";
   const success = operation => ({intention:"Overall intention saved.",action:"Action saved.",comment:"Comment added.",submit:"Turn package submitted.",amend:"Amendment proposed.",remove:"Action removed.",reorder:"Action order updated.",decide:"Amendment decision recorded."})[operation] || "Saved.";
   async function refresh(form, destination = location.href) {
-    try { const response = await fetch(destination, { headers: { Accept:"text/html", "X-Workspace-Enhanced":"1" } }); if (!response.ok) throw new Error(); const parsed = new DOMParser().parseFromString(await response.text(), "text/html"); replaceCleanRegions(parsed, form); if (form.isConnected && editorId(form)) { if (form.dataset.dirty === "true") { const next = incomingEditor(parsed, editorId(form)); const csrf = next?.elements.namedItem("csrf_token"), current = form.elements.namedItem("csrf_token"); if (csrf && current) current.value = csrf.value; mark(form); } else freshToken(form, parsed); } workspace().dataset.refreshPending = ""; document.querySelector("[data-retry-refresh]")?.remove(); }
+    try { const response = await fetch(destination, { headers: { Accept:"text/html", "X-Workspace-Enhanced":"1" } }); if ([401, 403].includes(response.status)) { workspace().dataset.refreshPending = "true"; document.querySelector("[data-retry-refresh]")?.remove(); announce("Saved. Your access changed.", "notice error", true); if (!document.querySelector("[data-access-changed-home]")) { const home = document.createElement("a"); home.href = "/"; home.dataset.accessChangedHome = "true"; home.textContent = "Go to Home"; document.querySelector("#workspace-status")?.after(home); } return; } if (!response.ok) throw new Error(); const parsed = new DOMParser().parseFromString(await response.text(), "text/html"); replaceCleanRegions(parsed, form); if (form.isConnected && editorId(form)) { if (form.dataset.dirty === "true") { const next = incomingEditor(parsed, editorId(form)); const csrf = next?.elements.namedItem("csrf_token"), current = form.elements.namedItem("csrf_token"); if (csrf && current) current.value = csrf.value; mark(form); } else freshToken(form, parsed); } workspace().dataset.refreshPending = ""; document.querySelector("[data-retry-refresh]")?.remove(); document.querySelector("[data-access-changed-home]")?.remove(); }
     catch {
       workspace().dataset.refreshPending = "true";
       announce("Saved; current view could not be refreshed.", "notice error", true);
@@ -252,7 +262,7 @@
   document.addEventListener("input", event => { const form = event.target.closest("form[data-editor]"); if (form) mark(form); const admin = event.target.closest("form[data-admin-form]"); if (admin) markAdmin(admin); });
   document.addEventListener("change", event => { const form = event.target.closest("form[data-editor]"); if (form) mark(form); const admin = event.target.closest("form[data-admin-form]"); if (admin) markAdmin(admin); });
   document.addEventListener("submit", event => { const form = event.target; if (form.matches("[data-workspace-form]")) { event.preventDefault(); submit(form, Boolean(form.dataset.pending)); return; } if (form.matches("[data-admin-form]")) form.dataset.dirty = "false"; if (form.matches("[data-guard-navigation]") && dirtyEditors().length) { event.preventDefault(); choice(form, "Leaving will discard unsaved workspace changes.", () => { discardDirtyRecovery(); form.submit(); }); } });
-  document.addEventListener("click", event => { const cancel = event.target.closest("[data-cancel-editor]"); if (cancel) { const form = cancel.closest("form[data-editor]"); if (form?.dataset.dirty === "true") { event.preventDefault(); choice(cancel, `Discard unsaved changes in ${editorLabel(form)}?`, () => { discardToAuthoritative(form); form.querySelector("textarea,input,select")?.focus(); }); } return; } const link = event.target.closest("a[href]"); if (link && (dirtyEditors().length || dirtyAdminForms().length) && !link.dataset.cancelEditor) { event.preventDefault(); choice(link, "Leaving will discard unsaved changes.", () => { discardDirtyRecovery(); location.href = link.href; }); } });
+  document.addEventListener("click", event => { const cancel = event.target.closest("[data-cancel-editor]"); if (cancel) { const form = cancel.closest("form[data-editor]"); if (form?.dataset.dirty === "true") { event.preventDefault(); choice(cancel, `Discard unsaved changes in ${editorLabel(form)}?`, () => { discardToAuthoritative(form); form.querySelector("[data-conflict]")?.remove(); form.querySelector("textarea,input,select")?.focus(); }); } return; } const link = event.target.closest("a[href]"); if (link && (dirtyEditors().length || dirtyAdminForms().length) && !link.dataset.cancelEditor) { event.preventDefault(); choice(link, "Leaving will discard unsaved changes.", () => { discardDirtyRecovery(); location.href = link.href; }); } });
   window.addEventListener("beforeunload", event => { if (dirtyEditors().length || dirtyAdminForms().length || workspace()?.dataset.unresolved === "true") { event.preventDefault(); event.returnValue = ""; } });
   document.querySelectorAll('form[action^="/admin"]:not([data-workspace-form])').forEach(form => { form.dataset.adminForm = "true"; form.dataset.baseline = JSON.stringify(formValues(form)); form.dataset.dirty = "false"; });
   clearForOtherUser(); initialize();

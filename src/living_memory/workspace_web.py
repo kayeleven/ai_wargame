@@ -620,7 +620,10 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
             raw: dict[str, Any] | None = None,
             errors: list[dict[str, str]] | None = None,
         ) -> Response:
-            current = read(request, game_id, team_id, turn, review)
+            try:
+                current = read(request, game_id, team_id, turn, review)
+            except LookupError:
+                raise HTTPException(404, "Not found") from None
             rendered = render(
                 request,
                 game_id,
@@ -800,6 +803,7 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                 return JSONResponse(
                     jsonable_encoder(payload),
                     status_code=422,
+                    media_type=ENHANCED_MEDIA_TYPE,
                     headers={
                         "Cache-Control": "no-store",
                         "Vary": "Accept, X-Workspace-Enhanced",

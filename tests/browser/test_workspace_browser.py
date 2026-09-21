@@ -1,6 +1,7 @@
 # ruff: noqa: F811
 """Real Chromium smoke and shared-edit/amendment workflow, plain and HTMX forms."""
 
+import re
 import socket
 import threading
 import time
@@ -101,7 +102,8 @@ def test_shared_conflict_and_amendment_decision(workspace_server, javascript):
             expect(mate.get_by_text("Resolve the saved-value conflict", exact=True)).to_be_visible()
             mate.get_by_role("button", name="Save mine", exact=True).click()
         else:
-            mate.get_by_role("button", name="Save mine", exact=True).click()
+            expect(mate.get_by_text("Edit this value to combine Mine with Current")).to_be_visible()
+            mate.get_by_role("button", name="Save edited value", exact=True).click()
         expect(mate.get_by_text("Draft revision 2.", exact=False)).to_be_visible()
         player.reload()
         player.get_by_role("button", name="Submit turn package", exact=True).click()
@@ -535,6 +537,72 @@ def test_unreadable_success_response_remains_uncertain(workspace_server):
         browser.close()
 
 
+def test_acknowledgement_without_committed_revision_remains_uncertain(workspace_server):
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "player", True)
+        page.goto(f"{url}/play?game_id={GAME}")
+        page.evaluate(
+            """() => {
+                const original = window.fetch.bind(window);
+                window.fetch = (...args) => {
+                    if ((args[1]?.method || "GET") !== "POST") return original(...args);
+                    const body = Object.fromEntries(args[1].body);
+                    return Promise.resolve(new Response(JSON.stringify({
+                        outcome: "committed", operation: body.operation, key: body.key,
+                        editor: "intention", refresh: location.href
+                    }), {status: 200, headers: {
+                        "Content-Type": "application/vnd.living-memory.workspace+json"
+                    }}));
+                };
+            }"""
+        )
+        page.get_by_label("Overall intention", exact=True).fill("Unverified revision")
+        page.get_by_role("button", name="Save intention", exact=True).click()
+        expect(page.get_by_role("alert")).to_contain_text("Save outcome unknown")
+        expect(page.get_by_role("button", name="Retry save", exact=True)).to_be_visible()
+        browser.close()
+
+
+def test_access_denied_after_commit_reports_access_change(workspace_server):
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "player", True)
+        page.goto(f"{url}/play?game_id={GAME}")
+        page.evaluate(
+            """() => {
+                const original = window.fetch.bind(window);
+                window.fetch = (...args) => (args[1]?.method || "GET") === "POST"
+                    ? original(...args)
+                    : Promise.resolve(new Response("denied", {status: 403}));
+            }"""
+        )
+        page.get_by_label("Overall intention", exact=True).fill("Committed before access loss")
+        page.get_by_role("button", name="Save intention", exact=True).click()
+        expect(page.get_by_role("alert")).to_contain_text("Saved. Your access changed.")
+        expect(page.get_by_role("link", name="Go to Home", exact=True)).to_be_visible()
+        expect(page.get_by_role("button", name="Retry refresh", exact=True)).to_have_count(0)
+        expect(page.get_by_label("Overall intention", exact=True)).to_have_value(
+            "Committed before access loss"
+        )
+        browser.close()
+
+
+def test_package_comment_validation_targets_inline_error(workspace_server):
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "player", True)
+        page.goto(f"{url}/play?game_id={GAME}")
+        form = page.locator('[data-editor="package-comment"]')
+        form.get_by_label("Comment", exact=True).fill("   ")
+        form.get_by_role("button", name="Add package comment", exact=True).click()
+        expect(form.locator("#error-package-comment")).to_have_text("Enter a comment")
+        browser.close()
+
+
 def test_confirmed_validation_clears_uncertain_retry(workspace_server):
     url, tokens = workspace_server
     with sync_playwright() as p:
@@ -610,6 +678,17 @@ def test_action_use_current_and_intention_save_combined(workspace_server, world)
         expect(current.get_by_text("Draft revision 3.", exact=False)).to_be_visible()
         stale_action.get_by_label("Description", exact=True).fill("Mine action text")
         stale_action.get_by_role("button", name="Save action", exact=True).click()
+        stale_action.get_by_role("button", name="Save combined", exact=True).click()
+        expect(stale_action.locator("[data-conflict]")).to_contain_text("Current action text")
+        stale_action.get_by_label("Responsible teammate", exact=True).evaluate(
+            """select => {
+                const option = document.createElement("option");
+                option.value = "not-a-uuid"; option.selected = true; select.append(option);
+            }"""
+        )
+        stale_action.get_by_role("button", name="Save action", exact=True).click()
+        expect(stale_action.get_by_role("heading", name="Please check your input")).to_be_visible()
+        expect(stale_action.locator("[data-conflict]")).to_contain_text("Current action text")
         stale_action.get_by_role("button", name="Use current", exact=True).click()
         expect(stale_action.get_by_label("Description", exact=True)).to_have_value(
             "Current action text"
@@ -625,9 +704,11 @@ def test_action_use_current_and_intention_save_combined(workspace_server, world)
         stale.get_by_role("button", name="Save intention", exact=True).click()
         stale.get_by_role("button", name="Save combined", exact=True).click()
         expect(stale.get_by_role("status")).to_contain_text("Edit the combined value")
+        expect(stale.locator("[data-conflict]")).to_contain_text("Current intention")
         stale.get_by_label("Overall intention", exact=True).fill("Combined intention")
         stale.get_by_role("button", name="Save intention", exact=True).click()
         expect(stale.get_by_text("Draft revision 5.", exact=False)).to_be_visible()
+        expect(stale.locator("[data-conflict]")).to_have_count(0)
         browser.close()
 
 
@@ -688,6 +769,17 @@ def test_removed_dirty_action_retains_copy_discard_recovery(workspace_server, wo
         expect(recovery.get_by_label("Description", exact=True)).to_have_value("Text to recover")
         expect(recovery.get_by_label("Description", exact=True)).to_be_disabled()
         expect(editing.get_by_role("button", name="Copy retained text", exact=True)).to_be_visible()
+        editing.evaluate(
+            """Object.defineProperty(navigator, "clipboard", {
+                configurable: true,
+                value: {writeText: () => Promise.reject(new Error("blocked"))}
+            })"""
+        )
+        editing.get_by_role("button", name="Copy retained text", exact=True).click()
+        manual = editing.get_by_label("Retained text for manual copy", exact=True)
+        expect(manual).to_be_visible()
+        expect(manual).to_be_focused()
+        expect(manual).to_have_value(re.compile("Text to recover"))
         discard = editing.get_by_role("button", name="Discard retained text", exact=True)
         expect(discard).to_be_visible()
         discard.click()
@@ -935,6 +1027,32 @@ def test_unknown_package_command_restores_after_reload(workspace_server, world):
         )
         with world[0].transaction() as session:
             assert session.scalar(select(func.count()).select_from(SubmissionVersion)) == 1
+        browser.close()
+
+
+def test_orphaned_operation_name_is_rendered_as_text(workspace_server):
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "player", True)
+        page.goto(f"{url}/play?game_id={GAME}")
+        page.evaluate(
+            """() => {
+                const prefix = `lm-workspace:${document.body.dataset.userId}:${
+                    document.querySelector('[data-workspace]').dataset.workspace}`;
+                const frozen = {
+                    operation: '<img src=x onerror="window.orphanInjected=true">',
+                    action: '/never-submit', values: {}
+                };
+                sessionStorage.setItem(`${prefix}:unresolved-command`, JSON.stringify({
+                    state: `${prefix}:missing:pending`, frozen
+                }));
+            }"""
+        )
+        page.reload()
+        expect(page.get_by_text("A previous <img src=x", exact=False)).to_be_visible()
+        expect(page.locator("[data-pending-recovery] img")).to_have_count(0)
+        assert page.evaluate("window.orphanInjected") is None
         browser.close()
 
 

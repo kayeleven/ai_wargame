@@ -265,8 +265,12 @@ Enhanced browser forms opt in with the workspace media type and header. A commit
 response uses that media type and must match the dispatched operation and key. Responses
 distinguish committed, validation, edit conflict, request-key conflict and confirmed
 rejection outcomes, and supplies the operation, original key, stable editor identity and
-refresh destination. Network failures, 5xx responses and unreadable acknowledgements are
-uncertain. Retrying an uncertain operation sends the exact frozen command and original
+refresh destination. A draft-operation acknowledgement also supplies the immutable
+committed draft revision identified by its package-revision result, including on replay;
+the browser rotates the request key and advances the saved editor to that revision before
+refresh. A retained dirty editor never adopts a later refresh revision as its save baseline.
+Network failures, 5xx responses and unreadable acknowledgements are uncertain. Retrying an
+uncertain operation sends the exact frozen command and original
 key to the frozen endpoint with the current anti-forgery token; stored commands never
 run automatically. Rejection of a retry rejects only that request and does not erase
 the original unknown operation.

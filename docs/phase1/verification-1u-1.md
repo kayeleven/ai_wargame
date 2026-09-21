@@ -19,6 +19,8 @@ implementation; they do not constitute owner usability acceptance.
   An unrelated save no longer creates a false conflict; same-action changes still
   do. Submit, amend, reorder and remove retain aggregate checks.
 - Successful mutations acknowledge the committed operation before a separate refresh.
+  Draft acknowledgements carry their immutable committed revision; request keys and editor
+  baselines advance immediately, while dirty editors remain pinned across later refreshes.
   Unknown editor and package-command outcomes retain the exact frozen command and
   original request key across reload; retry never substitutes later typing and stored
   commands are never replayed automatically. Confirmed 401/403/404 failures remain
@@ -79,16 +81,17 @@ no application projection writers, so 1U-1 does not advertise an empty destinati
   The broader
   browser suite retains the activated-game and
   Harbor/Orchid fixture recovery scenario.
+- Correction regressions cover dirty package-command retry, failed-refresh resave,
+  same-scope teammate changes during refresh, replayed committed revisions, retained
+  conflict comparisons, manual-copy fallback, post-commit access changes, literal stored
+  operation labels, inline package-comment validation and access loss during error rendering.
 - Final automated run:
 
   ```text
   PATH=/tmp/lm-pg16-bin:$PATH LD_LIBRARY_PATH=/tmp/lm-pg16-bin .venv/bin/pytest -q
-  156 passed, 2 warnings in 105.21s
+  162 passed, 2 warnings in 112.13s
 
   .venv/bin/ruff check .
-  All checks passed!
-
-  .venv/bin/ruff check --no-respect-gitignore --exclude codex/state codex
   All checks passed!
 
   .venv/bin/mypy
