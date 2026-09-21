@@ -236,9 +236,30 @@ def create_app(
 
         @app.exception_handler(HTTPException)
         async def browser_error(request: Request, exc: HTTPException) -> Response:
-            if "text/html" not in request.headers.get("accept", ""):
-                return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
-            title = "Page not found" if exc.status_code == 404 else "Access unavailable"
+            accept = request.headers.get("accept", "").lower()
+            enhanced = (
+                request.headers.get("x-workspace-enhanced") == "1"
+                and "application/vnd.living-memory.workspace+json" in accept
+            )
+            if "text/html" not in accept or enhanced:
+                payload = {"detail": exc.detail}
+                if enhanced and exc.status_code in {401, 403, 404}:
+                    payload["outcome"] = "rejected"
+                return JSONResponse(
+                    payload,
+                    status_code=exc.status_code,
+                    headers={"Cache-Control": "no-store"},
+                )
+            if exc.status_code in {401, 403, 404}:
+                title = "Page unavailable"
+            elif exc.status_code == 409:
+                title = "Request conflict"
+            elif exc.status_code == 422:
+                title = "Please check your input"
+            elif exc.status_code >= 500:
+                title = "Something went wrong"
+            else:
+                title = "Request could not be completed"
             message = (
                 "This page does not exist or is not available with your current access."
                 if exc.status_code in {401, 403, 404}

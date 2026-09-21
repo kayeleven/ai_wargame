@@ -10,15 +10,27 @@ implementation; they do not constitute owner usability acceptance.
   administrator destinations are derived from current memberships and roles.
 - Workspace context names the game, team and turn. Browser error pages retain a
   safe route home without disclosing foreign workspace details.
-- Editors have independent dirty state and explicit save boundaries. JavaScript
-  saves refresh the authoritative document while restoring unrelated dirty fields.
-  Package-wide commands are blocked until dirty or uncertain editors are resolved.
+- Editors have independent saved, authored, baseline and pending-command state.
+  JavaScript replaces named clean regions while retaining dirty editor DOM, focus,
+  selection and text typed during a request. Package-wide commands are blocked until
+  dirty or uncertain editors are resolved. No-JavaScript Cancel controls are ordinary
+  overview links; JavaScript enhances them with keyboard-operable discard confirmation.
 - Stale intention and action commands compare their own immutable baseline scope.
   An unrelated save no longer creates a false conflict; same-action changes still
   do. Submit, amend, reorder and remove retain aggregate checks.
-- Unknown workspace outcomes retain the original request key and are labelled as
-  retries that may perform the original command. Stored commands are never replayed
-  automatically. Existing authorization-before-replay and once-only results remain.
+- Successful mutations acknowledge the committed operation before a separate refresh.
+  Unknown editor and package-command outcomes retain the exact frozen command and
+  original request key across reload; retry never substitutes later typing and stored
+  commands are never replayed automatically. Confirmed 401/403/404 failures remain
+  distinct; rejection of a retry leaves the earlier unknown command available for
+  reconciliation. Existing authorization-before-replay and once-only results remain.
+- A committed save whose refresh fails remains committed, exposes a read-only refresh
+  retry and blocks package commands until visible baselines are current. A 2xx response
+  is acknowledged only when it carries the complete enhanced media contract.
+- Conflicts show labelled Base, Current and Mine values with readable teammate names.
+  Current, mine and combined recovery are explicit for editable content; aggregate
+  commands require review and renewal. Validation messages use field labels and retain
+  non-secret comment, decision and reason values.
 - The development fixture browser excludes operational datasets before fixture
   parsing. Invalid fixture metadata is isolated as unavailable rather than blocking
   valid fixtures.
@@ -27,12 +39,13 @@ implementation; they do not constitute owner usability acceptance.
 
 ## Contracts and later dependencies
 
-The editor contract consists of stable editor identity, authored values, immutable
-baseline revision, dirty/pending state and a scoped operation result. Clean content
-and its package-wide baseline advance together. Dirty content retains its older
-baseline until save, discard or explicit recovery. An uncertain operation pauses
-other mutations in that browser tab; database locking and conflict checks govern
-other tabs.
+The editor contract consists of stable editor identity, authoritative and authored
+values, immutable baseline revision, dirty state, a separately frozen pending command
+and a scoped operation result. Clean content and its package-wide baseline advance
+together. Dirty content retains its older baseline until save, discard or explicit
+recovery. An uncertain operation pauses other mutations in that browser tab; database
+locking and conflict checks govern other tabs. Unavailable session storage falls back
+to in-page retention with a visible warning.
 
 1U-2 consumes request-key reconciliation and must add the B-18 confirmation and
 effective-version history as one preserving change. 1U-3 consumes editor identity
@@ -46,26 +59,43 @@ no application projection writers, so 1U-1 does not advertise an empty destinati
 ## Automated evidence
 
 - Service tests cover independent intention/action saves, same-action conflicts,
-  missing history, replay, authorization, aggregate submission and rollback.
-- HTTP tests cover authorized workspace entry, role-specific Home destinations,
-  shell account controls, equivalent denied resources and retained form errors.
-- Chromium tests cover JavaScript and ordinary-form drafting/submission, dirty input
-  preservation, dirty-submission blocking, conflict recovery, amendment decisions
-  and fixture browsing with an activated operational game alongside Harbor/Orchid.
+  missing history, replay after target removal, authorization, aggregate submission
+  and rollback.
+- HTTP tests cover legacy and enhanced response contracts, stable new-action identity,
+  readable conflict/validation data, confirmed rejection statuses, authorized entry,
+  exact Home destinations, shell controls and equivalent denied resources.
+- Chromium tests cover JavaScript and ordinary-form drafting/submission, explicit
+  conflict recovery for intention, action, package and decision state, retained
+  validation values, typing during an in-flight save and baseline advancement,
+  exact once-only retry after a dropped response, reload and user isolation, blocked
+  storage, unreadable acknowledgements, post-commit refresh failure, package-command
+  recovery, same-tab mutation exclusion, removed-editor copy/discard recovery,
+  latest-authoritative discard, removed-action conflicts in enhanced and ordinary
+  forms, frozen retry destinations, dirty-submission blocking, keyboard Cancel and
+  amendment decisions. Dropped acknowledgements for new actions and comments prove
+  one durable result after exact retry. Administration forms retain their existing
+  dirty navigation/reload protection. Explicit navigation discard clears recovery
+  text, and schema-invalid ordinary comment/decision forms retain authored values.
+  The broader
+  browser suite retains the activated-game and
+  Harbor/Orchid fixture recovery scenario.
 - Final automated run:
 
   ```text
   PATH=/tmp/lm-pg16-bin:$PATH LD_LIBRARY_PATH=/tmp/lm-pg16-bin .venv/bin/pytest -q
-  124 passed, 2 warnings in 62.17s
+  156 passed, 2 warnings in 105.21s
 
   .venv/bin/ruff check .
+  All checks passed!
+
+  .venv/bin/ruff check --no-respect-gitignore --exclude codex/state codex
   All checks passed!
 
   .venv/bin/mypy
   Success: no issues found in 20 source files
 
   UV_CACHE_DIR=/tmp/lm-uv-cache uv lock --check --offline
-  Resolved 47 packages
+  Resolved 47 packages in 1ms
   ```
 
 The warnings are the existing Starlette/httpx and AnyIO deprecations. PostgreSQL

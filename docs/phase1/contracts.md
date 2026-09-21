@@ -253,6 +253,34 @@ archives are intentionally incompatible with 0005. See the [developer guide](../
 for current compatibility limitations; do not treat the historical correction's
 0004 rollout procedure as the current checkout's upgrade path.
 
+## 1U-1 protected browser operation contract
+
+Workspace editors keep authoritative saved values, current authored values, immutable
+baseline revision and a frozen pending command as separate state. A successful command
+is acknowledged before the browser requests fresh saved regions. Clean regions advance
+to the returned revision; dirty editor DOM and its older baseline remain in place until
+save, discard or explicit conflict recovery.
+
+Enhanced browser forms opt in with the workspace media type and header. A committed
+response uses that media type and must match the dispatched operation and key. Responses
+distinguish committed, validation, edit conflict, request-key conflict and confirmed
+rejection outcomes, and supplies the operation, original key, stable editor identity and
+refresh destination. Network failures, 5xx responses and unreadable acknowledgements are
+uncertain. Retrying an uncertain operation sends the exact frozen command and original
+key to the frozen endpoint with the current anti-forgery token; stored commands never
+run automatically. Rejection of a retry rejects only that request and does not erase
+the original unknown operation.
+
+Conflict recovery presents labelled Base, Current and Mine values. Editable text offers
+Use current, Save mine and Save combined; aggregate commands require current-state review
+and a newly selected operation from the refreshed state. If an editor disappears or
+becomes read-only, its authored text remains available for copy or explicit discard.
+When a dirty editor survives a scoped refresh, its latest authoritative snapshot is
+retained separately and becomes the discard target without changing its save baseline.
+Internal identifiers are not presentation labels. Recovery
+storage is scoped by signed-in user and workspace; unavailable browser storage degrades
+to in-page retention with a visible warning.
+
 ## 1D-1 implementation boundary
 
 The amendment-only lifecycle below records the delivered 1D-1 implementation.

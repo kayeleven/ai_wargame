@@ -36,6 +36,12 @@ button:disabled { opacity:.65; cursor:default; }
 .notice { padding:var(--s3) var(--s4); border-left:4px solid var(--attention); background:var(--attention-bg); }
 .notice.error,[role=alert] { border-left-color:var(--error); background:var(--error-bg); }
 [role=status] { padding:var(--s3); border-left:4px solid var(--success); background:var(--success-bg); }
+.conflict-resolution { margin-top:var(--s4); }
+.conflict-resolution dt { margin-top:var(--s3); }
+.conflict-resolution dd { margin:0; }
+.conflict-resolution pre { margin:.25rem 0 0; padding:var(--s2); background:var(--surface); border:1px solid var(--border); }
+[aria-busy=true] { cursor:progress; }
+.field-error { display:block; color:var(--error); font-weight:400; }
 .authored { white-space:pre-wrap; overflow-wrap:anywhere; }
 .editor { display:none; margin-top:var(--s4); padding-top:var(--s3); border-top:1px solid var(--border); }
 .editor.is-selected,html.js .editor { display:block; }

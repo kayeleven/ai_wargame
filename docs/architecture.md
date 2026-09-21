@@ -144,6 +144,12 @@ Discussion does not create a commitment automatically; commitments do not create
 
 Background jobs should carry input state/submission versions. If inputs change, mark their results stale or re-run them rather than presenting them as current. Retried jobs and state commits must not duplicate applied effects. Concurrent human edits need conflict detection; character-level live editing is not assumed for the initial version.
 
+Workspace mutation acknowledgement is separate from the following saved-view refresh.
+The browser freezes each dispatched command and its operation identity, retains newer
+authored input independently, and updates only clean named regions. An uncertain retry
+reuses the frozen command; a failed refresh after acknowledgement retries only the read.
+This boundary is also the contract consumed by later teammate-update delivery.
+
 ## AI preparation contract
 
 Inputs freeze game/replay/turn identifiers, submissions, scenario premise, prior

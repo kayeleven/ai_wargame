@@ -7,7 +7,8 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
@@ -89,6 +90,248 @@ class WorkspaceView(BaseModel):
     submission_status: str | None = None
     submitted_at: datetime | None = None
     deadline: datetime | None = None
+
+
+ENHANCED_MEDIA_TYPE = "application/vnd.living-memory.workspace+json"
+SUCCESS_MESSAGES = {
+    "intention": "Overall intention saved.",
+    "action": "Action saved.",
+    "comment": "Comment added.",
+    "submit": "Turn package submitted.",
+    "amend": "Amendment proposed.",
+    "remove": "Action removed.",
+    "reorder": "Action order updated.",
+    "decide": "Amendment decision recorded.",
+}
+
+
+def _enhanced(request: Request) -> bool:
+    """Require an explicit opt-in so existing form and API clients keep their contract."""
+    return (
+        request.headers.get("x-workspace-enhanced") == "1"
+        and ENHANCED_MEDIA_TYPE in request.headers.get("accept", "").lower()
+    )
+
+
+def _editor_identity(values: Command | dict[str, Any]) -> str | None:
+    operation = values.operation if isinstance(values, Command) else values.get("operation")
+    action_id = values.action_id if isinstance(values, Command) else values.get("action_id")
+    amendment_id = (
+        values.amendment_id if isinstance(values, Command) else values.get("amendment_id")
+    )
+    if operation == "intention":
+        return "intention"
+    if operation == "action":
+        return f"action-{action_id}" if action_id else "new-action"
+    if operation == "comment":
+        return f"comment-{action_id}" if action_id else "package-comment"
+    if operation == "decide" and amendment_id:
+        return f"decision-{amendment_id}"
+    return None
+
+
+def _refresh_url(game_id: str, team_id: str, turn: int, review: bool) -> str:
+    page = "adjudicate" if review else "play"
+    return f"/{page}?game_id={game_id}&team_id={team_id}&turn={turn}"
+
+
+def _field_error(field: str, message: str) -> dict[str, str]:
+    return {"field": field, "message": message}
+
+
+def _schema_errors(exc: ValidationError) -> list[dict[str, str]]:
+    """Translate Pydantic implementation details into stable, readable form errors."""
+    details: list[dict[str, str]] = []
+    labels = {
+        "action_id": "action",
+        "amendment_id": "amendment",
+        "decision": "decision",
+        "effective_version": "submission version",
+        "expected_version": "workspace version",
+        "key": "save request",
+        "operation": "workspace action",
+        "owner_user_id": "responsible teammate",
+        "order": "action order",
+    }
+    for item in exc.errors():
+        location = [str(part) for part in item["loc"] if str(part) != "body"]
+        field = location[-1] if location else "_form"
+        label = labels.get(field, field.replace("_", " "))
+        error_type = str(item.get("type", ""))
+        if error_type == "missing":
+            message = f"Enter {label}."
+        elif "uuid" in error_type:
+            message = f"Choose a valid {label}."
+        elif error_type in {"literal_error", "enum"}:
+            message = f"Choose a valid {label}."
+        elif error_type.startswith(("int_", "greater_than")):
+            message = f"Enter a valid {label}."
+        else:
+            message = f"Check {label}."
+        details.append(_field_error(field, message))
+    return details
+
+
+def _command_errors(exc: ValueError) -> list[dict[str, str]]:
+    message = str(exc)
+    if message == "Enter a comment":
+        return [_field_error("comment", message)]
+    if message == "Choose a decision and enter a reason":
+        return [
+            _field_error("decision", "Choose Accept or Reject."),
+            _field_error("reason", "Enter a reason."),
+        ]
+    if message == "Enter an overall intention before submitting":
+        return [_field_error("overall_intention", message)]
+    if message == "Complete all four fields for every native action":
+        return [_field_error("actions", message)]
+    if message == "Order must contain every current action exactly once":
+        return [_field_error("order", message)]
+    return [_field_error("_form", message)]
+
+
+def _conflict_display(value: Any, view: WorkspaceView) -> dict[str, Any]:
+    """Build presentation data without exposing internal identifiers as labels."""
+    if value is None:
+        return {"kind": "value", "state": "missing", "fields": []}
+    if isinstance(value, BaseModel):
+        value = value.model_dump(mode="json")
+    if not isinstance(value, dict):
+        return {
+            "kind": "value",
+            "state": "empty" if value in (None, "") else "available",
+            "fields": [{"label": "Value", "value": value or "", "empty": value in (None, "")}],
+        }
+    people = {str(person.id): person.name for person in view.people}
+    if "actions" in value:
+        action_lines = []
+        for index, action in enumerate(value.get("actions", []), start=1):
+            body = action.get("body", {})
+            owner_id = action.get("owner_user_id")
+            owner = people.get(str(owner_id), "Former teammate") if owner_id else "Unassigned"
+            removed = " (removed)" if action.get("removed") else ""
+            action_lines.append(
+                f"{index}. {body.get('title') or '(empty)'}{removed}\n"
+                f"Description: {body.get('description') or '(empty)'}\n"
+                f"Intent of action: {body.get('intent') or '(empty)'}\n"
+                f"Anticipated reaction: {body.get('anticipated_reaction') or '(empty)'}\n"
+                f"Responsible teammate: {owner}"
+            )
+        return {
+            "kind": "package",
+            "state": "available",
+            "fields": [
+                {
+                    "label": "Overall intention",
+                    "value": value.get("overall_intention", ""),
+                    "empty": not bool(value.get("overall_intention")),
+                },
+                {
+                    "label": "Actions",
+                    "value": "\n\n".join(action_lines),
+                    "empty": not bool(action_lines),
+                },
+            ],
+        }
+    body = value.get("body")
+    if isinstance(body, BaseModel):
+        body = body.model_dump(mode="json")
+    if isinstance(body, dict) and (
+        value.get("operation") == "action" or "operation" not in value
+    ):
+        fields = [
+            {
+                "label": label,
+                "value": body.get(field, ""),
+                "empty": not bool(body.get(field, "")),
+            }
+            for field, label in (
+                ("title", "Title"),
+                ("description", "Description"),
+                ("intent", "Intent of action"),
+                ("anticipated_reaction", "Anticipated reaction"),
+            )
+        ]
+        owner_id = value.get("owner_user_id")
+        fields.append(
+            {
+                "label": "Responsible teammate",
+                "value": people.get(str(owner_id), "Former teammate") if owner_id else "Unassigned",
+                "empty": owner_id is None,
+            }
+        )
+        return {
+            "kind": "action",
+            "state": "removed" if value.get("removed") else "available",
+            "fields": fields,
+        }
+    labels = {
+        "operation": "Requested operation",
+        "overall_intention": "Overall intention",
+        "decision": "Decision",
+        "reason": "Reason",
+        "effective_version": "Effective version",
+        "version": "Version",
+        "amendment_status": "Amendment status",
+    }
+    operations = {
+        "intention": "Save overall intention",
+        "action": "Save action",
+        "comment": "Add comment",
+        "submit": "Submit turn package",
+        "amend": "Propose amendment",
+        "remove": "Remove action",
+        "reorder": "Reorder actions",
+        "decide": "Record amendment decision",
+    }
+    operation = value.get("operation")
+    relevant = {
+        "intention": {"operation", "overall_intention"},
+        "amend": {"operation", "effective_version"},
+        "decide": {"operation", "decision", "reason"},
+    }.get(str(operation), {"operation"})
+    fields = [
+        {
+            "label": label,
+            "value": (
+                operations.get(str(value.get(field)), str(value.get(field, "")))
+                if field == "operation"
+                else value.get(field, "")
+            ),
+            "empty": value.get(field) in (None, ""),
+        }
+        for field, label in labels.items()
+        if field in value and (operation is None or field in relevant)
+    ]
+    action_id = value.get("action_id")
+    if action_id:
+        action = next(
+            (item for item in view.package.actions if str(item.id) == str(action_id)), None
+        )
+        fields.append(
+            {
+                "label": "Action",
+                "value": action.body.title if action else "Removed action",
+                "empty": False,
+            }
+        )
+    if value.get("order"):
+        titles = {str(item.id): item.body.title for item in view.package.actions}
+        fields.append(
+            {
+                "label": "Requested action order",
+                "value": "\n".join(
+                    f"{index}. {titles.get(str(item), 'Removed action')}"
+                    for index, item in enumerate(value["order"], start=1)
+                ),
+                "empty": False,
+            }
+        )
+    return {
+        "kind": "text" if "overall_intention" in value else "command",
+        "state": "empty" if fields and all(item["empty"] for item in fields) else "available",
+        "fields": fields,
+    }
 
 
 def workspace_router(db: Database, templates: Jinja2Templates, settings: Settings) -> APIRouter:
@@ -242,6 +485,7 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
         attempted: Command | None = None,
         conflict: Conflict | None = None,
         raw: dict[str, Any] | None = None,
+        field_errors: list[dict[str, str]] | None = None,
         status: int = 200,
     ) -> Response:
         try:
@@ -251,32 +495,9 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
         # Full documents for ordinary navigation and HTMX body swaps alike.
         selected_editor = request.query_params.get("edit")
         if selected_editor is None and attempted is not None:
-            if attempted.operation == "intention":
-                selected_editor = "intention"
-            elif attempted.operation == "action":
-                selected_editor = (
-                    f"action-{attempted.action_id}" if attempted.action_id else "new-action"
-                )
-            elif attempted.operation == "comment":
-                selected_editor = (
-                    f"comment-{attempted.action_id}"
-                    if attempted.action_id
-                    else "package-comment"
-                )
-            elif attempted.operation == "decide" and attempted.amendment_id:
-                selected_editor = f"decision-{attempted.amendment_id}"
+            selected_editor = _editor_identity(attempted)
         if selected_editor is None and raw is not None:
-            operation = raw.get("operation")
-            action_id = raw.get("action_id")
-            amendment_id = raw.get("amendment_id")
-            if operation == "intention":
-                selected_editor = "intention"
-            elif operation == "action":
-                selected_editor = f"action-{action_id}" if action_id else "new-action"
-            elif operation == "comment":
-                selected_editor = f"comment-{action_id}" if action_id else "package-comment"
-            elif operation == "decide" and amendment_id:
-                selected_editor = f"decision-{amendment_id}"
+            selected_editor = _editor_identity(raw)
         return templates.TemplateResponse(
             request=request,
             name="adjudicate.html" if review else "play.html",
@@ -288,8 +509,19 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                 "error": error,
                 "attempted": attempted,
                 "raw": raw or {},
+                "field_errors": field_errors or [],
                 "conflict": conflict,
+                "conflict_display": (
+                    {
+                        "base": _conflict_display(conflict.base, view),
+                        "current": _conflict_display(conflict.current, view),
+                        "mine": _conflict_display(conflict.submitted, view),
+                    }
+                    if conflict
+                    else None
+                ),
                 "editor": selected_editor,
+                "saved_message": SUCCESS_MESSAGES.get(request.query_params.get("saved", "")),
                 "conflict_base": (
                     Package.model_validate(conflict.base)
                     if conflict and isinstance(conflict.base, dict) and "actions" in conflict.base
@@ -331,18 +563,104 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
     ) -> Response:
         uid = identity(request)
         review = command.operation == "decide"
+        refresh = _refresh_url(game_id, team_id, turn, review)
 
         def work() -> dict[str, Any]:
             with db.transaction() as session:
-                return execute(
-                    session,
-                    user_id=uid,
-                    game_id=game_id,
-                    team_id=team_id,
-                    turn=turn,
-                    command=command,
-                    now=request.app.state.clock.now(),
+                result = dict(
+                    execute(
+                        session,
+                        user_id=uid,
+                        game_id=game_id,
+                        team_id=team_id,
+                        turn=turn,
+                        command=command,
+                        now=request.app.state.clock.now(),
+                    )
                 )
+                editor = _editor_identity(command)
+                if command.operation == "action" and command.action_id is None:
+                    revision = session.get(PackageRevision, UUID(result["id"]))
+                    if revision is not None:
+                        previous_ids: set[str] = set()
+                        if revision.version > 1:
+                            previous = session.scalar(
+                                select(PackageRevision).where(
+                                    PackageRevision.draft_id == revision.draft_id,
+                                    PackageRevision.version == revision.version - 1,
+                                )
+                            )
+                            if previous is not None:
+                                previous_ids = {
+                                    str(item["id"]) for item in previous.snapshot.get("actions", [])
+                                }
+                        added = [
+                            str(item["id"])
+                            for item in revision.snapshot.get("actions", [])
+                            if str(item["id"]) not in previous_ids
+                        ]
+                        if len(added) == 1:
+                            editor = f"action-{added[0]}"
+                result["editor"] = editor
+                return result
+
+        def enhanced_error(
+            *,
+            outcome: str,
+            message: str,
+            status: int,
+            attempted: Command | None = None,
+            conflict: Conflict | None = None,
+            raw: dict[str, Any] | None = None,
+            errors: list[dict[str, str]] | None = None,
+        ) -> Response:
+            current = read(request, game_id, team_id, turn, review)
+            rendered = render(
+                request,
+                game_id,
+                team_id,
+                turn,
+                review,
+                error=message,
+                attempted=attempted,
+                conflict=conflict,
+                raw=raw,
+                field_errors=errors,
+                status=status,
+            )
+            payload: dict[str, Any] = {
+                "outcome": outcome,
+                "operation": command.operation,
+                "key": str(command.key),
+                "editor": _editor_identity(command),
+                "refresh": refresh,
+                "current_version": (
+                    current.submission_version if review else current.version
+                ),
+                "errors": errors or [],
+                "values": command.model_dump(mode="json"),
+                "html": bytes(rendered.body).decode("utf-8"),
+            }
+            if conflict is not None:
+                payload["conflict"] = {
+                    "base": conflict.base,
+                    "current": conflict.current,
+                    "mine": conflict.submitted,
+                }
+                payload["conflict_display"] = {
+                    "base": _conflict_display(conflict.base, current),
+                    "current": _conflict_display(conflict.current, current),
+                    "mine": _conflict_display(conflict.submitted, current),
+                }
+            return JSONResponse(
+                jsonable_encoder(payload),
+                status_code=status,
+                media_type=ENHANCED_MEDIA_TYPE,
+                headers={
+                    "Cache-Control": "no-store",
+                    "Vary": "Accept, X-Workspace-Enhanced",
+                },
+            )
 
         try:
             result = run_retryable(work)
@@ -350,7 +668,15 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
             raise HTTPException(404, "Not found") from None
         except PermissionError as exc:
             raise HTTPException(403, str(exc)) from None
-        except (ValueError, Conflict) as exc:
+        except Conflict as exc:
+            if _enhanced(request):
+                return enhanced_error(
+                    outcome="conflict",
+                    message=str(exc),
+                    status=409,
+                    attempted=command,
+                    conflict=exc,
+                )
             return render(
                 request,
                 game_id,
@@ -359,10 +685,66 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                 review,
                 error=str(exc),
                 attempted=command,
-                conflict=exc if isinstance(exc, Conflict) else None,
-                status=409 if isinstance(exc, (Conflict, IdempotencyConflict)) else 422,
+                conflict=exc,
+                status=409,
             )
-        return RedirectResponse(result["redirect"], status_code=303)
+        except IdempotencyConflict as exc:
+            if _enhanced(request):
+                return enhanced_error(
+                    outcome="key_conflict",
+                    message=str(exc),
+                    status=409,
+                    attempted=command,
+                )
+            return render(
+                request,
+                game_id,
+                team_id,
+                turn,
+                review,
+                error=str(exc),
+                attempted=command,
+                status=409,
+            )
+        except ValueError as exc:
+            errors = _command_errors(exc)
+            if _enhanced(request):
+                return enhanced_error(
+                    outcome="validation_error",
+                    message=str(exc),
+                    status=422,
+                    attempted=command,
+                    errors=errors,
+                )
+            return render(
+                request,
+                game_id,
+                team_id,
+                turn,
+                review,
+                error=str(exc),
+                attempted=command,
+                field_errors=errors,
+                status=422,
+            )
+        if _enhanced(request):
+            return JSONResponse(
+                {
+                    "outcome": "committed",
+                    "operation": command.operation,
+                    "key": str(command.key),
+                    "editor": result.get("editor"),
+                    "refresh": result["redirect"],
+                },
+                media_type=ENHANCED_MEDIA_TYPE,
+                headers={
+                    "Cache-Control": "no-store",
+                    "Vary": "Accept, X-Workspace-Enhanced",
+                },
+            )
+        return RedirectResponse(
+            f"{result['redirect']}&saved={command.operation}", status_code=303
+        )
 
     @router.post("/workspace/{game_id}/{team_id}/{turn}/form")
     async def form(request: Request, game_id: str, team_id: str, turn: int) -> Response:
@@ -380,20 +762,45 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
         try:
             command = Command.model_validate(values)
         except ValidationError as exc:
-            message = "; ".join(
-                f"{'.'.join(map(str, item['loc']))}: {item['msg']}" for item in exc.errors()
-            )
-            return await anyio.to_thread.run_sync(
-                lambda: render(
+            errors = _schema_errors(exc)
+            message = "Please correct the highlighted fields."
+
+            def invalid_response() -> Response:
+                review = values.get("operation") == "decide"
+                rendered = render(
                     request,
                     game_id,
                     team_id,
                     turn,
-                    values.get("operation") == "decide",
+                    review,
                     error=message,
                     raw=values,
+                    field_errors=errors,
                     status=422,
                 )
+                if not _enhanced(request):
+                    return rendered
+                payload = {
+                    "outcome": "validation_error",
+                    "operation": values.get("operation"),
+                    "key": values.get("key"),
+                    "editor": _editor_identity(values),
+                    "refresh": _refresh_url(game_id, team_id, turn, review),
+                    "errors": errors,
+                    "values": values,
+                    "html": bytes(rendered.body).decode("utf-8"),
+                }
+                return JSONResponse(
+                    jsonable_encoder(payload),
+                    status_code=422,
+                    headers={
+                        "Cache-Control": "no-store",
+                        "Vary": "Accept, X-Workspace-Enhanced",
+                    },
+                )
+
+            return await anyio.to_thread.run_sync(
+                invalid_response
             )
         return await anyio.to_thread.run_sync(
             lambda: apply(request, game_id, team_id, turn, command)
