@@ -194,3 +194,82 @@ the owner's recorded full-suite condition for merging PR 1. The owner's manual
 observations above are preserved as supplied, including unfilled environment details.
 The next increment is PR 2 (effective-version history and preserving backfill);
 the 1U-2 milestone acceptance gate remains open.
+
+
+## PR 2 — Effective-version history and preserving backfill
+
+### Pre-stated real-data prediction (before running the dry run)
+
+The read-only development inventory at schema 0005 contains one submission,
+seven content versions and six decisions: four accepted, two rejected.
+**Prediction: 5 events = 1 initial + 4 adjudicator_acceptance; 0 events for the
+2 rejections.** The upgrade must preserve all existing rows. This is a prediction,
+not yet a successful migration result. The original development database must
+remain on 0005; upgrade and application smoke run only on restored disposable copies.
+
+
+### Implementation and review boundaries
+
+Direct-to-master increment: new 0006 migration, append-only effective-version events,
+existing initial/acceptance transaction writers, and 0.4.0 backup compatibility.
+No B-18 policy, command expectations, confirmation, UI, or lock/time/replay behavior
+changes. `immediate_revision` is reserved without a writer. Only UPDATE/DELETE guards
+exist; test cleanup has no new reset exception.
+
+Deletion audit: searched application, CLI, seeding, scripts and Makefile. The only
+application deletes revoke a game role (`admin_access.py`) or team membership
+(`identity.py`). No game, submission or user row deletion path exists. Existing
+`db-down` retains volumes. Contracts now record permanent provenance and failed game
+cascades; the 1U-4 plan requires deactivation of referenced accounts.
+
+The migration's seven named checks are `initial_provenance`, `version_sequence`,
+`amendment_content`, `decision_consistency`, `decision_provenance`, `effective_chain`,
+and `submission_state`. Each emits at most five identifiers and has its own abort
+case asserting unchanged source rows and revision 0005. Tied-time/inactive-actor
+history, populated downgrade refusal, repeat upgrade, transaction rollback, replay,
+concurrent winners, relational constraints and restore provenance are also covered.
+
+### Development-data rehearsal — 2026-09-23
+
+Old application pinned to `250033b2495e1049705be8d8eb8d29ead806bd3f` (0.3.0).
+Used its backup and guarded restore against disposable template0 database
+`lm_1u2_upgrade_1665ce34`, then upgraded with this PR's 0006 migration. The original
+`living_memory_dev` stayed on 0005. Private archives and digest report were retained
+locally under `/tmp/lm-1u2-rehearsal-d39ce33e` (not committed).
+
+- **Prediction matched: 5 events, 1 initial + 4 adjudicator_acceptance; none for the
+  2 rejections.** Source actor/time/decision provenance verification passed.
+- Canonical complete-row counts and SHA-256 digests matched for **all 47 old tables**
+  before/after migration (excluding `alembic_version`). Baseline was taken after
+  old-app restore/session revocation. Repeat `upgrade head` changed no rows.
+- New 0.4.0 archive restored successfully into `lm_1u2_roundtrip_8e18adba`. All table
+  digests matched except exactly one verified `recovery_sessions_revoked` audit
+  entry; all sessions remained revoked. The initial rehearsal assertion incorrectly
+  expected the audit table to remain identical. Corrected both the regression test
+  and rehearsal to verify this existing restore behavior explicitly, then reran.
+- Application smoke used FastAPI TestClient with restored submitter/adjudicator
+  sessions against the upgraded copy: workspace and adjudicator pages returned 200;
+  ordinary-form amendment proposal and acceptance returned 303; the accepted review
+  page returned 200. Proposal kept 5 events; acceptance added **exactly one (5 → 6)**.
+  An event UPDATE failed with the append-only diagnostic. No source-database writes.
+- Pre-upgrade archive SHA-256:
+  `6578b4fdb8e30895005452c816b3d4777a4a8d1831ec532331e8b51da589567d`.
+- Upgraded archive SHA-256:
+  `464f122db27f7ef77c3255c5009de5d41a3af167ccd554d831891700b60472a2`.
+
+### Automated verification and owner gate
+
+Full suite: **209 passed**, including browser tests (156.96s); two existing
+FastAPI/Starlette dependency deprecation warnings. Added an explicit initial-submission
+rollback case during final review; final focused history suite: **27 passed**.
+Ruff passed; mypy passed for 21 source files; offline lockfile and whitespace checks
+passed. Real 0005/0.3.0 archive incompatibility with the new app was also confirmed
+before any restore attempt.
+
+Code review pass covered migration/source ordering, ORM/DDL agreement, transactional
+writers and replay placement, deletion consequences, exact backup compatibility,
+restore failure blocking, and scope. Fixed the round-trip audit assertion and removed
+an obsolete legacy-backup comment. No unresolved implementation findings. Migration
+SHA-256: `80ff1c74684ed775de9bafea1c28c6c038ebeeff02fb35e3f4c3f827c82e10bf`.
+Non-test size is recorded in the PR description, including documentation.
+Owner review remains required before merge; this increment does not accept 1U-2.

@@ -231,6 +231,14 @@ class Submission(Base):
             deferrable=True,
             initially="DEFERRED",
         ),
+        ForeignKeyConstraint(
+            ["id", "effective_version"],
+            ["ws_effective_version_event.submission_id", "ws_effective_version_event.version"],
+            name="fk_ws_submission_effective_event",
+            use_alter=True,
+            deferrable=True,
+            initially="DEFERRED",
+        ),
         UniqueConstraint("id", "game_id", "team_id"),
         ForeignKeyConstraint(
             ["game_id", "team_id"],
@@ -345,6 +353,42 @@ class AmendmentDecision(Base):
     reason: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     adjudicator_user_id: Mapped[UUID] = mapped_column(ForeignKey("auth_user.id"))
+
+
+class EffectiveVersionEvent(Base):
+    __tablename__ = "ws_effective_version_event"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["submission_id", "version"],
+            ["ws_submission_version.submission_id", "ws_submission_version.version"],
+            name="fk_ws_effective_event_content",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("source_decision_id", name="uq_ws_effective_event_decision"),
+        CheckConstraint(
+            "mechanism IN ('initial','adjudicator_acceptance','immediate_revision')",
+            name="mechanism",
+        ),
+        CheckConstraint(
+            "(mechanism='initial' AND version=1) OR (mechanism<>'initial' AND version>1)",
+            name="version",
+        ),
+        CheckConstraint(
+            "(mechanism='adjudicator_acceptance')=(source_decision_id IS NOT NULL)", name="source"
+        ),
+    )
+    submission_id: Mapped[UUID] = mapped_column(primary_key=True)
+    version: Mapped[int] = mapped_column(primary_key=True)
+    mechanism: Mapped[str]
+    responsible_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("auth_user.id", name="fk_ws_effective_event_user", ondelete="RESTRICT")
+    )
+    effective_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    source_decision_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey(
+            "ws_amendment_decision.id", name="fk_ws_effective_event_decision", ondelete="RESTRICT"
+        )
+    )
 
 
 class Coordination(Base):

@@ -15,29 +15,41 @@ remain 1E. Framework decoupling, white-cell lenses, AI and replay remain planned
 
 ## Schema and backup compatibility
 
-Schema head remains `0005`, but **the 1D-1 baseline revises that migration in place**.
-Application and backup compatibility version is **`0.3.0`**. Existing disposable
-0005 development/test databases must be rebuilt before running this checkout;
-`alembic upgrade head` cannot detect or upgrade the old 0005 shape. Migration 0005
-still refuses populated 0004 databases. There is no data backfill or in-place
-upgrade from those older baselines. This rebuild policy was chosen because the
-project exists only locally and has no real game data.
+Schema head is **0006**, application/backup version **0.4.0**. Migration 0006
+preserves the supported **0005/0.3.0** baseline and backfills effective-version
+provenance. It does not change submission policy. The older in-place 0005/0.2.0
+shape and populated 0004 remain unsupported; do not treat those as 0.3.0 or reset
+a database containing valuable data to work around a compatibility failure.
 
-For the default disposable Compose databases, stop the application and run
-`docker compose down -v`, then `make db-up migrate`. This deletes **all** data in
-the project's PostgreSQL volume, including its test database. Use this only for
-the agreed disposable development baseline; it is not an upgrade procedure for
-valuable data or a separate PostgreSQL installation.
+For a preserving upgrade, stop the application and all writers:
 
-Restore checks both schema head and exact application version **before running
-pg_restore**. Old `0005`/`0.2.0` archives are rejected despite the identical revision
-ID, as are older 0004/0.1.0 archives. Never edit an archive manifest to bypass this
-check. Current-format backup/restore includes submissions, coordination participant
-records, package revisions, and all other workspace tables. The retained 1D-2 tables
-are empty after a fresh installation and have no application writers yet.
+1. Using the old 0.3.0 checkout (commit `250033b`), create a backup with the existing
+   `backup` CLI and retain its manifest and checksum securely.
+2. Rehearse recovery into an empty database created from `template0`. Run `restore`
+   with the **same old checkout**, targeting only that disposable database. Restore
+   revokes sessions. Never edit schema/application versions in the manifest.
+3. Point the new checkout at the restored copy and run `migrate`. Each failing check
+   names its invariant and at most five source IDs. Investigate the source history;
+   do not manufacture provenance, disable checks or skip affected submissions.
+4. Compare every old table's rows before/after (apart from `alembic_version`), check
+   events against initial submission/accepted decision sources, and repeat migration
+   to verify a no-op. Rejections and pending amendments must contribute no events.
+5. Create a 0.4.0 backup and restore it with 0.4.0 into another empty disposable target.
+   Verify workspace/adjudicator pages and an acceptance on the disposable copy:
+   exactly one new event, and an attempted event UPDATE must fail.
+6. After reviewing rehearsal evidence and the PR, perform the same stopped-writer
+   upgrade on the intended database. Keep the original backup. Restart on 0.4.0 only
+   after verification succeeds. Failed migration rolls back; populated downgrade is
+   refused. Rollback means restoring the old backup into an empty target with 0.3.0,
+   not downgrading or overwriting the upgraded database.
 
-The [1C correction record](phase1/corrections-1c.md) describes historical 0004/0.1.0
-evidence. Framework-independent recovery remains a future 1W gate.
+Restore checks exact schema and app compatibility **before pg_restore**. Thus 0.4.0
+rejects 0005 archives, including 0.3.0. Current inventory includes effective events;
+restore verifies their source actors, timestamps, decisions and completeness as well
+as counts. Existing recovery blocking and session revocation remain in force.
+Never use volume deletion as this upgrade procedure. See the
+[1U-2 verification record](phase1/verification-1u-2.md) for rehearsal evidence;
+the [1C correction record](phase1/corrections-1c.md) covers historical recovery.
 
 ## Workspace behavior and authority
 
