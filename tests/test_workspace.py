@@ -217,6 +217,50 @@ def test_conflict_preserves_base_and_rolls_back_everything(world):
     assert counts(db) == before
 
 
+def test_independent_editor_baselines_do_not_conflict(world):
+    db, _, ids = world
+    ready(world)
+    with db.transaction() as session:
+        action = session.scalar(select(DraftAction))
+        assert action is not None
+        action_id = action.id
+    # Both editors started from revision 2. Saving intention must not invalidate
+    # an action editor whose own scope is still unchanged.
+    run(world, "intention", 2, overall_intention="Saved independently")
+    run(
+        world,
+        "action",
+        2,
+        action_id=action_id,
+        body={**BODY, "description": "My independent action edit"},
+        owner_user_id=ids["teammate"],
+    )
+    with db.transaction() as session:
+        assert package(session, get_draft(session, GAME, "team-0", 1)).actions[
+            0
+        ].body.description == "My independent action edit"
+
+    # A stale editor for that same action still conflicts after a teammate edit.
+    run(
+        world,
+        "action",
+        4,
+        who="teammate",
+        action_id=action_id,
+        body={**BODY, "description": "Teammate edit"},
+        owner_user_id=ids["teammate"],
+    )
+    with pytest.raises(Conflict):
+        run(
+            world,
+            "action",
+            4,
+            action_id=action_id,
+            body={**BODY, "description": "Stale local edit"},
+            owner_user_id=ids["teammate"],
+        )
+
+
 def test_validation_zero_actions_and_implicit_resubmit_rejected(world):
     db, _, _ = world
     before = counts(db)
@@ -369,13 +413,19 @@ def test_concurrent_mutations_are_atomic(world, scenario):
     with ThreadPoolExecutor(max_workers=2) as pool:
         outcomes = list(pool.map(work, (0, 1)))
     after = counts(db)
-    if scenario in {"edits", "submits", "edit_submit", "decisions", "replacement"}:
+    if scenario in {"edits", "submits", "decisions", "replacement"}:
         assert sorted(outcomes) == ["conflict", "ok"]
+    if scenario == "edit_submit":
+        # If the aggregate submission wins the lock it freezes the original package,
+        # then the scoped intention edit may validly commit against its unchanged scope.
+        # If the edit wins first, the stale aggregate submission conflicts.
+        assert sorted(outcomes) in (["conflict", "ok"], ["ok", "ok"])
     if scenario == "duplicate":
         assert outcomes == ["ok", "ok"]
     if scenario not in {"replacement", "revocation"}:
-        assert after[3] == before[3] + 1  # no failed request-key residue
-        assert after[2] == before[2] + (0 if scenario == "decisions" else 1)
+        expected_commits = outcomes.count("ok") if scenario == "edit_submit" else 1
+        assert after[3] == before[3] + expected_commits  # no failed request-key residue
+        assert after[2] == before[2] + (0 if scenario == "decisions" else expected_commits)
     if scenario in {"submits", "edit_submit"}:
         with db.transaction() as s:
             versions = s.scalars(select(SubmissionVersion)).all()
@@ -528,6 +578,39 @@ def test_foreign_action_and_replay_reauthorization(world):
     before = counts(db)
     with pytest.raises(PermissionError):
         run(world, "submit", 2, key=key)
+    assert counts(db) == before
+
+
+def test_completed_action_command_replays_after_target_is_removed(world):
+    db, _, ids = world
+    ready(world)
+    with db.transaction() as session:
+        action_id = session.scalar(select(DraftAction.id).where(DraftAction.team_id == "team-0"))
+        assert action_id is not None
+
+    key = uuid4()
+    result = run(
+        world,
+        "action",
+        key=key,
+        action_id=action_id,
+        body={**BODY, "description": "Saved before removal"},
+        owner_user_id=ids["teammate"],
+    )
+    run(world, "remove", action_id=action_id)
+    before = counts(db)
+
+    replay = run(
+        world,
+        "action",
+        2,
+        key=key,
+        action_id=action_id,
+        body={**BODY, "description": "Saved before removal"},
+        owner_user_id=ids["teammate"],
+    )
+
+    assert replay == result
     assert counts(db) == before
 
 

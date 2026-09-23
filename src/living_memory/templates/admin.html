@@ -3,7 +3,6 @@
 {% block content %}
 <h1>Administration</h1>
 <p>Signed in as {{ display_name }}. <strong>{{ alerts }}</strong> unread alert{% if alerts != 1 %}s{% endif %}.</p>
-<form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button>Sign out</button></form>
 
 {% if error %}<section role="alert"><h2>Review your input</h2><p>{{ error }}</p>
 <form method="post" action="{{ form_action }}"><input type="hidden" name="csrf_token" value="{{ csrf }}">

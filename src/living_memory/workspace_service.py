@@ -90,6 +90,68 @@ class Conflict(WorkspaceConflict):
         self.base, self.current, self.submitted = base, current, submitted
 
 
+def _package_at_version(session: Session, draft: Draft | None, version: int) -> Package:
+    """Return an existing immutable draft snapshot; never invent missing history."""
+    if version == 0:
+        return Package()
+    if draft is None or version < 0 or version > draft.version:
+        raise Conflict(None, Package().model_dump(mode="json"), {"version": version})
+    revision = session.scalar(
+        select(PackageRevision).where(
+            PackageRevision.draft_id == draft.id,
+            PackageRevision.version == version,
+        )
+    )
+    if revision is None:
+        raise Conflict(None, package(session, draft).model_dump(mode="json"), {"version": version})
+    return Package.model_validate(revision.snapshot)
+
+
+def _action_scope(value: Package, action_id: UUID) -> dict[str, Any] | None:
+    action = next((item for item in value.actions if item.id == action_id), None)
+    if action is None:
+        return None
+    return {
+        "id": str(action.id),
+        "body": action.body.model_dump(mode="json"),
+        "owner_user_id": str(action.owner_user_id) if action.owner_user_id else None,
+        "removed": action.removed,
+    }
+
+
+def _check_command_baseline(
+    session: Session, draft: Draft | None, current: Package, command: Command
+) -> None:
+    version = draft.version if draft else 0
+    if command.expected_version == version:
+        return
+    base = _package_at_version(session, draft, command.expected_version)
+    if command.operation == "intention":
+        if base.overall_intention == current.overall_intention:
+            return
+        raise Conflict(
+            {"overall_intention": base.overall_intention},
+            {"overall_intention": current.overall_intention},
+            {"overall_intention": command.overall_intention},
+        )
+    if command.operation == "action" and command.action_id is not None:
+        base_action = _action_scope(base, command.action_id)
+        current_action = _action_scope(current, command.action_id)
+        if base_action is not None and base_action == current_action:
+            return
+        raise Conflict(base_action, current_action, command.model_dump(mode="json"))
+    if command.operation == "action" and command.action_id is None:
+        return
+    if command.operation == "comment":
+        # Comments append immutable content. The target is checked after replay recognition.
+        return
+    raise Conflict(
+        base.model_dump(mode="json"),
+        current.model_dump(mode="json"),
+        command.model_dump(mode="json"),
+    )
+
+
 def authorize(
     session: Session,
     user_id: UUID,
@@ -189,22 +251,11 @@ def execute(
     if submission is not None:
         session.refresh(submission, with_for_update=True)
     current = package(session, draft)
-    if command.action_id is not None and command.action_id not in {a.id for a in current.actions}:
-        raise LookupError("Not found")
     amendment = None
     if review:
         amendment = session.get(Amendment, command.amendment_id) if command.amendment_id else None
         if amendment is None or submission is None or amendment.submission_id != submission.id:
             raise LookupError("Not found")
-    existing_owner = next(
-        (a.owner_user_id for a in current.actions if a.id == command.action_id), None
-    )
-    if (
-        command.owner_user_id
-        and command.owner_user_id != existing_owner
-        and team_id not in effective_memberships(session, command.owner_user_id, game_id, now)
-    ):
-        raise LookupError("Not found")
     result_id = str(uuid4())
     result_kind = "amendment_decision" if review else "package_revision"
     redirect = (
@@ -240,6 +291,17 @@ def execute(
         )
         assert record is not None
         return record.result_ref
+    if command.action_id is not None and command.action_id not in {a.id for a in current.actions}:
+        raise LookupError("Not found")
+    existing_owner = next(
+        (a.owner_user_id for a in current.actions if a.id == command.action_id), None
+    )
+    if (
+        command.owner_user_id
+        and command.owner_user_id != existing_owner
+        and team_id not in effective_memberships(session, command.owner_user_id, game_id, now)
+    ):
+        raise LookupError("Not found")
     if review:
         assert submission is not None and amendment is not None
         if (
@@ -274,23 +336,7 @@ def execute(
         submission.status, submission.updated_at = "submitted", now
         submission.version += 1
     else:
-        version = draft.version if draft else 0
-        if command.expected_version != version:
-            base = (
-                session.scalar(
-                    select(PackageRevision).where(
-                        PackageRevision.draft_id == draft.id,
-                        PackageRevision.version == command.expected_version,
-                    )
-                )
-                if draft
-                else None
-            )
-            raise Conflict(
-                base.snapshot if base else Package().model_dump(mode="json"),
-                current.model_dump(mode="json"),
-                command.model_dump(mode="json"),
-            )
+        _check_command_baseline(session, draft, current, command)
         if draft is None:
             draft = Draft(
                 game_id=game_id,

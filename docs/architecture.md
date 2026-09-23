@@ -126,6 +126,11 @@ Derived summaries and indexes must identify their source versions and be refresh
 
 ## Turn and review workflow
 
+The Phase 0 sequence below is historical architecture context. B-18 now governs
+submission and revision policy for 1U, including immediate pre-deadline revisions
+and approval-required revisions at or after the stored deadline. The preserving
+history and confirmation implementation is assigned to 1U-2.
+
 Phase 0 default: simultaneous submission followed by joint review, with versioned amendments accepted by the adjudicator before ruling. Sequential resolution is a future configurable policy, not part of the initial fixture. See decision B-02.
 
 1. Players draft actions and coordinate under team/sharing permissions.
@@ -138,6 +143,12 @@ Phase 0 default: simultaneous submission followed by joint review, with versione
 Discussion does not create a commitment automatically; commitments do not create effects automatically. RFIs can be active throughout the lifecycle. Record whether an answer clarifies intent, communicates existing information, initiates collection, or establishes a missing scenario fact. Apply late answers under the game's explicit correction policy.
 
 Background jobs should carry input state/submission versions. If inputs change, mark their results stale or re-run them rather than presenting them as current. Retried jobs and state commits must not duplicate applied effects. Concurrent human edits need conflict detection; character-level live editing is not assumed for the initial version.
+
+Workspace mutation acknowledgement is separate from the following saved-view refresh.
+The browser freezes each dispatched command and its operation identity, retains newer
+authored input independently, and updates only clean named regions. An uncertain retry
+reuses the frozen command; a failed refresh after acknowledgement retries only the read.
+This boundary is also the contract consumed by later teammate-update delivery.
 
 ## AI preparation contract
 

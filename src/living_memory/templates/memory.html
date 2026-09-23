@@ -11,7 +11,7 @@
 </form>
 <form method="get" action="/dev/memory" class="filters">
   <input type="hidden" name="identity" value="{{ identity }}">
-  <label for="dataset">Dataset</label><select id="dataset" name="dataset">{% for item in datasets %}<option value="{{ item.id }}"{% if item.id == dataset %} selected{% endif %}>{{ item.label }}{% if item.status != 'loaded' %} · reload required{% endif %}</option>{% endfor %}</select>
+  <label for="dataset">Dataset</label><select id="dataset" name="dataset">{% for item in datasets %}<option value="{{ item.id }}"{% if item.id == dataset %} selected{% endif %}>{{ item.label }}{% if item.status == 'unavailable' %} · unavailable{% elif item.status != 'loaded' %} · reload required{% endif %}</option>{% endfor %}</select>
   <label for="audience">Audience</label><select id="audience" name="audience">{% for item in audiences %}<option{% if item == audience %} selected{% endif %}>{{ item }}</option>{% endfor %}</select>
   <label for="checkpoint">Checkpoint</label><select id="checkpoint" name="checkpoint">{% for item in checkpoints %}<option value="{{ item.id }}"{% if item.id == checkpoint %} selected{% endif %}>{{ item.label }}</option>{% endfor %}</select>
   <label for="task">Preset</label><select id="task" name="task">{% for item in tasks %}<option value="{{ item.id }}"{% if item.id == task %} selected{% endif %}>{{ item.label }}</option>{% endfor %}</select>
@@ -25,5 +25,5 @@
 {% if detail %}<p><a href="{{ link() }}">Back to task view</a></p>{% endif %}
 {% for record in records %}{% include 'memory_record.html' %}{% else %}<p>No records are available in this view.</p>{% endfor %}
 {% if view.next_cursor %}<p><a href="{{ link(None, view.next_cursor) }}">Next page</a></p>{% endif %}
-{% else %}<p>No dataset has been loaded. Pending datasets require an explicit reload from their preserved source package.</p>{% endif %}
+{% else %}{% if dataset_error %}<p role="alert">{{ dataset_error }}</p>{% else %}<p>No dataset has been loaded. Pending datasets require an explicit reload from their preserved source package.</p>{% endif %}{% endif %}
 {% endblock %}

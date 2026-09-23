@@ -1,9 +1,22 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Living Memory</h1>
-<p>Application foundation. Game workspaces are coming in later milestones.</p>
-<p><a href="/login">Sign in</a> · <a href="/admin">Administration</a></p>
 {% if message %}<p role="status">{{ message }}</p>{% endif %}
+{% if shell and shell.signed_in %}
+<p>Signed in as {{ shell.display_name }}.</p>
+<h2>Your work</h2>
+{% for game in shell.games %}
+<section class="card">
+  <h3>{{ game.title }}</h3><p>{{ game.status }} · Turn {{ game.turn }}</p>
+  <nav aria-label="{{ game.title }} tasks" class="destinations">
+  {% for team in game.teams %}<a href="/play?game_id={{ game.id }}&team_id={{ team.id }}">{{ team.name }} workspace{% if team.authority == 'submitter' %} · submitter{% endif %}</a>{% endfor %}
+  {% if game.adjudicator %}<a href="/adjudicate?game_id={{ game.id }}">Amendment review · {{ game.pending_reviews }} pending</a>{% endif %}
+  {% if game.administrator %}<a href="/admin/games/{{ game.id }}">Game administration</a>{% endif %}
+  </nav>
+</section>
+{% else %}<p>No game tasks are currently assigned to you.</p>{% endfor %}
+{% if shell.administrator %}<p><a href="/admin">Administration overview</a></p>{% endif %}
+{% else %}<p>Sign in to open your assigned games and tasks.</p>{% endif %}
 {% if development %}<p><a href="/dev/memory">Explore memory</a></p>
 <p>Development environment</p>
 <nav aria-label="Development"><a href="/dev/forms">Try the form demonstration</a> · <a href="/docs">API documentation</a></nav>
