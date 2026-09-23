@@ -173,7 +173,15 @@ def test_independent_dirty_editor_survives_save_and_blocks_submission(workspace_
             "Unsaved action text"
         )
         page.get_by_role("button", name="Submit turn package", exact=True).click()
-        expect(page.get_by_role("alert")).to_contain_text("Save or discard")
+        action_heading = action.get_by_role("heading").inner_text()
+        expect(page.get_by_role("alert")).to_have_text(
+            f"Save or discard these editors first: {action_heading}."
+        )
+        action.get_by_role("link", name="Cancel action edits").click()
+        expect(page.get_by_role("alertdialog")).to_contain_text(
+            f"Discard unsaved changes in {action_heading}?"
+        )
+        page.get_by_role("button", name="Keep editing", exact=True).click()
         with world[0].transaction() as session:
             from living_memory.workspace_service import get_draft, package
 
@@ -734,12 +742,18 @@ def test_action_use_current_and_intention_save_combined(workspace_server, world)
         expect(current.get_by_text("Draft revision 3.", exact=False)).to_be_visible()
         stale_action.get_by_label("Description", exact=True).fill("Mine action text")
         stale_action.get_by_role("button", name="Save action", exact=True).click()
-        stale_action.get_by_role("button", name="Save combined", exact=True).click()
+        stale_action.get_by_role("button", name="Edit combined value", exact=True).click()
         expect(stale.get_by_role("status")).to_contain_text(
-            "Edit the combined value, then choose Save action."
+            "Nothing has been saved yet. Edit your text to combine Mine with Current, "
+            "then choose Save action."
         )
+        expect(stale_action.get_by_label("Title", exact=True)).to_be_focused()
+        expect(stale_action.locator("[data-conflict]")).to_contain_text(
+            "Nothing has been saved yet."
+        )
+        assert stale.evaluate("window.postCount") == 1
         expect(stale_action.locator("[data-conflict]")).to_contain_text("Current action text")
-        for choice in ("Use current", "Save mine", "Save combined"):
+        for choice in ("Use current", "Save mine", "Edit combined value"):
             expect(stale_action.get_by_role("button", name=choice, exact=True)).to_be_disabled()
         stale_action.get_by_label("Responsible teammate", exact=True).evaluate(
             """select => {
@@ -773,7 +787,7 @@ def test_action_use_current_and_intention_save_combined(workspace_server, world)
                 posts: window.postCount
             })"""
         ) == action_state
-        for choice in ("Use current", "Save mine", "Save combined"):
+        for choice in ("Use current", "Save mine", "Edit combined value"):
             expect(stale_action.get_by_role("button", name=choice, exact=True)).to_be_disabled()
 
         current.get_by_label("Overall intention", exact=True).fill("Current intention")
@@ -782,10 +796,16 @@ def test_action_use_current_and_intention_save_combined(workspace_server, world)
         stale.get_by_label("Overall intention", exact=True).fill("Mine intention")
         stale.get_by_role("button", name="Save intention", exact=True).click()
         intention_form = stale.locator('[data-editor="intention"]')
-        intention_form.get_by_role("button", name="Save combined", exact=True).click()
+        intention_form.get_by_role("button", name="Edit combined value", exact=True).click()
         expect(stale.get_by_role("status")).to_contain_text(
-            "Edit the combined value, then choose Save intention."
+            "Nothing has been saved yet. Edit your text to combine Mine with Current, "
+            "then choose Save intention."
         )
+        expect(stale.get_by_label("Overall intention", exact=True)).to_be_focused()
+        expect(intention_form.locator("[data-conflict]")).to_contain_text(
+            "Nothing has been saved yet."
+        )
+        assert stale.evaluate("window.postCount") == 3
         expect(intention_form.locator("[data-conflict]")).to_contain_text("Current intention")
         stale.get_by_label("Overall intention", exact=True).fill("Combined intention")
         intention_state = intention_form.evaluate(
@@ -808,13 +828,17 @@ def test_action_use_current_and_intention_save_combined(workspace_server, world)
                 posts: window.postCount
             })"""
         ) == intention_state
-        for choice in ("Use current", "Save mine", "Save combined"):
+        for choice in ("Use current", "Save mine", "Edit combined value"):
             expect(
                 intention_form.get_by_role("button", name=choice, exact=True)
             ).to_be_disabled()
         stale.get_by_role("button", name="Save intention", exact=True).click()
         expect(stale.get_by_text("Draft revision 5.", exact=False)).to_be_visible()
         expect(intention_form.locator("[data-conflict]")).to_have_count(0)
+        current.reload()
+        expect(current.get_by_label("Overall intention", exact=True)).to_have_value(
+            "Combined intention"
+        )
         browser.close()
 
 
@@ -855,7 +879,7 @@ def test_cancel_combined_uses_current_as_authoritative(workspace_server, world, 
         current_form.get_by_role("button", name=save_label, exact=True).click()
         stale_field.fill(f"Mine {editor_kind} value")
         stale_form.get_by_role("button", name=save_label, exact=True).click()
-        stale_form.get_by_role("button", name="Save combined", exact=True).click()
+        stale_form.get_by_role("button", name="Edit combined value", exact=True).click()
         stale_field.fill(f"Combined {editor_kind} value")
 
         stale_form.get_by_role("link", name=cancel_label, exact=True).click()

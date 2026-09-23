@@ -276,7 +276,7 @@ run automatically. Rejection of a retry rejects only that request and does not e
 the original unknown operation.
 
 Conflict recovery presents labelled Base, Current and Mine values. Editable text offers
-Use current, Save mine and Save combined; aggregate commands require current-state review
+Use current, Save mine and Edit combined value; aggregate commands require current-state review
 and a newly selected operation from the refreshed state. Entering combined mode retains
 the comparison but disables its choices; the editor's own save control commits the combined
 value. Current and its matching revision, request key and anti-forgery token become the

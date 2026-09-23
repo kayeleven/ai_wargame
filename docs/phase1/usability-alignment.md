@@ -34,7 +34,7 @@ this document without the intermediate reviews.
 
 | Milestone | Outcome | Status | Verification |
 | --- | --- | --- | --- |
-| 1U-1 | Protected input, shared navigation and fixture recovery | Awaiting review | [Verification](verification-1u-1.md) |
+| 1U-1 | Protected input, shared navigation and fixture recovery | Accepted | [Verification](verification-1u-1.md) |
 | 1U-2 | Coherent submission/revision and dedicated amendment review | Proposed | Not yet produced |
 | 1U-3 | Practical action volume and safe automatic saved updates | Proposed | Not yet produced |
 | 1U-4 | Account management and participant placement | Proposed | Not yet produced |

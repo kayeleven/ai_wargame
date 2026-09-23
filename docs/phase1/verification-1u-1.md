@@ -1,7 +1,8 @@
 # Phase 1U-1 verification — 2026-09-21
 
-Status: **awaiting owner review**. Automated checks establish the bounded
-implementation; they do not constitute owner usability acceptance.
+Status: **accepted following owner review — 2026-09-23**. Owner outcomes and
+the bounded warning-label correction are recorded below. Automated evidence is
+distinct from the owner-reported usability passes.
 
 ## Delivered behavior
 
@@ -131,3 +132,61 @@ same-action recovery, dirty-submission blocking and unknown-outcome wording. The
 review should also inspect keyboard/focus behavior, announcements, 200% zoom,
 narrow layouts, long text and recovered Harbor/Orchid fixture search. Record the
 outcomes here before changing the milestone to accepted.
+
+
+### Partial owner review — 2026-09-23
+
+Owner-reported passes:
+
+- Player sign-in, navigation to the workspace and sign-out.
+- Action and intention edits save successfully. With both fields edited, saving
+  either editor saves only that editor's value.
+- Adjudicator sign-in, navigation to the game view and sign-out.
+- Two players editing the intention correctly encounter a conflict on the stale save.
+- Fields adjust properly at narrow screen widths.
+
+Owner-reported issue: **“Save combined” did not do anything.** The implementation
+entered manual combined editing without saving, but its label implied a save and
+its focus selector targeted the form's first hidden input. This is a usability
+failure; conflict detection alone does not establish recovery acceptance.
+
+Correction: rename the choice to **Edit combined value**, retain instructions in
+the comparison stating that nothing has been saved yet and naming the editor's
+save button, and focus the first editable field. The player manually combines
+Mine with Current and then chooses **Save intention** or **Save action**.
+
+Correction verification: three focused Chromium regressions passed, covering
+intention/action focus, visible instructions, no premature save, persistence of the
+combined intention in another player's view, and Cancel restoring Current for both
+editor types. Ruff and `git diff --check` passed. The browser run reported the two
+existing dependency deprecation warnings.
+
+The owner considers the combined-edit correction sufficient for now (2026-09-23);
+this is not a reported manual retest of that correction.
+
+### Completed owner walkthrough — 2026-09-23
+
+The owner reported all seven remaining walkthrough checks as passing:
+
+1. Same-action conflict recovery.
+2. Unsaved-text protection during Cancel, navigation and reload.
+3. Submission blocked by unsaved editors, with the warning-label comment below.
+4. Unknown-outcome wording and original-command retry.
+5. Keyboard operation, feedback, zoom and long-text review (reported as an overall
+   pass for this walkthrough item; no separate assistive-technology details supplied).
+6. Harbor and Orchid fixture browsing/search alongside an active operational game.
+7. Adjudicator discovery and completion of pending amendment review.
+
+The comment on check 3 was that the warning named an action by its UUID rather
+than a readable name. Corrected the shared editor label to use the visible action
+heading (number and title); intention, new-action and package-comment editors use
+plain names, and action comments/decisions use their enclosing heading. The same
+readable label is used by the Cancel confirmation. No internal editor ID is shown.
+
+These owner outcomes complete the 1U-1 review. The warning-label correction is
+covered by automated verification, not a separately reported owner retest.
+
+Warning-label verification: the focused Chromium regression for independent dirty
+editors and submission blocking passed, including exact readable-label assertions
+for both the blocking warning and Cancel confirmation. Ruff and `git diff --check`
+passed; the browser run retained the two existing dependency deprecation warnings.

@@ -57,7 +57,15 @@
   function discardDirtyRecovery() { dirtyEditors().forEach(form => erase(keyFor(form))); }
   const dirtyAdminForms = () => [...document.querySelectorAll('form[data-admin-form][data-dirty="true"]')];
   function markAdmin(form) { form.dataset.dirty = String(!equal(formValues(form), JSON.parse(form.dataset.baseline || "{}"))); }
-  function editorLabel(form) { return editorId(form).replaceAll("-", " "); }
+  function editorLabel(form) {
+    const id = editorId(form);
+    const labels = { intention: "Overall intention", "new-action": "New action", "package-comment": "Package comment" };
+    if (labels[id]) return labels[id];
+    const heading = form.closest("section")?.querySelector("h3")?.textContent.trim();
+    if (id.startsWith("comment-")) return heading ? `Comment on ${heading}` : "Action comment";
+    if (id.startsWith("decision-")) return heading ? `Decision for ${heading}` : "Amendment decision";
+    return heading || "Action";
+  }
   function freeze(form) {
     const values = {}; [...form.elements].forEach(control => { if (control.name && control.name !== "csrf_token") values[control.name] = control.value; });
     return { values, authored: formValues(form), editor: editorId(form), operation: form.elements.namedItem("operation")?.value, key: form.elements.namedItem("key")?.value, action: form.action };
@@ -183,7 +191,7 @@
       applyConflictCurrent(currentEditor, conflict.current);
       rememberAuthoritative(form, currentEditor);
     }
-    const buttons = editableText ? `<button type="button" data-choice="current">Use current</button><button type="button" data-choice="mine">Save mine</button><button type="button" data-choice="combined">Save combined</button>` : `<button type="button" data-choice="review">Review current state and renew this operation</button>`;
+    const buttons = editableText ? `<button type="button" data-choice="current">Use current</button><button type="button" data-choice="mine">Save mine</button><button type="button" data-choice="combined">Edit combined value</button>` : `<button type="button" data-choice="review">Review current state and renew this operation</button>`;
     panel.innerHTML = `<h3>Edit conflict</h3><p>Resolve the saved-value conflict</p><dl><dt>Base</dt><dd><pre>${displayLabel(display.base) || label(conflict.base)}</pre></dd><dt>Current</dt><dd><pre>${displayLabel(display.current) || label(conflict.current)}</pre></dd><dt>Mine</dt><dd><pre>${displayLabel(display.mine) || label(conflict.mine)}</pre></dd></dl><div class="button-row">${buttons}</div>`;
     panel.querySelectorAll("[data-choice]").forEach(button => button.addEventListener("click", () => {
       if (button.disabled || panel.dataset.combining === "true") return;
@@ -191,7 +199,16 @@
       if (mode === "review") { if (documentFromResponse) replaceCleanRegions(documentFromResponse, null); panel.remove(); announce("Current saved state loaded. Review it before renewing the operation.", "notice", true); return; }
       if (mode === "current") { if (currentEditor) discardToAuthoritative(form); else { applyConflictCurrent(form, conflict.current); if (documentFromResponse) freshToken(form, documentFromResponse); setBaseline(form); erase(keyFor(form)); } panel.remove(); announce("Current saved value loaded.", "notice", true); return; }
       fillFrozen(form, frozen); const version = form.elements.namedItem("expected_version"); if (version && payload.current_version != null) version.value = payload.current_version; const key = form.elements.namedItem("key"); if (key) key.value = crypto.randomUUID(); mark(form);
-      if (mode === "combined") { panel.dataset.combining = "true"; panel.querySelectorAll("[data-choice]").forEach(choice => { choice.disabled = true; }); const saveLabel = form.querySelector("button[type=submit],button:not([type])")?.dataset.defaultLabel || "Save"; announce(`Edit the combined value, then choose ${saveLabel}.`, "notice", true); form.querySelector("textarea,input,select")?.focus(); return; }
+      if (mode === "combined") {
+        panel.dataset.combining = "true";
+        panel.querySelectorAll("[data-choice]").forEach(choice => { choice.disabled = true; });
+        const saveLabel = form.querySelector("button[type=submit],button:not([type])")?.dataset.defaultLabel || "Save";
+        const guidance = `Nothing has been saved yet. Edit your text to combine Mine with Current, then choose ${saveLabel}.`;
+        panel.querySelector("p").textContent = guidance;
+        announce(guidance);
+        form.querySelector('textarea:not([disabled]),input:not([type="hidden"]):not([disabled]),select:not([disabled])')?.focus();
+        return;
+      }
       submit(form);
     }));
     form.append(panel); panel.focus();
