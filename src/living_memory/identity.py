@@ -575,7 +575,9 @@ def resolve_principal(db_session: Session, user: User, game_id: str, now: dateti
     except (ValueError, LookupError):
         return empty
     scopes = set(effective_memberships(db_session, user.id, game_id, now))
-    if db_session.get(GameRole, (user.id, game_id, "adjudicator")) is not None:
+    if db_session.get(
+        GameRole, (user.id, game_id, "adjudicator"), populate_existing=True
+    ) is not None:
         scopes.update(team_ids | {"adjudicator"})
     return Principal(
         identity=str(user.id),

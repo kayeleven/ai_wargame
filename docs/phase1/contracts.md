@@ -384,8 +384,9 @@ accepts new writes. It intentionally changes three observable results:
 - Command timestamps come from authoritative server time read after all mutation
   locks, not from before a lock wait. Each transaction retry reads a fresh time.
 - Authority revoked during a lock wait causes denial, even if the session previously
-  loaded the user or membership. Locks retain game → sorted users ordering, followed
-  by draft, submission and the scoped amendment; authorization is rechecked afterward.
+  loaded the user, membership or adjudicator role. Locks retain game → sorted users
+  ordering, followed by draft, submission and the scoped amendment; authorization
+  is rechecked afterward.
 
 A replaced submitter cannot retry even their own completed submission. If its response
 was lost, they cannot recover that result through their retry. The existing unknown-

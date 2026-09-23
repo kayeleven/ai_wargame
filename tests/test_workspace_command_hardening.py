@@ -93,6 +93,7 @@ def blocked_command(world, cmd, who, clock, while_blocked, table="admin_game"):
                 s.get(User, ids[who]),
                 s.get(AdminGame, GAME),
                 s.get(TeamMembership, (ids[who], GAME, "team-0")),
+                s.get(GameRole, (ids[who], GAME, "adjudicator")),
             ]
             pids.put(s.scalar(text("SELECT pg_backend_pid()")))
             result = execute(

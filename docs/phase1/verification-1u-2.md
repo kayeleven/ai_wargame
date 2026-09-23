@@ -320,3 +320,21 @@ implementation changes were needed. Actual non-test size is recorded in the PR;
 it is below the ~405-line projection and the 800-line ceiling.
 
 Owner review is required; this PR does not satisfy the milestone acceptance gate.
+
+
+### Owner review correction — cached adjudicator authority
+
+The owner identified an identity-map dependency in `resolve_principal`: a retained
+`GameRole` could survive revocation and incorrectly authorize a post-lock command.
+`blocked_command` now retains the adjudicator role alongside cached users and
+memberships. With only that test change, both adjudicator revocation cases (fresh
+command and completed retry) failed: **2 failed, 25 deselected in 2.06s**, each because
+the expected `LookupError` was not raised.
+
+The role lookup now uses `populate_existing=True`, so the recheck queries the database
+regardless of retained ORM references. After the fix, the hardening suite passed:
+**27 passed in 14.39s**. Contracts explicitly cover cached user, membership or
+adjudicator role. The full suite after the fix passed: **246 passed in 178.29s**,
+including browser tests, with the same two existing dependency warnings. Ruff,
+mypy (21 source files) and whitespace checks passed. The owner finding is fixed;
+the strengthened tests retain the cached role throughout the real lock wait.
