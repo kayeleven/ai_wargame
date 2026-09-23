@@ -1,1 +1,120 @@
-{% extends "play.html" %}
+{% extends "base.html" %}
+{% from "workspace_macros.html" import hidden, field_error, show_conflict, show_package with context %}
+{% set page_query = '?game_id=' ~ view.game_id ~ '&team_id=' ~ view.team_id ~ '&turn=' ~ view.turn %}
+{% set review_url = '/adjudicate' ~ page_query %}
+{% set a = selected_amendment %}
+{% set selected_url = review_url ~ ('&amendment_id=' ~ a.id if a else '') %}
+{% set endpoint = '/workspace/' ~ view.game_id ~ '/' ~ view.team_id ~ '/' ~ view.turn ~ '/form' %}
+{% macro compare_field(field, anchor) %}
+<section id="{{ anchor }}" class="comparison-field{% if field.changed %} is-changed{% endif %}" tabindex="-1">
+  <h4>{{ field.label }} — {{ 'changed' if field.changed else 'unchanged' }}</h4>
+  <div class="comparison-columns">
+    <div><h5>Original</h5><div class="authored">{{ '(not present)' if field.original is none else ('(empty)' if field.original == '' else field.original) }}</div></div>
+    <div><h5>Proposed</h5><div class="authored">{{ '(not present)' if field.proposed is none else ('(cleared)' if field.proposed == '' and field.changed else ('(empty)' if field.proposed == '' else field.proposed)) }}</div></div>
+  </div>
+</section>
+{% endmacro %}
+{% macro compare_action(action, index) %}
+<article class="card" id="comparison-action-{{ index }}" tabindex="-1">
+  <h3>{{ action.title }} — {{ action.status }}</h3>
+  <p>Original position: {{ action.original_position or 'Not present' }} · Proposed position: {{ action.proposed_position or 'Not present' }}{% if action.reordered %} · Order changed{% endif %}</p>
+  {% if action.status != 'unchanged' %}
+  <ul aria-label="Changed fields">
+    {% for field in action.fields if field.changed %}<li><a href="#comparison-action-{{ index }}-{{ field.name }}">{{ field.label }} changed</a></li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% for field in action.fields %}{{ compare_field(field, 'comparison-action-' ~ index ~ '-' ~ field.name) }}{% endfor %}
+</article>
+{% endmacro %}
+{% block context %}
+<section class="context-bar" aria-label="Current context">
+  <strong>{{ view.title }}</strong><span>{{ view.team_names.get(view.team_id, view.team_id) }}</span><span>Turn {{ view.turn }}</span><span>Amendment review</span>
+</section>
+<nav class="destinations" aria-label="Game destinations"><a aria-current="page" href="{{ review_url }}">Amendment review</a></nav>
+{% endblock %}
+{% block content %}
+<div data-workspace="{{ view.game_id }}:{{ view.team_id }}:{{ view.turn }}">
+  <section data-workspace-region="workspace-heading"><h1>Amendment review</h1></section>
+  <form method="get" action="/adjudicate" data-guard-navigation>
+    <input type="hidden" name="game_id" value="{{ view.game_id }}">
+    <label>Team<select aria-label="Team" name="team_id">{% for team in view.teams %}<option value="{{ team }}" {% if team == view.team_id %}selected{% endif %}>{{ view.team_names.get(team, team) }}</option>{% endfor %}</select></label>
+    <label>Turn<select aria-label="Turn" name="turn">{% for turn in view.turns %}<option {% if turn == view.turn %}selected{% endif %}>{{ turn }}</option>{% endfor %}</select></label>
+    <button>Open workspace</button>
+  </form>
+  <div id="workspace-status" aria-live="polite">{% if saved_message %}<p class="notice">{{ saved_message }}</p>{% endif %}</div>
+  {% if error %}
+  <section class="notice error" role="alert" tabindex="-1"{% if conflict %} data-conflict{% endif %}>
+    <h2>{{ 'Edit conflict' if conflict else 'Please check your input' }}</h2><p>{{ error }}</p>
+    {% if field_errors %}<ul>{% for item in field_errors %}<li>{{ item.message }}</li>{% endfor %}</ul>{% endif %}
+    {% if conflict %}
+    <p>Your attempted decision remains available. Review the current state before renewing it.</p>
+    <h3>Base</h3>{{ show_conflict(conflict_display.base) }}
+    <h3>Current</h3>{{ show_conflict(conflict_display.current) }}
+    <h3>Mine</h3>{{ show_conflict(conflict_display.mine) }}
+    <a href="{{ selected_url }}">Review current state before renewing the operation</a>
+    {% endif %}
+  </section>
+  {% endif %}
+  <section data-workspace-region="submissions">
+    {% if not view.editable %}<p class="notice">This turn is read-only.</p>{% endif %}
+    {% if view.effective_version %}
+    <p>Effective version {{ view.effective_version }} · {{ view.submission_status }}.</p>
+    <p>Submitted {{ view.submitted_at }}; deadline {{ view.deadline }}.{% if view.submitted_at > view.deadline %} <strong>Late submission</strong>{% endif %}</p>
+    {% else %}<p>No package has been submitted.</p>{% endif %}
+  </section>
+  <nav data-workspace-region="amendment-navigation" aria-label="Amendments">
+    <h2>Amendments</h2>
+    {% for status in ['pending', 'history'] %}
+    {% for item in view.amendments if (item.status == 'pending') == (status == 'pending') %}
+    <p><a href="{{ review_url }}&amendment_id={{ item.id }}"{% if a and item.id == a.id %} aria-current="true"{% endif %}>Version {{ item.version }} — {{ item.status }}</a></p>
+    {% endfor %}
+    {% endfor %}
+    {% if not view.amendments %}<p>No amendments.</p>{% endif %}
+  </nav>
+  <section data-workspace-region="comparison">
+    {% if a %}
+    <h2>Version {{ a.version }} proposed against version {{ a.base_version }} — {{ a.status }}</h2>
+    {% if comparison %}
+    <p>Original: version {{ comparison.base_version }} · Proposed: version {{ comparison.proposed_version }}</p>
+    <p>{% for status, count in comparison.counts.items() %}{{ count }} {{ status }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+    <nav aria-label="Changed actions">
+      <a href="#comparison-intention">Overall intention — {{ 'changed' if comparison.intention.changed else 'unchanged' }}</a>
+      <ul>{% for action in comparison.actions %}{% if action.status != 'unchanged' %}<li><a href="#comparison-action-{{ loop.index }}">{{ action.title }} — {{ action.status }}{% if action.reordered %} (order changed){% endif %}</a></li>{% endif %}{% endfor %}</ul>
+    </nav>
+    {{ compare_field(comparison.intention, 'comparison-intention') }}
+    {% for action in comparison.actions %}{% if action.status != 'unchanged' %}{{ compare_action(action, loop.index) }}{% endif %}{% endfor %}
+    {% if comparison.counts.unchanged %}
+    <details><summary>Unchanged actions ({{ comparison.counts.unchanged }})</summary>
+      {% for action in comparison.actions %}{% if action.status == 'unchanged' %}{{ compare_action(action, loop.index) }}{% endif %}{% endfor %}
+    </details>
+    {% endif %}
+    {% else %}<p class="notice error">Comparison unavailable: an immutable submission version is missing. A decision cannot be entered on this page.</p>{% endif %}
+    {% else %}
+    {% for version in view.submissions if version.version == view.effective_version %}<h2>Effective package</h2>{{ show_package(version.package) }}{% endfor %}
+    {% endif %}
+  </section>
+  <section data-workspace-region="amendments">
+    {% if a %}
+    {% if a.reason %}<h2>Decision reason</h2><div class="authored">{{ a.reason }}</div><p>{{ a.decided_by }} · {{ a.decided_at }}</p>{% endif %}
+    {% if view.editable and a.status == 'pending' and comparison %}
+    <h2>Decision</h2>
+    <p><a href="{{ selected_url }}&edit=decision-{{ a.id }}">Review amendment decision</a></p>
+    {% set raw_decision = raw.get('operation') == 'decide' and raw.get('amendment_id') == a.id|string %}
+    <form id="editor-decision-{{ a.id }}" class="editor{% if editor == 'decision-' ~ a.id %} is-selected{% endif %}" data-editor="decision-{{ a.id }}" data-workspace-form method="post" action="{{ endpoint }}">
+      {{ hidden('decide', view.submission_version) }}
+      <input type="hidden" name="amendment_id" value="{{ a.id }}">
+      <label>Decision<select aria-label="Decision" aria-describedby="error-decision-{{ a.id }}" name="decision">
+        <option value="accepted" {% if (raw_decision and raw.get('decision') != 'rejected') or (not raw_decision and (not attempted or attempted.decision != 'rejected')) %}selected{% endif %}>Accept</option>
+        <option value="rejected" {% if (raw_decision and raw.get('decision') == 'rejected') or (not raw_decision and attempted and attempted.decision == 'rejected') %}selected{% endif %}>Reject</option>
+      </select>{{ field_error('decision', 'decision-' ~ a.id) }}</label>
+      <label>Reason<textarea aria-label="Reason" aria-describedby="error-reason-{{ a.id }}" name="reason">{{ raw.get('reason') if raw_decision else (attempted.reason if attempted and attempted.amendment_id == a.id else '') }}</textarea>{{ field_error('reason', 'reason-' ~ a.id) }}</label>
+      <div class="button-row"><button>Record amendment decision</button><a href="{{ selected_url }}" data-cancel-editor>Cancel decision</a></div>
+    </form>
+    {% elif attempted or raw %}
+    <p>This decision is no longer available. Copy your attempted reason before leaving.</p>
+    <label>Retained reason<textarea readonly>{{ attempted.reason if attempted else raw.get('reason', '') }}</textarea></label>
+    {% endif %}
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

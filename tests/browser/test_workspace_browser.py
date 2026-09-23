@@ -1400,44 +1400,202 @@ def test_teammate_action_title_is_literal_in_cancel_confirmation(workspace_serve
         browser.close()
 
 
-def test_decision_validation_targets_its_own_form(workspace_server, world, monkeypatch):
-    from uuid import uuid4
+def test_decision_validation_targets_selected_amendment(workspace_server, world):
+    from test_workspace import review_history
 
-    from fastapi.templating import Jinja2Templates
-    from test_workspace import ready, run
-
-    ready(world)
-    run(world, "submit")
-    run(world, "amend", effective_version=1)
-    original_response = Jinja2Templates.TemplateResponse
-    extra_id = uuid4()
-
-    def multiple_decisions(self, *args, **kwargs):
-        # The service permits one pending amendment per submission. Exercise the
-        # reusable template with two pending entries without violating DB rules.
-        if kwargs.get("name") == "adjudicate.html":
-            view = kwargs["context"]["view"]
-            view.amendments.insert(0, view.amendments[0].model_copy(update={"id": extra_id}))
-        return original_response(self, *args, **kwargs)
-
-    monkeypatch.setattr(Jinja2Templates, "TemplateResponse", multiple_decisions)
+    rejected, pending = review_history(world)
     url, tokens = workspace_server
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = page_for(browser, url, tokens, "judge", True)
         page.goto(f"{url}/adjudicate?game_id={GAME}")
         forms = page.locator('form[data-editor^="decision-"]')
-        expect(forms).to_have_count(2)
+        expect(forms).to_have_count(1)
+        expect(forms).to_have_attribute("data-editor", f"decision-{pending}")
         for field in ("decision", "reason"):
-            references = forms.locator(f'[name="{field}"]').evaluate_all(
-                "fields => fields.map(field => field.getAttribute('aria-describedby'))"
+            reference = forms.locator(f'[name="{field}"]').get_attribute("aria-describedby")
+            expect(forms.locator(f'[id="{reference}"]')).to_have_count(1)
+        forms.get_by_label("Decision", exact=True).select_option("rejected")
+        forms.get_by_role("button", name="Record amendment decision").click()
+        expect(forms.get_by_role("heading", name="Please check your input")).to_be_visible()
+        expect(forms.locator('[id^="error-reason-"]')).not_to_be_empty()
+        expect(page.get_by_role("link", name="Version 2 — rejected")).to_be_visible()
+        expect(page.locator(f"#error-reason-{rejected}")).to_have_count(0)
+        browser.close()
+
+
+@pytest.mark.parametrize("javascript", [False, True])
+def test_review_complete_comparison_and_literal_rejection(workspace_server, world, javascript):
+    from sqlalchemy import select
+    from test_workspace import BODY, ready, run
+
+    from living_memory.workspace import DraftAction
+
+    ready(world)
+    run(world, "submit")
+    title = '<img src=x onerror="window.injected=1">Review title'
+    field = ("<script>window.injected=2</script>Replacement paragraph\n" * 120) + "LAST LINE"
+    reason = '<img src=x onerror="window.injected=3"><script>window.injected=4</script>'
+    with world[0].transaction() as session:
+        action_id = session.scalar(select(DraftAction.id))
+    run(world, "action", action_id=action_id, body={**BODY, "title": title, "description": field})
+    run(world, "amend", effective_version=1)
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "judge", javascript)
+        page.goto(f"{url}/adjudicate?game_id={GAME}")
+        expect(page.locator("#comparison-action-1-title")).to_contain_text(title)
+        expect(page.locator("#comparison-action-1-description")).to_contain_text(field)
+        expect(page.locator("#comparison-action-1-description")).to_contain_text(
+            BODY["description"]
+        )
+        expect(page.locator("#comparison-action-1-intent")).to_contain_text(BODY["intent"])
+        if not javascript:
+            page.get_by_role("link", name="Review amendment decision").click()
+        page.get_by_label("Reason", exact=True).fill(reason)
+        page.get_by_label("Decision", exact=True).select_option("rejected")
+        if javascript:
+            before = page.evaluate("JSON.stringify(sessionStorage)")
+            link = page.get_by_role("link", name="Description changed", exact=True)
+            link.focus()
+            page.keyboard.press("Enter")
+            expect(page.get_by_role("alertdialog")).to_have_count(0)
+            expect(page.get_by_label("Reason", exact=True)).to_have_value(reason)
+            assert page.evaluate("JSON.stringify(sessionStorage)") == before
+        page.set_viewport_size({"width": 390, "height": 844})
+        assert (
+            page.locator(".comparison-columns").first.evaluate(
+                "el => getComputedStyle(el).gridTemplateColumns.split(' ').length"
             )
-            assert len(set(references)) == 2
-            for index, reference in enumerate(references):
-                expect(forms.nth(index).locator(f'[id="{reference}"]')).to_have_count(1)
-        forms.nth(1).get_by_label("Decision", exact=True).select_option("rejected")
-        forms.nth(1).get_by_role("button", name="Record amendment decision").click()
-        expect(forms.nth(1).get_by_role("heading", name="Please check your input")).to_be_visible()
-        expect(forms.nth(1).locator('[id^="error-reason-"]')).not_to_be_empty()
-        expect(forms.nth(0).locator('[id^="error-reason-"]')).to_be_empty()
+            == 1
+        )
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+        page.get_by_role("button", name="Record amendment decision").click()
+        expect(page.get_by_text("Amendment decision recorded.", exact=True)).to_be_visible()
+        expect(page.locator('[data-workspace-region="amendments"]')).to_contain_text(reason)
+        expect(page.locator("[data-workspace] img, [data-workspace] script")).to_have_count(0)
+        assert page.evaluate("window.injected") is None
+        player = page_for(browser, url, tokens, "player", javascript)
+        player.goto(f"{url}/play?game_id={GAME}")
+        expect(player.locator('[data-workspace-region="rejection-notice"]')).to_contain_text(reason)
+        player.get_by_role("link", name="View rejected revision").click()
+        expect(player.locator("#submission-2")).to_have_attribute("open", "")
+        expect(player.locator("#submission-2")).to_contain_text(title)
+        expect(player.locator("[data-workspace] img, [data-workspace] script")).to_have_count(0)
+        assert player.evaluate("window.injected") is None
+        browser.close()
+
+
+def test_review_fragment_exception_keeps_other_navigation_guarded(workspace_server, world):
+    from test_workspace import review_history
+
+    review_history(world)
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "judge", True)
+        page.goto(f"{url}/adjudicate?game_id={GAME}")
+        page.get_by_label("Reason", exact=True).fill("Keep this unsaved reason")
+        page.get_by_role("link", name="Overall intention — changed").click()
+        expect(page.get_by_role("alertdialog")).to_have_count(0)
+        page.get_by_role("link", name="Version 2 — rejected").click()
+        expect(page.get_by_role("alertdialog", name="Unsaved changes")).to_be_visible()
+        page.get_by_role("button", name="Keep editing").click()
+        expect(page.get_by_label("Reason", exact=True)).to_have_value("Keep this unsaved reason")
+        page.get_by_role("link", name="Living Memory", exact=True).click()
+        expect(page.get_by_role("alertdialog", name="Unsaved changes")).to_be_visible()
+        page.get_by_role("button", name="Keep editing").click()
+        # Malformed/missing fragments must not throw or bypass the existing guard.
+        for fragment in ("#missing-target", "#%invalid"):
+            page.evaluate(
+                "hash => { const a = document.createElement('a'); a.href = hash; "
+                "a.textContent = 'Missing target'; a.id = 'missing-link'; "
+                "document.querySelector('main').append(a); }",
+                fragment,
+            )
+            page.get_by_role("link", name="Missing target", exact=True).click()
+            expect(page.get_by_role("alertdialog", name="Unsaved changes")).to_be_visible()
+            page.get_by_role("button", name="Keep editing").click()
+            page.locator("#missing-link").evaluate("el => el.remove()")
+        page.reload()
+        expect(page.get_by_label("Reason", exact=True)).to_have_value("Keep this unsaved reason")
+        browser.close()
+
+
+def test_review_lost_decision_response_retries_original_after_reload(workspace_server, world):
+    from sqlalchemy import func, select
+    from test_workspace import review_history
+
+    from living_memory.workspace import AmendmentDecision
+
+    _, pending = review_history(world)
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "judge", True)
+        page.goto(f"{url}/adjudicate?game_id={GAME}&amendment_id={pending}")
+        page.get_by_label("Reason", exact=True).fill("Once-only acceptance")
+        sent = []
+
+        def drop_response(route):
+            sent.append(route.request.post_data)
+            response = route.fetch()
+            assert response.status == 200
+            route.abort()
+
+        page.route("**/workspace/**/form", drop_response, times=1)
+        page.get_by_role("button", name="Record amendment decision").click()
+        expect(page.get_by_role("alert")).to_contain_text("Save outcome unknown")
+        page.reload()
+        expect(page.get_by_role("button", name="Retry original operation")).to_be_visible()
+        page.get_by_role("button", name="Retry original operation").click()
+        expect(page.get_by_text("Amendment decision recorded.", exact=True)).to_be_visible()
+        expect(page.locator('[data-workspace-region="amendments"]')).to_contain_text(
+            "Once-only acceptance"
+        )
+        with world[0].transaction() as session:
+            assert (
+                session.scalar(
+                    select(func.count())
+                    .select_from(AmendmentDecision)
+                    .where(AmendmentDecision.amendment_id == pending)
+                )
+                == 1
+            )
+        assert len(sent) == 1
+        expect(page.locator('[data-pending-recovery]')).to_have_count(0)
+        browser.close()
+
+
+def test_review_added_removed_and_unchanged_context(workspace_server, world):
+    from sqlalchemy import select
+    from test_workspace import BODY, ready, run
+
+    from living_memory.workspace import DraftAction
+
+    ready(world)
+    run(world, "action", body={**BODY, "title": "Unchanged context"})
+    run(world, "submit")
+    with world[0].transaction() as session:
+        removed = session.scalar(select(DraftAction.id).order_by(DraftAction.position))
+    run(world, "remove", action_id=removed)
+    run(world, "action", body={**BODY, "title": "Added inspection"})
+    run(world, "amend", effective_version=1)
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "judge", True)
+        page.goto(f"{url}/adjudicate?game_id={GAME}")
+        expect(page.get_by_text("1 added · 1 removed · 0 changed · 1 unchanged")).to_be_visible()
+        nav = page.get_by_role("navigation", name="Changed actions")
+        nav.get_by_role("link", name="Added inspection — added").click()
+        expect(page.locator("#comparison-action-2-title")).to_contain_text("(not present)")
+        nav.get_by_role("link", name=f"{BODY['title']} — removed").click()
+        expect(page.locator("#comparison-action-3-description")).to_contain_text(
+            BODY["description"]
+        )
+        expect(page.locator("#comparison-action-3-title")).to_contain_text("(not present)")
+        page.get_by_text("Unchanged actions (1)", exact=True).click()
+        expect(page.get_by_role("heading", name="Unchanged context — unchanged")).to_be_visible()
         browser.close()

@@ -460,3 +460,132 @@ def test_access_revoked_before_enhanced_error_render_is_confirmed_rejection(
         session.get(User, world[2]["player"]).active = True
     assert response.status_code == 401
     assert response.json()["outcome"] == "rejected"
+
+
+def test_review_selection_immutable_versions_and_scoped_links(world):
+    from test_workspace import review_history
+
+    rejected, pending = review_history(world)
+    judge = client_for(world, "judge")
+    run(world, "intention", overall_intention="UNSUBMITTED SECRET DRAFT")
+    path = f"/adjudicate?game_id={GAME}"
+    page = judge.get(path)
+    assert page.status_code == 200
+    assert "Version 3 proposed against version 1 — pending" in page.text
+    assert "Pending proposal" in page.text and "UNSUBMITTED SECRET DRAFT" not in page.text
+    assert "Rejected proposal" not in page.text
+    history = judge.get(f"{path}&amendment_id={rejected}")
+    assert "Rejected proposal" in history.text and "Pending proposal" not in history.text
+    assert 'name="decision"' not in history.text
+    assert "Preserved rejection reason" in history.text
+    assert judge.get(f"{path}&amendment_id={uuid4()}").status_code == 404
+    assert judge.get(f"{path}&team_id=team-1&amendment_id={pending}").status_code == 404
+    assert client_for(world).get(f"{path}&amendment_id={pending}").status_code == 404
+    player = client_for(world)
+    assert "revision=2#submission-2" in player.get(f"/play?game_id={GAME}").text
+    revision = player.get(f"/play?game_id={GAME}&revision=2")
+    assert re.search(r'<details id="submission-2"\s+open', revision.text)
+    assert player.get(f"/play?game_id={GAME}&revision=999").status_code == 404
+    assert client_for(world, "other").get(f"/play?game_id={GAME}&revision=2").status_code == 404
+
+
+def test_review_historical_owner_and_missing_immutable_version(world):
+    from living_memory.identity import User
+    from living_memory.workspace import SubmissionVersion
+
+    ready(world)
+    run(world, "submit")
+    run(world, "amend", effective_version=1)
+    with world[0].transaction() as session:
+        session.get(User, world[2]["teammate"]).active = False
+    judge = client_for(world, "judge")
+    page = judge.get(f"/adjudicate?game_id={GAME}")
+    assert "Teammate" in page.text and "Former teammate" not in page.text
+    # Proposed versions have no effective-version FK; simulate unsupported legacy corruption.
+    with world[0].transaction() as session:
+        session.delete(
+            session.scalar(select(SubmissionVersion).where(SubmissionVersion.version == 2))
+        )
+    page = judge.get(f"/adjudicate?game_id={GAME}")
+    assert "Comparison unavailable" in page.text
+    assert 'name="decision"' not in page.text
+
+
+@pytest.mark.parametrize("enhanced", [False, True])
+def test_decision_responses_preserve_selected_amendment(world, enhanced):
+    from test_workspace import review_history
+
+    from living_memory.workspace_service import get_submission
+
+    rejected, pending = review_history(world)
+    judge = client_for(world, "judge")
+    page = judge.get(f"/adjudicate?game_id={GAME}")
+    csrf = re.search(r'name="csrf_token" value="([^"]+)"', page.text)[1]
+    with world[0].transaction() as session:
+        version = get_submission(session, GAME, "team-0", 1).version
+    data = dict(
+        csrf_token=csrf,
+        operation="decide",
+        expected_version=version,
+        key=str(uuid4()),
+        amendment_id=str(pending),
+        decision="rejected",
+        reason="",
+    )
+    endpoint = f"/workspace/{GAME}/team-0/1/form"
+    headers = ENHANCED if enhanced else {}
+    response = judge.post(endpoint, data=data, headers=headers)
+    assert response.status_code == 422
+    html = response.json()["html"] if enhanced else response.text
+    assert "Version 3 proposed against version 1 — pending" in html
+    assert f'id="editor-decision-{pending}"' in html
+    data["reason"] = "Specific reason"
+    response = judge.post(endpoint, data=data, headers=headers, follow_redirects=False)
+    assert response.status_code == (200 if enhanced else 303)
+    target = response.json()["refresh"] if enhanced else response.headers["location"]
+    assert f"amendment_id={pending}" in target
+    replay = judge.post(endpoint, data=data, headers=headers, follow_redirects=False)
+    assert (replay.json()["refresh"] if enhanced else replay.headers["location"]) == target
+    assert "Specific reason" in judge.get(target).text
+    assert (
+        "Specific reason"
+        not in judge.get(f"/adjudicate?game_id={GAME}&amendment_id={rejected}").text
+    )
+
+
+def test_ordinary_stale_decision_keeps_attempted_reason(world):
+    from test_workspace import review_history, run
+
+    from living_memory.workspace_service import get_submission
+
+    _, pending = review_history(world)
+    judge = client_for(world, "judge")
+    page = judge.get(f"/adjudicate?game_id={GAME}")
+    csrf = re.search(r'name="csrf_token" value="([^"]+)"', page.text)[1]
+    with world[0].transaction() as session:
+        version = get_submission(session, GAME, "team-0", 1).version
+    run(
+        world,
+        "decide",
+        version,
+        who="judge",
+        amendment_id=pending,
+        decision="accepted",
+        reason="Already accepted",
+    )
+    response = judge.post(
+        f"/workspace/{GAME}/team-0/1/form",
+        data=dict(
+            csrf_token=csrf,
+            operation="decide",
+            expected_version=version,
+            key=str(uuid4()),
+            amendment_id=str(pending),
+            decision="rejected",
+            reason="My stale reason",
+        ),
+    )
+    assert response.status_code == 409
+    assert "Already accepted" in response.text and "My stale reason" in response.text
+    assert "<textarea readonly>My stale reason</textarea>" in response.text
+    assert 'name="decision"' not in response.text

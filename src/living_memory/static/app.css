@@ -53,3 +53,10 @@ dt { margin-top:var(--s2); font-weight:600; } dd { margin-left:0; }
 .record-meta { color:var(--muted); }
 .action { border-left:3px solid var(--accent); padding:.2rem var(--s4); margin:var(--s4) 0; }
 @media (max-width:40rem) { .app-shell,.context-bar,.destinations,main { padding-left:var(--s4); padding-right:var(--s4); } .app-shell { align-items:flex-start; } }
+
+.comparison-columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--s6); }
+.comparison-field { padding:var(--s3); margin:var(--s3) 0; border:1px solid var(--border); background:var(--surface); }
+.comparison-field.is-changed { border-left:4px solid var(--attention); }
+.comparison-field h5 { font-size:1rem; margin:0 0 var(--s2); }
+.comparison-field:target,article:target { outline:3px solid var(--focus); outline-offset:3px; }
+@media (max-width:50rem) { .comparison-columns { grid-template-columns:1fr; } }

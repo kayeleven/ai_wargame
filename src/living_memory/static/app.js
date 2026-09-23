@@ -10,7 +10,7 @@
   const editorId = form => form.dataset.editor;
   const commandScope = form => ["operation", "action_id", "amendment_id", "effective_version", "order"].map(name => form.elements.namedItem(name)?.value || "").join(":");
   const keyFor = form => `${prefix}${user()}:${workspace()?.dataset.workspace}:${editorId(form) || `command:${commandScope(form)}`}`;
-  const stateKey = form => `${keyFor(form)}:pending`;
+  const stateKey = form => form.dataset.recoveryState || `${keyFor(form)}:pending`;
   const unresolvedKey = () => `${prefix}${user()}:${workspace()?.dataset.workspace}:unresolved-command`;
 
   function read(key) { try { const stored = sessionStorage.getItem(key); return stored === null ? memory.get(key) || null : JSON.parse(stored); } catch { return memory.get(key) || null; } }
@@ -86,6 +86,7 @@
     const panel = document.createElement("section"); panel.className = "notice error"; panel.dataset.pendingRecovery = "true"; panel.setAttribute("role", "alert");
     const message = document.createElement("p"); message.textContent = `A previous ${String(frozen.operation).replaceAll("_", " ")} has an unknown outcome.`; panel.append(message);
     const form = document.createElement("form"); form.method = "post"; form.action = frozen.action; form.dataset.workspaceForm = "true"; form.dataset.packageCommand = "true"; form.dataset.pendingRecovery = "true"; form.dataset.pending = "true";
+    form.dataset.recoveryState = unresolved.state;
     for (const [name, value] of Object.entries(frozen.values)) { const input = document.createElement("input"); input.type = "hidden"; input.name = name; input.value = value; form.append(input); }
     const csrf = document.createElement("input"); csrf.type = "hidden"; csrf.name = "csrf_token"; csrf.value = document.querySelector('[name="csrf_token"]')?.value || ""; form.append(csrf);
     const button = document.createElement("button"); button.type = "submit"; button.textContent = "Retry original operation"; form.append(button); panel.append(form); document.querySelector("#workspace-status")?.after(panel);
@@ -280,6 +281,7 @@
       if (acknowledgedAuthoredKey !== keyFor(form)) erase(acknowledgedAuthoredKey);
       if (editorId(form)) acknowledgeEditor(form, frozen.authored, payload.committed_draft_version);
       form.querySelector("[data-conflict]")?.remove();
+      if (form.dataset.pendingRecovery) form.closest("section[data-pending-recovery]")?.remove();
       announce(payload?.message || success(frozen.operation)); await refresh(form, payload?.refresh || location.href);
     } catch { retainPending(form, frozen); form.dataset.pending = "true"; workspace().dataset.unresolved = "true"; announce("Save outcome unknown. Retry will use the exact original save; other saves are paused.", "notice error", true); }
     finally { workspace().dataset.inflight = ""; form.dataset.inflight = ""; form.removeAttribute("aria-busy"); form.querySelectorAll("button[type=submit],button:not([type])").forEach(button => { button.disabled = Boolean(form.querySelector("[data-unavailable-recovery]")); if (form.dataset.pending) button.textContent = "Retry save"; }); }
@@ -287,7 +289,13 @@
   document.addEventListener("input", event => { const form = event.target.closest("form[data-editor]"); if (form) mark(form); const admin = event.target.closest("form[data-admin-form]"); if (admin) markAdmin(admin); });
   document.addEventListener("change", event => { const form = event.target.closest("form[data-editor]"); if (form) mark(form); const admin = event.target.closest("form[data-admin-form]"); if (admin) markAdmin(admin); });
   document.addEventListener("submit", event => { const form = event.target; if (form.matches("[data-workspace-form]")) { event.preventDefault(); submit(form, Boolean(form.dataset.pending)); return; } if (form.matches("[data-admin-form]")) form.dataset.dirty = "false"; if (form.matches("[data-guard-navigation]") && dirtyEditors().length) { event.preventDefault(); choice(form, "Leaving will discard unsaved workspace changes.", () => { discardDirtyRecovery(); form.submit(); }); } });
-  document.addEventListener("click", event => { const cancel = event.target.closest("[data-cancel-editor]"); if (cancel) { const form = cancel.closest("form[data-editor]"); if (form?.dataset.dirty === "true") { event.preventDefault(); choice(cancel, `Discard unsaved changes in ${editorLabel(form)}?`, () => { discardToAuthoritative(form); form.querySelector("[data-conflict]")?.remove(); form.querySelector("textarea,input,select")?.focus(); }); } return; } const link = event.target.closest("a[href]"); if (link && (dirtyEditors().length || dirtyAdminForms().length) && !link.dataset.cancelEditor) { event.preventDefault(); choice(link, "Leaving will discard unsaved changes.", () => { discardDirtyRecovery(); location.href = link.href; }); } });
+  function isLocalFragment(link) {
+    const target = new URL(link.href, location.href);
+    if (!target.hash || target.origin !== location.origin || target.pathname !== location.pathname || target.search !== location.search) return false;
+    try { return Boolean(document.getElementById(decodeURIComponent(target.hash.slice(1)))); }
+    catch { return false; }
+  }
+  document.addEventListener("click", event => { const cancel = event.target.closest("[data-cancel-editor]"); if (cancel) { const form = cancel.closest("form[data-editor]"); if (form?.dataset.dirty === "true") { event.preventDefault(); choice(cancel, `Discard unsaved changes in ${editorLabel(form)}?`, () => { discardToAuthoritative(form); form.querySelector("[data-conflict]")?.remove(); form.querySelector("textarea,input,select")?.focus(); }); } return; } const link = event.target.closest("a[href]"); if (link && !isLocalFragment(link) && (dirtyEditors().length || dirtyAdminForms().length) && !link.dataset.cancelEditor) { event.preventDefault(); choice(link, "Leaving will discard unsaved changes.", () => { discardDirtyRecovery(); location.href = link.href; }); } });
   window.addEventListener("beforeunload", event => { if (dirtyEditors().length || dirtyAdminForms().length || workspace()?.dataset.unresolved === "true") { event.preventDefault(); event.returnValue = ""; } });
   document.querySelectorAll('form[action^="/admin"]:not([data-workspace-form])').forEach(form => { form.dataset.adminForm = "true"; form.dataset.baseline = JSON.stringify(formValues(form)); form.dataset.dirty = "false"; });
   clearForOtherUser(); initialize();
