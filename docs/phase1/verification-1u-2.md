@@ -273,3 +273,50 @@ an obsolete legacy-backup comment. No unresolved implementation findings. Migrat
 SHA-256: `80ff1c74684ed775de9bafea1c28c6c038ebeeff02fb35e3f4c3f827c82e10bf`.
 Non-test size is recorded in the PR description, including documentation.
 Owner review remains required before merge; this increment does not accept 1U-2.
+
+
+## PR 3a — Post-lock time, authorization and completed retries
+
+PR 2 merged as GitHub #4 (`db62970`). The pre-agreed size fallback is now active:
+combined PR 3 projected ~900 non-test changed lines; PR 3a projected ~405. This PR
+branches from master and targets master. No milestone branch exists yet; create it
+from master only after PR 3a merges. PR 3 must extend backup.py's expected history
+set for `immediate_revision`, including a backup → restore round trip with one present.
+
+### Boundary and intended changes
+
+No submission-policy, confirmation, player UI, schema or backup-format changes.
+Existing request fingerprints/results stay compatible. Completed authorized
+submit/amend/decide retries return their original result after later edits, turn
+advancement or completion. Fresh commands keep current-turn checks. Timestamps
+reflect post-lock server time; authority revoked while waiting causes denial.
+A replaced submitter's lost response cannot be recovered by their retry: existing
+recovery retains that original operation as unknown, rather than issuing a new key.
+
+### Verification
+
+- Service lock tests observe `pg_blocking_pids` before advancing a controlled clock.
+  No wall-clock deadline crossing is used. Coverage includes game, user, draft,
+  submission and amendment locks; both fresh and completed operations; cached users
+  and memberships; membership removal, submitter replacement, adjudicator removal
+  and deactivation. SQL lock/statement and harness waits are bounded.
+- Service replay tests cover submit/amend/decide after edits, turn advancement and
+  completion, mismatched-key content, rejection of fresh stale writes and concurrent
+  matching commands. History regression tests retain event/rollback checks.
+- Ordinary/enhanced HTTP replays preserve original results and original-turn refresh
+  destinations. A transaction retry reads a fresh clock value and leaves one event.
+- Browser recovery drops a committed submission response, then advances the turn or
+  replaces the submitter. Authorized replay clears pending state and refreshes turn 1;
+  replacement denial retains the original key and unknown-outcome recovery state.
+
+Full suite: **246 passed in 178.32s**, including browser coverage; two existing
+FastAPI/Starlette dependency deprecation warnings. Ruff, mypy (21 source files),
+offline lockfile and whitespace checks passed.
+
+Code review checked lock order, the post-lock clock read, fresh membership loading,
+authorization before replay, unchanged fingerprints/results, transactional uniqueness
+and rollback, and browser pending-state outcomes. No unresolved findings. No browser
+implementation changes were needed. Actual non-test size is recorded in the PR;
+it is below the ~405-line projection and the 800-line ceiling.
+
+Owner review is required; this PR does not satisfy the milestone acceptance gate.

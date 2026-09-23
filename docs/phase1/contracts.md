@@ -369,3 +369,28 @@ Migration 0006 validates named invariants before writing history and aborts atom
 with bounded identifier-only diagnostics if provenance cannot be established. It does
 not infer actors or timestamps, repair history, or skip rows. A populated downgrade is
 refused; rollback requires restoring the pre-upgrade backup with its matching application.
+
+
+### Post-lock commands and completed retries (1U-2 PR 3a)
+
+PR 3a makes **no submission-policy change**: late first submissions remain allowed,
+all revisions still require adjudicator decisions, and only the active current turn
+accepts new writes. It intentionally changes three observable results:
+
+- Completed `submit`, `amend` and `decide` retries after turn advancement, game
+  completion or later edits return the original stored result instead of a fresh
+  current-turn/version/status error. Authorization is checked first. Changed payloads
+  using the same key still conflict. Other editor operations retain their prior rules.
+- Command timestamps come from authoritative server time read after all mutation
+  locks, not from before a lock wait. Each transaction retry reads a fresh time.
+- Authority revoked during a lock wait causes denial, even if the session previously
+  loaded the user or membership. Locks retain game → sorted users ordering, followed
+  by draft, submission and the scoped amendment; authorization is rechecked afterward.
+
+A replaced submitter cannot retry even their own completed submission. If its response
+was lost, they cannot recover that result through their retry. The existing unknown-
+outcome recovery retains the exact original command and its key as unresolved after
+such a denial; it neither declares the original command failed nor starts a new write.
+An authorized enhanced replay instead returns `committed` and refreshes the original
+turn, clearing pending state even if that turn is now read-only. Existing request-key
+fingerprints, result formats, schema and backup compatibility remain unchanged.
