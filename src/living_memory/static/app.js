@@ -98,7 +98,8 @@
   function choice(anchor, message, discard) {
     document.querySelector("[data-inline-confirm]")?.remove();
     const box = document.createElement("section"); box.dataset.inlineConfirm = "true"; box.className = "notice"; box.tabIndex = -1; box.setAttribute("role", "alertdialog"); box.setAttribute("aria-modal", "true"); box.setAttribute("aria-label", "Unsaved changes");
-    box.innerHTML = `<p>${message}</p><div class="button-row"><button type="button" data-keep>Keep editing</button><button type="button" data-discard>Discard changes</button></div>`;
+    box.innerHTML = `<div class="button-row"><button type="button" data-keep>Keep editing</button><button type="button" data-discard>Discard changes</button></div>`;
+    const explanation = document.createElement("p"); explanation.textContent = message; box.prepend(explanation);
     anchor.after(box); const close = () => { box.remove(); anchor.focus(); };
     box.querySelector("[data-keep]").addEventListener("click", close); box.querySelector("[data-discard]").addEventListener("click", () => { box.remove(); discard(); });
     box.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); close(); } }); box.querySelector("[data-keep]").focus();

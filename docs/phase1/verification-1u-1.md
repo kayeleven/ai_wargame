@@ -190,3 +190,40 @@ Warning-label verification: the focused Chromium regression for independent dirt
 editors and submission blocking passed, including exact readable-label assertions
 for both the blocking warning and Cancel confirmation. Ruff and `git diff --check`
 passed; the browser run retained the two existing dependency deprecation warnings.
+
+### PR review corrections — 2026-09-23
+
+- Fixed stored HTML injection in Cancel confirmations introduced by readable action
+  labels. The dynamic message now uses a paragraph's `textContent`; only fixed
+  button markup uses `innerHTML`. A browser regression saves a teammate-authored
+  HTML/event-handler title and verifies literal text, no injected image or script
+  execution, and working Keep editing/Discard choices.
+- Scoped decision/reason error IDs and `aria-describedby` references to the amendment
+  ID. A browser regression renders two pending entries and verifies validation on
+  the second form leaves the first form's error empty. This is a synthetic template
+  case: the current service/database enforce one pending amendment per submission.
+  Existing ordinary-form and enhanced decision-validation tests also pass.
+- The owner's eight recovery-test failures exposed an undocumented host prerequisite:
+  `pg_dump` and `pg_restore` were absent from PATH. Setup now checks both executables,
+  and the development guide documents PostgreSQL 16 host clients, PATH configuration,
+  and why Compose/psycopg alone are insufficient. No recovery tests were skipped and
+  no backup/restore behavior was changed. The full-suite verification below uses the
+  previously prepared temporary PostgreSQL 16 tools; installing host clients remains
+  the persistent setup step for an unqualified `pytest` invocation.
+
+Verification after PR corrections:
+
+```text
+PATH=/tmp/lm-pg16-bin:$PATH LD_LIBRARY_PATH=/tmp/lm-pg16-bin .venv/bin/pytest -q
+166 passed, 2 warnings in 126.60s
+
+.venv/bin/ruff check .
+All checks passed!
+
+.venv/bin/mypy
+Success: no issues found in 20 source files
+```
+
+The two warnings remain the existing Starlette/httpx and AnyIO deprecations.
+`git diff --check` passed. Running setup without the temporary client PATH now
+fails immediately with both missing tool names and the development-guide location.

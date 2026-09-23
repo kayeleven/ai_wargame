@@ -1368,3 +1368,76 @@ def test_unknown_comment_retry_creates_one_durable_comment(workspace_server, wor
         with world[0].transaction() as session:
             assert session.scalar(select(func.count()).select_from(DraftComment)) == 1
         browser.close()
+
+
+def test_teammate_action_title_is_literal_in_cancel_confirmation(workspace_server, world):
+    from test_workspace import BODY, ready, run
+
+    ready(world)
+    payload = '<img src=x onerror="window.titleExecuted=true">'
+    with world[0].transaction() as session:
+        from living_memory.workspace_service import get_draft, package
+
+        action_id = package(session, get_draft(session, GAME, "team-0", 1)).actions[0].id
+    run(world, "action", who="teammate", action_id=action_id, body={**BODY, "title": payload})
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "player", True)
+        page.goto(f"{url}/play?game_id={GAME}")
+        action = page.get_by_role("region", name="Action 1")
+        action.get_by_label("Description", exact=True).fill("Unsaved text")
+        action.get_by_role("link", name="Cancel action edits").click()
+        dialog = page.get_by_role("alertdialog")
+        expect(dialog).to_contain_text(payload)
+        expect(dialog.locator("img")).to_have_count(0)
+        assert page.evaluate("window.titleExecuted === undefined")
+        dialog.get_by_role("button", name="Keep editing").click()
+        expect(action.get_by_label("Description", exact=True)).to_have_value("Unsaved text")
+        action.get_by_role("link", name="Cancel action edits").click()
+        page.get_by_role("button", name="Discard changes", exact=True).click()
+        expect(action.get_by_label("Description", exact=True)).to_have_value(BODY["description"])
+        browser.close()
+
+
+def test_decision_validation_targets_its_own_form(workspace_server, world, monkeypatch):
+    from uuid import uuid4
+
+    from fastapi.templating import Jinja2Templates
+    from test_workspace import ready, run
+
+    ready(world)
+    run(world, "submit")
+    run(world, "amend", effective_version=1)
+    original_response = Jinja2Templates.TemplateResponse
+    extra_id = uuid4()
+
+    def multiple_decisions(self, *args, **kwargs):
+        # The service permits one pending amendment per submission. Exercise the
+        # reusable template with two pending entries without violating DB rules.
+        if kwargs.get("name") == "adjudicate.html":
+            view = kwargs["context"]["view"]
+            view.amendments.insert(0, view.amendments[0].model_copy(update={"id": extra_id}))
+        return original_response(self, *args, **kwargs)
+
+    monkeypatch.setattr(Jinja2Templates, "TemplateResponse", multiple_decisions)
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "judge", True)
+        page.goto(f"{url}/adjudicate?game_id={GAME}")
+        forms = page.locator('form[data-editor^="decision-"]')
+        expect(forms).to_have_count(2)
+        for field in ("decision", "reason"):
+            references = forms.locator(f'[name="{field}"]').evaluate_all(
+                "fields => fields.map(field => field.getAttribute('aria-describedby'))"
+            )
+            assert len(set(references)) == 2
+            for index, reference in enumerate(references):
+                expect(forms.nth(index).locator(f'[id="{reference}"]')).to_have_count(1)
+        forms.nth(1).get_by_label("Decision", exact=True).select_option("rejected")
+        forms.nth(1).get_by_role("button", name="Record amendment decision").click()
+        expect(forms.nth(1).get_by_role("heading", name="Please check your input")).to_be_visible()
+        expect(forms.nth(1).locator('[id^="error-reason-"]')).not_to_be_empty()
+        expect(forms.nth(0).locator('[id^="error-reason-"]')).to_be_empty()
+        browser.close()

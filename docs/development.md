@@ -67,9 +67,33 @@ to the server-resolved root branch. No framework tables receive workspace writes
 
 ## Fresh checkout
 
-Install Make, Python 3.12, uv, Docker Engine, and Compose v2 through your normal host
-administration process. Docker must be running and accessible to your account.
+Install Make, Python 3.12, uv, Docker Engine, Compose v2, and PostgreSQL 16 client
+tools (`pg_dump` and `pg_restore`) through your normal host administration process. Docker must be running and accessible to your account.
 Setup reports missing prerequisites and never installs them.
+
+Recovery tests run PostgreSQL client tools on the **host**. Having them inside the
+Compose container, or installing Python's psycopg package, does not put them on the
+host's `PATH`. Install the PostgreSQL 16 client package for your OS, then check:
+
+```sh
+pg_dump --version
+pg_restore --version
+```
+
+Both should report PostgreSQL 16 for the supported Compose setup. If installed in
+`/usr/lib/postgresql/16/bin`, expose that directory before running setup or tests:
+
+```sh
+export PATH="/usr/lib/postgresql/16/bin:$PATH"
+make setup
+uv run --locked pytest -q
+```
+
+A missing `pg_dump` produces `FileNotFoundError` in recovery tests (or a subprocess
+failure in the old-schema archive test). Do not skip those tests to obtain a passing
+suite. The temporary `/tmp/lm-pg16-bin` tools mentioned in historical verification
+records are not a persistent checkout prerequisite or a substitute for installing
+the host client tools.
 
 1. Run `make setup` to check prerequisites and synchronize `uv.lock`.
 2. Copy `.env.example` to `.env`. Generate the session secret using the command
@@ -97,7 +121,7 @@ bundles/update drills are Phase 3A work, full deployment qualification Phase 5.
 
 | Command | Behavior |
 | --- | --- |
-| `make setup` | Check Python, uv, Docker and Compose; sync locked dependencies. |
+| `make setup` | Check Python, uv, Docker, Compose and PostgreSQL client tools; sync locked dependencies. |
 | `make db-up` | Start PostgreSQL, wait for its health check; bind 127.0.0.1:5432. |
 | `make migrate` | Explicitly upgrade to Alembic head; repeating is safe. |
 | `make seed` | Validate and stage both manifest packages and declared files; repeating is a no-op. |
