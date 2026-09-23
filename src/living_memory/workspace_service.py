@@ -20,6 +20,7 @@ from living_memory.workspace import (
     DraftAction,
     DraftComment,
     DraftRevision,
+    EffectiveVersionEvent,
     PackageRevision,
     Submission,
     SubmissionVersion,
@@ -332,6 +333,17 @@ def execute(
             )
         )
         if command.decision == "accepted":
+            session.flush()  # Persist the decision before its provenance FK is inserted.
+            session.add(
+                EffectiveVersionEvent(
+                    submission_id=submission.id,
+                    version=amendment.version,
+                    mechanism="adjudicator_acceptance",
+                    responsible_user_id=user_id,
+                    effective_at=now,
+                    source_decision_id=UUID(result_id),
+                )
+            )
             submission.effective_version = amendment.version
         submission.status, submission.updated_at = "submitted", now
         submission.version += 1
@@ -425,6 +437,16 @@ def execute(
                 )
             )
             session.flush()
+            if content_version == 1:
+                session.add(
+                    EffectiveVersionEvent(
+                        submission_id=submission.id,
+                        version=1,
+                        mechanism="initial",
+                        responsible_user_id=user_id,
+                        effective_at=now,
+                    )
+                )
             for a in snapshot.actions:
                 session.add(
                     SubmittedAction(

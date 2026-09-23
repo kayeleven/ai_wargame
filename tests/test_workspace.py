@@ -30,6 +30,7 @@ from living_memory.workspace import (
     Draft,
     DraftAction,
     DraftComment,
+    EffectiveVersionEvent,
     IdempotencyConflict,
     PackageRevision,
     RequestKey,
@@ -144,6 +145,7 @@ def counts(db):
                 Amendment,
                 AmendmentDecision,
                 DraftComment,
+                EffectiveVersionEvent,
             )
         )
 
@@ -433,6 +435,8 @@ def test_concurrent_mutations_are_atomic(world, scenario):
                 assert (
                     versions[0].snapshot["overall_intention"] == "  A careful overall intention\n"
                 )
+    if scenario in {"submits", "edit_submit", "decisions"}:
+        backup._verify_domain(db)  # Concurrent winners have exactly their source-derived events.
     if scenario == "decisions":
         assert after[8] == before[8] + 1
 
@@ -502,7 +506,7 @@ def test_backup_same_head_old_version_rejected_and_roundtrip(world, tmp_path, mo
     path = tmp_path / "workspace.dump"
     backup.create_backup(db.engine.url.render_as_string(hide_password=False), path)
     manifest = backup.verify_backup(path)
-    assert manifest.application_version == "0.3.0" and manifest.schema_heads == ["0005"]
+    assert manifest.application_version == "0.4.0" and manifest.schema_heads == ["0006"]
     sidecar = path.with_suffix(".dump.json")
     original = sidecar.read_text()
     old = json.loads(original)

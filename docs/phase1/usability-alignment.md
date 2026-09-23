@@ -217,6 +217,9 @@ not replace dirty DOM regions or reset list/confirmation state indiscriminately.
 
 ### 1U-4 — Consolidate accounts and participant placement
 
+Effective-version provenance makes referenced users permanent: account management
+must deactivate these users rather than delete them (see contracts.md).
+
 **Prerequisite:** 1U-3 accepted; bulk transaction semantics and draft-team contract
 defined in this milestone's implementation plan.
 

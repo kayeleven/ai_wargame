@@ -23,9 +23,9 @@ from living_memory.db import Database, DevelopmentArtifact, migration_config, re
 from living_memory.identity import AuthSession, revoke_all_sessions_after_restore
 from living_memory.memory import Dataset, RebuildState
 
-# 0005 was revised in place for 1D-1. Exact application-version matching rejects
-# archives from the previous 0005/0.2.0 baseline before any restore operation.
-APP_VERSION = "0.3.0"
+# Exact compatibility: older archives must be restored by their matching app
+# before the preserving migration is run. Never rewrite archive manifests.
+APP_VERSION = "0.4.0"
 
 
 @dataclass(frozen=True)
@@ -258,6 +258,7 @@ def _domain_inventory_session(db_session: Session) -> dict[str, Any]:
         DraftAction,
         DraftComment,
         DraftRevision,
+        EffectiveVersionEvent,
         PackageRevision,
         RequestKey,
         Rfi,
@@ -282,6 +283,7 @@ def _domain_inventory_session(db_session: Session) -> dict[str, Any]:
         "memory_datasets": Dataset,
         "sessions": AuthSession,
         "submissions": Submission,
+        "effective_version_events": EffectiveVersionEvent,
         "coordination_participants": CoordinationParticipant,
         "package_revisions": PackageRevision,
         "request_keys": RequestKey,
@@ -322,12 +324,48 @@ def _domain_inventory_session(db_session: Session) -> dict[str, Any]:
     return {"counts": counts, "staged_packages": packages}
 
 
+def _verify_effective_history(session: Session) -> None:
+    # Compare provenance as well as counts. No immediate-revision writer exists
+    # in 0.4.0; its backup contract will accompany that policy in the later PR.
+    mismatch = session.scalar(
+        text("""
+        WITH expected AS (
+            SELECT submission_id,version,'initial' AS mechanism,submitted_by AS actor,
+                   created_at AS at,NULL::uuid AS decision
+            FROM ws_submission_version WHERE version=1
+            UNION ALL
+            SELECT a.submission_id,a.version,'adjudicator_acceptance',d.adjudicator_user_id,
+                   d.created_at,d.id
+            FROM ws_amendment a JOIN ws_amendment_decision d ON d.amendment_id=a.id
+            WHERE a.status='accepted' AND d.decision='accepted'
+        )
+        SELECT EXISTS (
+            SELECT 1 FROM expected x FULL JOIN ws_effective_version_event e
+              USING (submission_id,version)
+            WHERE x.submission_id IS NULL OR e.submission_id IS NULL OR
+              (x.mechanism,x.actor,x.at,x.decision) IS DISTINCT FROM
+              (e.mechanism,e.responsible_user_id,e.effective_at,e.source_decision_id)
+            UNION ALL
+            SELECT 1 FROM ws_submission s WHERE s.effective_version IS DISTINCT FROM
+              (SELECT max(version) FROM ws_effective_version_event e WHERE e.submission_id=s.id)
+            UNION ALL
+            SELECT 1 FROM ws_amendment a LEFT JOIN ws_amendment_decision d ON d.amendment_id=a.id
+            WHERE (a.status='pending' AND d.id IS NOT NULL)
+               OR (a.status<>'pending' AND (d.id IS NULL OR d.decision<>a.status))
+        )
+    """)
+    )
+    if mismatch:
+        raise ValueError("restored effective-version provenance is incomplete or inconsistent")
+
+
 def _verify_domain(database: Database) -> dict[str, Any]:
     if not database.schema_ready():
         raise ValueError("restored Alembic heads do not match the application")
     from living_memory.administration import ConfigurationRevision, ScenarioConfiguration
 
     with database.transaction() as db_session:
+        _verify_effective_history(db_session)
         for revision in db_session.scalars(select(ConfigurationRevision)):
             ScenarioConfiguration.model_validate(revision.configuration)
         duplicate_artifacts = db_session.execute(
@@ -381,7 +419,7 @@ def restore_backup(database_url: str, archive: Path) -> int:
                     )
                     with database.transaction() as session:
                         revoked = revoke_all_sessions_after_restore(session, datetime.now(UTC))
-                    # Keep this legacy inventory shape unchanged for 0004 archives.
+                    # Compare the inventory for this exact schema/application version.
                     restored_inventory = _verify_domain(database)
                     if restored_inventory != manifest.domain_inventory:
                         raise ValueError("Restored inventory differs from the backup manifest")

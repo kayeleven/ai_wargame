@@ -26,8 +26,8 @@ LEGACY_COMMIT = "0b781de949e999f36358079ee361f7f1ded5893d"
 
 
 @pytest.fixture
-def target_factory(trade):
-    db, settings, _ = trade
+def target_factory(database):
+    db, settings = database
     container = os.environ.get("LM_TEST_DB_CONTAINER", "living_memory-db-1")
     created = []
 

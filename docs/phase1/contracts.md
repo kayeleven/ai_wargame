@@ -346,3 +346,26 @@ submission is allowed with the governing deadline snapshotted.
 The disposable 0005 baseline is revised in place for application version 0.3.0.
 Exact backup-version verification rejects old 0005/0.2.0 archives before restore.
 See [1D-1 verification](verification-1d-1.md) for evidence and limitations.
+
+### Effective-version provenance (1U-2 delivery PR 2)
+
+Schema 0006 records one append-only event for each effective content version.
+Initial events retain version 1's submitter and creation time. Adjudicator acceptance
+retains the decision ID, adjudicator and decision time. Rejection and pending proposals
+create no event. Event ordering follows content-version numbers, including gaps for
+rejected revisions; tied timestamps do not determine order. Recording is transactional
+with the existing command; a matching replay creates no event. `immediate_revision`
+is reserved, with no writer or policy change in this increment.
+
+UPDATE and DELETE are rejected. RESTRICT foreign keys retain the referenced content,
+decision and responsible user: **provenance makes these rows permanent**. Submission
+and game deletion (including the game's workspace cascade) therefore fails when it
+would erase this history. Referenced users must be deactivated, not deleted. An audit
+of application code, CLI, seed and development scripts found no game, submission or
+user deletion path; current deletions revoke roles/memberships. Disposable test cleanup
+uses TRUNCATE; there is deliberately no TRUNCATE guard or special reset exception.
+
+Migration 0006 validates named invariants before writing history and aborts atomically
+with bounded identifier-only diagnostics if provenance cannot be established. It does
+not infer actors or timestamps, repair history, or skip rows. A populated downgrade is
+refused; rollback requires restoring the pre-upgrade backup with its matching application.
