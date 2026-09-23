@@ -713,3 +713,29 @@ def test_deadline_snapshot_survives_a_later_governing_configuration(world):
         sub = get_submission(s, GAME, "team-0", 1)
         assert sub.deadline == original_deadline
         assert sub.submitted_at > sub.deadline
+
+
+def review_history(world):
+    """Real rejected history followed by one pending amendment, for web/browser checks."""
+    ready(world)
+    run(world, "submit")
+    run(world, "intention", overall_intention="Rejected proposal")
+    run(world, "amend", effective_version=1)
+    with world[0].transaction() as session:
+        rejected = session.scalar(select(Amendment))
+        rejected_id = rejected.id
+        version = get_submission(session, GAME, "team-0", 1).version
+    run(
+        world,
+        "decide",
+        version,
+        who="judge",
+        amendment_id=rejected_id,
+        decision="rejected",
+        reason="Preserved rejection reason",
+    )
+    run(world, "intention", overall_intention="Pending proposal")
+    run(world, "amend", effective_version=1)
+    with world[0].transaction() as session:
+        pending_id = session.scalar(select(Amendment.id).where(Amendment.status == "pending"))
+    return rejected_id, pending_id

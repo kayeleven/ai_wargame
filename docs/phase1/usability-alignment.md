@@ -1,7 +1,7 @@
 # 1U — Phase 1 usability alignment
 
-Created 2026-09-21. Status: proposed delivery plan; no 1U implementation or
-acceptance is claimed. This document is the entry point for remediation sessions.
+Created 2026-09-21. Delivery status is recorded per milestone below.
+This document is the entry point for remediation sessions.
 
 ## Purpose and authoritative references
 
@@ -35,7 +35,7 @@ this document without the intermediate reviews.
 | Milestone | Outcome | Status | Verification |
 | --- | --- | --- | --- |
 | 1U-1 | Protected input, shared navigation and fixture recovery | Accepted | [Verification](verification-1u-1.md) |
-| 1U-2 | Coherent submission/revision and dedicated amendment review | Proposed | Not yet produced |
+| 1U-2 | Coherent submission/revision and dedicated amendment review | Implementing (PR 1 only) | [Verification](verification-1u-2.md) |
 | 1U-3 | Practical action volume and safe automatic saved updates | Proposed | Not yet produced |
 | 1U-4 | Account management and participant placement | Proposed | Not yet produced |
 | 1U-5 | Guided configuration and activation | Proposed | Not yet produced |
@@ -126,6 +126,68 @@ and deadline semantics, not by adding a turn lock or banning late first submissi
 
 **Dependency risk:** Ship service policy, history, confirmation/retry behavior and
 their presentation together. A UI-only milestone cannot satisfy this gate.
+
+#### Agreed 1U-2 PR delivery sequence — 2026-09-23
+
+One milestone, one accumulating [verification record](verification-1u-2.md) and
+one owner acceptance gate. PR numbers below are delivery labels, not GitHub numbers.
+Every PR gets a code review pass, fixes on that PR, and owner verification/approval
+before merge. Do not automatically merge implementation PRs.
+
+| Increment | Target | Deliverable and explicit boundary |
+| --- | --- | --- |
+| Macro prerequisite | `master` | Pure move of shared template macros; existing tests green. [GitHub #2](https://github.com/kayeleven/ai_wargame/pull/2) merged by owner. No behavior changes. |
+| PR 1: dedicated amendment review | `master` | Immutable base/proposed comparisons, changed-action navigation, complete field comparisons and existing decision recovery. Player changes only a revision link and visible rejection reason. No policy, schema, confirmation or full player-state changes. |
+| PR 2: effective-version history | `master` | New migration after 0005; append-only mechanism/user/time records; preserving backfill from first submissions and accepted decisions; transactional events for existing initial/acceptance paths. Backup compatibility and upgrade/restore docs. No policy, confirmation or UI changes. |
+| PR 3: B-18 service policy | `milestone/1u-2` | Post-lock authoritative time/authorization, authorized replay before re-evaluation, expected effective version/deadline/consequence, no-write/no-key-claim `confirmation_required`, immediate versus approval-required revisions, immediate-revision events and pending-submission blocking. No player lifecycle UI. |
+| PR 4: player lifecycle | `milestone/1u-2` | Deliberate revision entry preserving saved draft changes; states, package review/confirmation, Submit revision wording, ordinary/enhanced forms, frozen uncertain commands, renewed confirmation and replay-accurate feedback. No extra policy, migration or automatic teammate refresh. |
+| Milestone PR | `milestone/1u-2` → `master` | Integrated regression/walkthrough evidence and final verification record; owner acceptance before merge and before 1U-3. |
+
+Create `milestone/1u-2` from master after PRs 1–2 merge. While PRs 3–4 are open,
+merge master changes into it promptly; review and test conflict resolutions on the
+open PRs so the milestone PR contains no unreviewed resolution. Preparatory PRs 1–2
+can merge independently of the milestone gate. The new policy reaches master only
+with history, confirmation/recovery and presentation together through the milestone PR.
+
+**Size:** aim for about 400–800 non-test changed lines per implementation PR,
+counting additions plus deletions, including documentation. Project size before
+starting and monitor actual changes. If a PR will exceed about 800 lines, stop and
+propose a further split before continuing. Do not compress code to meet the limit.
+The smaller pure-move prerequisite is exempt from the lower guideline.
+
+**Pre-agreed PR 3 fallback:** if PR 3 exceeds the guideline, flag it and extract
+PR 3a to master: read authoritative time after locks, recheck authorization after
+locks and recognize completed matching retries before re-evaluation on existing
+submit/amend/decide paths. Keep it behavior-preserving hardening. PR 3 retains B-18
+policy, extended command expectations and `confirmation_required`; do not re-plan
+the sequence from scratch. Bring the merged hardening into the milestone branch.
+
+**PR 1 sizing decisions:** extract macros first (done); defer word-level highlighting.
+Changed-field markers with complete original/proposed values satisfy this increment.
+Do not introduce `TextSegment` until needed. Size the comparison model only for
+amendment review; generalize for draft/effective comparisons in PR 4 if needed.
+Comparison content is server-rendered and template-escaped; no new authored-content
+`innerHTML` path. Reverify 1U-1 navigation protection when adding fragment navigation.
+
+**Required evidence by increment:**
+
+- PR 1: pure comparison tests; immutable/scoped HTTP reads; ordinary/enhanced decisions,
+  validation/conflicts/retries; literal HTML-like title/field/reason content; keyboard,
+  narrow layout and retained dirty-navigation checks. Create the verification file on master.
+- PR 2: populated migration histories with accepted, rejected and pending amendments;
+  traceable events, abort-with-diagnostics on unsupported history, no invented events,
+  append-only enforcement, transaction/retry integrity and backup/restore round trip.
+  Before merge, also run the upgrade against a restored copy of the current development
+  database and record results. Never migrate the original as the dry run.
+- PR 3: service and HTTP coverage before/at/after deadline, including a real lock wait
+  across it; changed authority/expectations, stale versions, pending draft editing,
+  zero writes/key claims on renewed confirmation and replay before deadline evaluation.
+- PR 4: browser lifecycle/recovery coverage in enhanced and ordinary forms plus keyboard,
+  feedback and narrow-screen walkthrough. Preserve 1U-1 guarantees.
+- Milestone PR: full relevant regressions, lint/type checks and unaided cross-role
+  submission/rejection/correction/acceptance walkthrough including both deadline paths.
+  Append evidence in each PR; finalize the same record at the gate. Separate automated
+  results from human acceptance and retain the no-JavaScript reload limitation.
 
 ### 1U-3 — Support realistic action volume and collaboration
 

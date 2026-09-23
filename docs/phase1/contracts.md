@@ -289,6 +289,34 @@ Internal identifiers are not presentation labels. Recovery
 storage is scoped by signed-in user and workspace; unavailable browser storage degrades
 to in-page retention with a visible warning.
 
+### 1U-2 PR 1 amendment review and local navigation
+
+Adjudicator comparisons read the selected amendment's immutable base and proposed
+submission versions within the authorized game/team/turn. Current drafts and later
+effective versions never substitute for these sources. Missing source versions
+produce an unavailable comparison and no decision control. Decision commands,
+authorization and original-key reconciliation retain the 1U-1 contract.
+
+`/adjudicate` accepts an optional scoped `amendment_id`; absent selection chooses
+the pending amendment, otherwise the latest amendment. `/play` accepts an optional
+scoped submitted `revision`, opening its disclosure. Unknown or foreign selections
+return not found. Decision errors and refresh destinations retain the attempted
+amendment; these presentation URLs do not modify persisted command results.
+
+The player rejection notice follows the newest completed amendment decision. Show
+it when the newest amendment is rejected, and retain that rejection's reason/link
+while a later correction is pending. A later acceptance clears the notice; starting
+another pending revision after that acceptance must not resurrect an older rejection.
+A new rejection replaces the earlier notice. Historical decisions/reasons remain
+accessible regardless of whether the notice is shown.
+
+The 1U-1 dirty-navigation contract now permits same-document fragment links to an
+existing element when origin, path and query match. This only moves within the
+page: editor DOM, authored text, baselines and recovery storage are retained.
+Other destinations and missing/malformed fragment targets retain the existing
+warning; reload and Cancel protection are unchanged. The consuming PR must rerun
+and record the affected 1U-1 browser checks in the 1U-2 verification record.
+
 ## 1D-1 implementation boundary
 
 The amendment-only lifecycle below records the delivered 1D-1 implementation.

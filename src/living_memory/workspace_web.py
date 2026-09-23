@@ -14,6 +14,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
 
 from living_memory.administration import AdminGame, governing_configuration
+from living_memory.amendment_review import compare_amendment
 from living_memory.config import Settings
 from living_memory.db import Database, run_retryable
 from living_memory.forms import csrf_token
@@ -65,6 +66,8 @@ class AmendmentView(BaseModel):
     base_version: int
     status: str
     reason: str | None
+    decided_by: str | None = None
+    decided_at: datetime | None = None
 
 
 class WorkspaceView(BaseModel):
@@ -90,6 +93,7 @@ class WorkspaceView(BaseModel):
     submission_status: str | None = None
     submitted_at: datetime | None = None
     deadline: datetime | None = None
+    historical_owners: dict[UUID, str] = {}
 
 
 ENHANCED_MEDIA_TYPE = "application/vnd.living-memory.workspace+json"
@@ -447,6 +451,8 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                             base_version=a.base_version,
                             status=a.status,
                             reason=decision.reason if decision else None,
+                            decided_by=name(decision.adjudicator_user_id) if decision else None,
+                            decided_at=decision.created_at if decision else None,
                         )
                     )
             return WorkspaceView(
@@ -472,6 +478,14 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                 submission_status=submission.status if submission else None,
                 submitted_at=submission.submitted_at if submission else None,
                 deadline=submission.deadline if submission else None,
+                historical_owners={
+                    u.id: u.display_name for u in session.scalars(
+                        select(User).where(User.id.in_({
+                            a.owner_user_id for v in versions for a in v.package.actions
+                            if a.owner_user_id
+                        }))
+                    )
+                } if review else {},
             )
 
     def render(
@@ -498,11 +512,54 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
             selected_editor = _editor_identity(attempted)
         if selected_editor is None and raw is not None:
             selected_editor = _editor_identity(raw)
+        selected_amendment = None
+        comparison = None
+        revision = request.query_params.get("revision") if not review else None
+        if revision is not None and revision not in {str(v.version) for v in view.submissions}:
+            raise HTTPException(404, "Not found")
+        if review:
+            requested = request.query_params.get("amendment_id")
+            # POST errors belong to the attempted decision, not a stale URL selection.
+            if attempted is not None:
+                requested = str(attempted.amendment_id)
+            elif raw and raw.get("amendment_id") in {str(a.id) for a in view.amendments}:
+                requested = str(raw["amendment_id"])
+            elif requested is None and selected_editor and selected_editor.startswith("decision-"):
+                requested = selected_editor.removeprefix("decision-")
+            if requested is not None:
+                selected_amendment = next(
+                    (a for a in view.amendments if str(a.id) == requested), None
+                )
+                if selected_amendment is None:
+                    raise HTTPException(404, "Not found")
+            else:
+                selected_amendment = next(
+                    (a for a in view.amendments if a.status == "pending"),
+                    view.amendments[0] if view.amendments else None,
+                )
+            if selected_amendment:
+                versions = {v.version: v.package for v in view.submissions}
+                base = versions.get(selected_amendment.base_version)
+                proposed = versions.get(selected_amendment.version)
+                if base is not None and proposed is not None:
+                    comparison = compare_amendment(
+                        selected_amendment.id, selected_amendment.base_version,
+                        selected_amendment.version, base, proposed, view.historical_owners,
+                    )
+        # A pending correction does not supersede the latest completed decision.
+        latest_decision = next((a for a in view.amendments if a.status != "pending"), None)
         return templates.TemplateResponse(
             request=request,
             name="adjudicate.html" if review else "play.html",
             context={
                 "view": view,
+                "selected_amendment": selected_amendment,
+                "comparison": comparison,
+                "selected_revision": int(revision) if revision else None,
+                "latest_rejection": (
+                    latest_decision if latest_decision and latest_decision.status == "rejected"
+                    else None
+                ),
                 "shell": shell_context(request, db, settings),
                 "csrf": csrf_token(request),
                 "new_key": lambda: str(uuid4()),
@@ -564,6 +621,8 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
         uid = identity(request)
         review = command.operation == "decide"
         refresh = _refresh_url(game_id, team_id, turn, review)
+        if review:
+            refresh += f"&amendment_id={command.amendment_id}"
 
         def work() -> dict[str, Any]:
             with db.transaction() as session:
@@ -743,7 +802,7 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                     "operation": command.operation,
                     "key": str(command.key),
                     "editor": result.get("editor"),
-                    "refresh": result["redirect"],
+                    "refresh": refresh if review else result["redirect"],
                     "committed_draft_version": result.get("committed_draft_version"),
                 },
                 media_type=ENHANCED_MEDIA_TYPE,
@@ -752,9 +811,8 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                     "Vary": "Accept, X-Workspace-Enhanced",
                 },
             )
-        return RedirectResponse(
-            f"{result['redirect']}&saved={command.operation}", status_code=303
-        )
+        destination = refresh if review else result["redirect"]
+        return RedirectResponse(f"{destination}&saved={command.operation}", status_code=303)
 
     @router.post("/workspace/{game_id}/{team_id}/{turn}/form")
     async def form(request: Request, game_id: str, team_id: str, turn: int) -> Response:
