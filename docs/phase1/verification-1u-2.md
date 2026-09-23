@@ -1,6 +1,6 @@
 # Phase 1U-2 verification
 
-Status: **PR 1 awaiting owner review; overall milestone still implementing**. The full milestone is
+Status: **PR 1 owner-approved; full-suite merge condition satisfied; milestone still implementing**. The full milestone is
 not delivered or accepted. The agreed PR sequence, boundaries and gates are in
 [usability alignment](usability-alignment.md#agreed-1u-2-pr-delivery-sequence--2026-09-23).
 Append later PR evidence here; finalize this same record at the milestone gate.
@@ -16,7 +16,7 @@ Ruff/mypy and diff whitespace checks passed. Code review found no remaining issu
 
 Implementation: [GitHub PR #3](https://github.com/kayeleven/ai_wargame/pull/3).
 Targets master independently of the milestone acceptance gate. No submission policy
-or schema change. Non-test diff: 594 lines (additions plus deletions, including docs).
+or schema change. Non-test diff: 638 lines (additions plus deletions, including docs).
 
 - Dedicated adjudicator page selects pending or historical amendments. Comparisons
   use immutable base/proposed submission versions, never current drafts or later
@@ -114,10 +114,9 @@ is a reduced-viewport check, not a claimed manual browser-zoom or screen-reader 
 Temporary screenshots are under `/tmp/lm-1u2-review-evidence`; they are not durable
 repository evidence. Permanent automated coverage is in the tests listed above.
 
-Owner review remains required: enter review from Home, inspect changed and unchanged
-content, reject with a reason, follow the player's revision link, and check keyboard,
-200% browser zoom and narrow-screen behavior. PR 1 may merge after owner approval;
-it does not authorize implementation/acceptance claims for the later PRs.
+The owner subsequently completed the walkthrough, keyboard, 200% browser zoom and
+narrow-screen checks recorded below. Approval applies to PR 1 only; it does not
+constitute acceptance of the later PRs or the overall 1U-2 milestone.
 
 ## Later increments
 
@@ -139,8 +138,8 @@ Added web regressions cover rejected → pending, rejected → accepted → pend
 replacement by a new rejection and comparison summaries with no actions. Comparison
 summaries now omit zero counts; the added/removed-action browser check was updated.
 Code review checked descending amendment ordering, pending handling and historical
-reason retention. Owner manual walkthrough and 200% zoom remain pending; the owner
-will perform and record them.
+reason retention. The subsequent owner walkthrough and 200% zoom results are
+recorded below.
 
 Correction verification: **30 passed, 2 existing warnings in 31.13s**: all tests in
 `tests/test_workspace_web.py`, plus the browser tests
@@ -185,3 +184,13 @@ two concurrent adjudicator sessions (covered by automated tests only).
 
 PR 1 approved for merge to master: [yes], subject to a full-suite rerun after the
 rejection-notice correction. This approves PR 1 only, not 1U-2 milestone acceptance.
+
+### Merge-condition verification
+
+After the rejection-notice correction, the required full-suite rerun passed:
+**183 passed, 2 existing dependency deprecation warnings in 140.07s**. Ruff passed,
+mypy passed for 21 source files, and diff whitespace checks passed. This satisfies
+the owner's recorded full-suite condition for merging PR 1. The owner's manual
+observations above are preserved as supplied, including unfilled environment details.
+The next increment is PR 2 (effective-version history and preserving backfill);
+the 1U-2 milestone acceptance gate remains open.
