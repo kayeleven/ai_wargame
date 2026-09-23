@@ -14,8 +14,9 @@ Ruff/mypy and diff whitespace checks passed. Code review found no remaining issu
 
 ## PR 1 — dedicated amendment review
 
-Implementation PR: link to be recorded when opened. Targets master independently
-of the milestone acceptance gate. No submission policy or schema change.
+Implementation: [GitHub PR #3](https://github.com/kayeleven/ai_wargame/pull/3).
+Targets master independently of the milestone acceptance gate. No submission policy
+or schema change. Non-test diff: 557 lines (additions plus deletions, including docs).
 
 - Dedicated adjudicator page selects pending or historical amendments. Comparisons
   use immutable base/proposed submission versions, never current drafts or later
