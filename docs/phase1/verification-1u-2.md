@@ -150,3 +150,38 @@ Correction verification: **30 passed, 2 existing warnings in 31.13s**: all tests
 `test_rejected_decision_survives_validation` (including ordinary/enhanced variants).
 Ruff, mypy (21 source files) and diff whitespace checks passed. The earlier 179-test
 full-suite result above predates this correction; the affected suite was rerun here.
+
+## PR 1 owner manual review
+
+Reviewer: project owner · Date: 2026-09-23 · Environment: [browser + version], [OS],
+local development server against [database name].
+
+Automated results are recorded above; this section records manual observations only.
+
+| # | Check | Result | Observations |
+|---|---|---|---|
+| 1 | Player proposes amendment; adjudicator sees it and its changes | Pass | |
+| 2 | Adjudicator rejects with reason; player sees rejection and reason after re-login | Pass | |
+| 3 | "View rejected revision" link opens the rejected submitted version | [Pass] | Scrolls to Submitted packages; prior version shown as effective. [Rejected version expanded] |
+| 4 | Mixed comparison: changed, unchanged, added/removed, cleared field | [Pass] | |
+| 5 | Unsaved reason kept on same-page link; warning on other amendment | [Pass] | |
+| 6 | Correction pending keeps notice; acceptance clears it; new version effective | [Pass] | |
+| 7 | Entry from Home; pending count updates after decision | [Pass] | |
+| 8 | Keyboard-only navigation | Pass | Tab order effective through navigation, comparison and decision controls. |
+| 9 | 200% browser zoom | Pass | Content remains readable. |
+| 10 | Narrow window: Original/Proposed stack | [Pass] | |
+
+Not checked manually: screen reader; no-JavaScript fallback; stale decision from
+two concurrent adjudicator sessions (covered by automated tests only).
+
+### Findings and follow-ups
+
+- No blocking findings.
+- UX follow-up for PR 4 (UX-50): after a rejection, the player's revision link shows
+  the submitted versions but offers no next action. Players need a clear route to
+  correct the draft and resubmit. Out of scope for PR 1 by design.
+
+### Decision
+
+PR 1 approved for merge to master: [yes], subject to a full-suite rerun after the
+rejection-notice correction. This approves PR 1 only, not 1U-2 milestone acceptance.
