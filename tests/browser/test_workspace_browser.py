@@ -1587,7 +1587,7 @@ def test_review_added_removed_and_unchanged_context(workspace_server, world):
         browser = p.chromium.launch()
         page = page_for(browser, url, tokens, "judge", True)
         page.goto(f"{url}/adjudicate?game_id={GAME}")
-        expect(page.get_by_text("1 added · 1 removed · 0 changed · 1 unchanged")).to_be_visible()
+        expect(page.get_by_text("1 added · 1 removed · 1 unchanged")).to_be_visible()
         nav = page.get_by_role("navigation", name="Changed actions")
         nav.get_by_role("link", name="Added inspection — added").click()
         expect(page.locator("#comparison-action-2-title")).to_contain_text("(not present)")

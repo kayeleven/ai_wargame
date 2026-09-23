@@ -589,3 +589,70 @@ def test_ordinary_stale_decision_keeps_attempted_reason(world):
     assert "Already accepted" in response.text and "My stale reason" in response.text
     assert "<textarea readonly>My stale reason</textarea>" in response.text
     assert 'name="decision"' not in response.text
+
+
+def test_rejected_then_pending_retains_rejection_notice(world):
+    from test_workspace import review_history
+
+    review_history(world)  # Revision 2 rejected; correction 3 pending.
+    page = client_for(world).get(f"/play?game_id={GAME}")
+    notice = re.search(r'<section data-workspace-region="rejection-notice">(.*?)</section>',
+                       page.text, re.DOTALL)[1]
+    assert "Revision 2 rejected" in notice
+    assert "Preserved rejection reason" in notice
+    assert "revision=2#submission-2" in notice
+    assert "amendment_pending" in page.text
+
+
+def test_rejected_then_accepted_clears_notice_without_erasing_history(world):
+    from test_workspace import review_history
+
+    from living_memory.workspace_service import get_submission
+
+    _, pending = review_history(world)
+    with world[0].transaction() as session:
+        version = get_submission(session, GAME, "team-0", 1).version
+    run(world, "decide", version, who="judge", amendment_id=pending,
+        decision="accepted", reason="Correction accepted")
+    player = client_for(world)
+    page = player.get(f"/play?game_id={GAME}")
+    assert "View rejected revision" not in page.text
+    assert "Revision 2 rejected" not in page.text
+    assert "Preserved rejection reason" in page.text
+    assert "Correction accepted" in page.text
+    assert 'Effective version 3' in page.text
+    # A further pending revision must not revive the superseded rejection.
+    run(world, "amend", effective_version=3)
+    page = player.get(f"/play?game_id={GAME}")
+    assert "amendment_pending" in page.text
+    assert "View rejected revision" not in page.text
+    assert "Preserved rejection reason" in page.text
+
+
+def test_new_rejection_replaces_previous_notice(world):
+    from test_workspace import review_history
+
+    from living_memory.workspace_service import get_submission
+
+    _, pending = review_history(world)
+    with world[0].transaction() as session:
+        version = get_submission(session, GAME, "team-0", 1).version
+    run(world, "decide", version, who="judge", amendment_id=pending,
+        decision="rejected", reason="Updated reason for correction")
+    page = client_for(world).get(f"/play?game_id={GAME}")
+    notice = re.search(r'<section data-workspace-region="rejection-notice">(.*?)</section>',
+                       page.text, re.DOTALL)[1]
+    assert "Revision 3 rejected" in notice
+    assert "Updated reason for correction" in notice
+    assert "Preserved rejection reason" not in notice
+    assert "revision=3#submission-3" in notice
+
+
+def test_comparison_summary_omits_zero_counts_and_handles_empty_packages(world):
+    run(world, "intention", overall_intention="Intention without actions")
+    run(world, "submit")
+    run(world, "amend", effective_version=1)
+    page = client_for(world, "judge").get(f"/adjudicate?game_id={GAME}")
+    assert "No actions in either version." in page.text
+    for label in ("added", "removed", "changed", "unchanged"):
+        assert f"0 {label}" not in page.text

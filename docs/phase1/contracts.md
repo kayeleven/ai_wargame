@@ -303,6 +303,13 @@ scoped submitted `revision`, opening its disclosure. Unknown or foreign selectio
 return not found. Decision errors and refresh destinations retain the attempted
 amendment; these presentation URLs do not modify persisted command results.
 
+The player rejection notice follows the newest completed amendment decision. Show
+it when the newest amendment is rejected, and retain that rejection's reason/link
+while a later correction is pending. A later acceptance clears the notice; starting
+another pending revision after that acceptance must not resurrect an older rejection.
+A new rejection replaces the earlier notice. Historical decisions/reasons remain
+accessible regardless of whether the notice is shown.
+
 The 1U-1 dirty-navigation contract now permits same-document fragment links to an
 existing element when origin, path and query match. This only moves within the
 page: editor DOM, authored text, baselines and recovery storage are retained.

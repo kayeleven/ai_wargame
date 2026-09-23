@@ -76,7 +76,7 @@
     <h2>Version {{ a.version }} proposed against version {{ a.base_version }} — {{ a.status }}</h2>
     {% if comparison %}
     <p>Original: version {{ comparison.base_version }} · Proposed: version {{ comparison.proposed_version }}</p>
-    <p>{% for status, count in comparison.counts.items() %}{{ count }} {{ status }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+    <p>{% for status, count in comparison.counts.items() if count %}{{ count }} {{ status }}{% if not loop.last %} · {% endif %}{% else %}No actions in either version.{% endfor %}</p>
     <nav aria-label="Changed actions">
       <a href="#comparison-intention">Overall intention — {{ 'changed' if comparison.intention.changed else 'unchanged' }}</a>
       <ul>{% for action in comparison.actions %}{% if action.status != 'unchanged' %}<li><a href="#comparison-action-{{ loop.index }}">{{ action.title }} — {{ action.status }}{% if action.reordered %} (order changed){% endif %}</a></li>{% endif %}{% endfor %}</ul>

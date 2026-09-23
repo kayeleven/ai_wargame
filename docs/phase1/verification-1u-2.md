@@ -16,7 +16,7 @@ Ruff/mypy and diff whitespace checks passed. Code review found no remaining issu
 
 Implementation: [GitHub PR #3](https://github.com/kayeleven/ai_wargame/pull/3).
 Targets master independently of the milestone acceptance gate. No submission policy
-or schema change. Non-test diff: 557 lines (additions plus deletions, including docs).
+or schema change. Non-test diff: 594 lines (additions plus deletions, including docs).
 
 - Dedicated adjudicator page selects pending or historical amendments. Comparisons
   use immutable base/proposed submission versions, never current drafts or later
@@ -28,8 +28,10 @@ or schema change. Non-test diff: 557 lines (additions plus deletions, including 
   and a general-purpose comparison abstraction are deliberately deferred.
 - Existing accept/reject commands, required reasons, validation, stale-decision
   handling and request-key rules remain. Errors/refresh retain the selected amendment.
-- Player additions are restricted to the latest rejection reason and a link opening
-  its submitted revision. Earlier reasons remain in the existing history.
+- Player additions are restricted to the latest completed decision when rejected,
+  with its reason and submitted-revision link. It remains visible during a pending
+  correction, clears on acceptance, and never resurrects an older rejection after
+  an acceptance. Earlier reasons remain in the existing history.
 - Same-document fragment navigation retains unsaved input and recovery storage.
   Other navigation, reload, Cancel and sign-out keep existing protection.
 - Comparison/rejection content is server-rendered and template-escaped. The JS diff
@@ -65,7 +67,7 @@ remain for later PRs, so UX-38/43–46/50/51 are not collectively closed here.
   stable editor/refresh identities, existing command semantics, recovery and scope.
   The orphaned-decision retry finding above was fixed on this branch; no remaining
   actionable findings from that review. This is not an independent owner review.
-- Final full suite: **179 passed, 2 warnings in 137.43s**. Includes every named
+- Pre-owner-review full suite: **179 passed, 2 warnings in 137.43s**. Includes every named
   1U-1 navigation check below. Ruff passed; mypy passed for 21 source files;
   `git diff --check` passed. Warnings are the existing Starlette/httpx and AnyIO
   deprecations, not new failures.
@@ -123,3 +125,28 @@ PR 2 must append synthetic migration/backup evidence and an upgrade dry run agai
 a restored copy of the current development database before merge. PRs 3–4 append
 service/HTTP/browser evidence on the milestone branch, incorporating master changes
 promptly. The milestone PR finalizes end-to-end evidence and records owner acceptance.
+
+## PR 1 owner review correction — rejection notice
+
+The owner reported the rest of PR #3 passed review, with one required fix: a
+rejected revision's notice remained after a later acceptance. The notice now
+follows the latest completed amendment decision. Explicit pending rule: retain a
+rejection while a later correction is pending; acceptance clears it, including
+when another revision subsequently becomes pending. A new rejection replaces the
+old notice. The rule is recorded in contracts.md and history is preserved.
+
+Added web regressions cover rejected → pending, rejected → accepted → pending,
+replacement by a new rejection and comparison summaries with no actions. Comparison
+summaries now omit zero counts; the added/removed-action browser check was updated.
+Code review checked descending amendment ordering, pending handling and historical
+reason retention. Owner manual walkthrough and 200% zoom remain pending; the owner
+will perform and record them.
+
+Correction verification: **30 passed, 2 existing warnings in 31.13s**: all tests in
+`tests/test_workspace_web.py`, plus the browser tests
+`test_review_complete_comparison_and_literal_rejection`,
+`test_review_added_removed_and_unchanged_context`,
+`test_shared_conflict_and_amendment_decision` and
+`test_rejected_decision_survives_validation` (including ordinary/enhanced variants).
+Ruff, mypy (21 source files) and diff whitespace checks passed. The earlier 179-test
+full-suite result above predates this correction; the affected suite was rerun here.
