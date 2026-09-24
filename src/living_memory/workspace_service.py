@@ -140,7 +140,7 @@ class Conflict(WorkspaceConflict):
         self.base, self.current, self.submitted = base, current, submitted
 
 
-def _package_at_version(session: Session, draft: Draft | None, version: int) -> Package:
+def package_at_version(session: Session, draft: Draft | None, version: int) -> Package:
     """Return an existing immutable draft snapshot; never invent missing history."""
     if version == 0:
         return Package()
@@ -155,6 +155,11 @@ def _package_at_version(session: Session, draft: Draft | None, version: int) -> 
     if revision is None:
         raise Conflict(None, package(session, draft).model_dump(mode="json"), {"version": version})
     return Package.model_validate(revision.snapshot)
+
+
+def submission_snapshot(value: Package) -> Package:
+    """Project a draft package to the exact live content persisted on submission."""
+    return value.model_copy(update={"actions": [a for a in value.actions if not a.removed]})
 
 
 def _action_scope(value: Package, action_id: UUID) -> dict[str, Any] | None:
@@ -175,7 +180,7 @@ def _check_command_baseline(
     version = draft.version if draft else 0
     if command.expected_version == version:
         return
-    base = _package_at_version(session, draft, command.expected_version)
+    base = package_at_version(session, draft, command.expected_version)
     if command.operation == "intention":
         if base.overall_intention == current.overall_intention:
             return
@@ -446,9 +451,7 @@ def execute(
             session.flush()
         if command.operation in {"submit", "amend"}:
             current.validate_submission()
-            snapshot = current.model_copy(
-                update={"actions": [a for a in current.actions if not a.removed]}
-            )
+            snapshot = submission_snapshot(current)
             if submission is None:
                 deadline = next(
                     t.submission_deadline

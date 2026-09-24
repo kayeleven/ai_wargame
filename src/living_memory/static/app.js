@@ -287,8 +287,9 @@
         document.querySelector("[data-submission-confirmation]")?.remove();
         document.querySelector("#workspace-status").after(document.importNode(panel, true));
         initialize();
-        announce("Confirm the submission consequence before continuing.");
-        document.querySelector("[data-submission-confirmation]").focus();
+        const confirmation = document.querySelector("[data-submission-confirmation]");
+        announce(confirmation?.querySelector("[data-confirmation-announcement]")?.textContent.trim() || "Confirm the submission consequence before continuing.");
+        confirmation?.focus();
         return;
       }
       if (kind === "conflict") {

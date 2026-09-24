@@ -689,3 +689,60 @@ checks also passed: legacy rejection/immediate-revision HTTP case (1 test) and
 current/historical/completed overview visibility in both browser modes (2 tests).
 Project and Codex-tooling Ruff, mypy (21 source files), Jinja parsing and whitespace
 checks passed. No JavaScript or CSS changed in this correction.
+
+## PR 4b — Exact package review and renewed-confirmation explanation
+
+This increment follows the independently verified PR 4a and targets `milestone/1u-2`.
+Its pre-implementation estimate was 690 non-test changed lines, including docs.
+Confirmation reviews the exact immutable saved draft after the shared live-action
+submission projection, with a complete comparison against the effective version
+named by the server's expectations. Removed actions appear only as comparison context,
+not as content that will be submitted. Existing amendment review shares the escaped
+comparison rendering and retains its immutable sources.
+
+The PR 3.2 owner finding is addressed in both ordinary and enhanced forms: a renewed
+prompt describes what changed since the previous prompt, says nothing was submitted
+by this attempt, and requires confirmation again. It handles effective version,
+deadline, consequence and late status changes, while distinguishing initial review.
+Workspace deadline hints remain advisory rules; confirmation remains authoritative.
+
+Final full suite: **324 passed, 2 existing dependency deprecation warnings in
+247.62s**, including PostgreSQL, backup/restore and Chromium. Focused regressions
+cover actual reviewed template content equal to the committed snapshot with a
+removed action, immutable draft read races, every expectation change and equivalent
+timezone instants. Both browser modes cover first/revision deadline crossing,
+no submission on renewal, explicit second confirmation, pending/effective state,
+keyboard focus/live feedback, literal authored content and 375px comparison layout.
+
+Ruff (project and Codex tooling), mypy (21 source files) and whitespace checks passed.
+Jinja templates render in the tests; Chromium exercises the changed JavaScript.
+Node is unavailable, so there is no standalone JavaScript lint result. No CSS changed.
+Actual non-test additions plus deletions, including documentation: **396 lines**.
+
+After the full run, independent review found position captions still used generic
+Original/Proposed labels in confirmation. The shared macro now uses the configured
+version labels while preserving adjudication defaults. The affected browser flow
+passed again in both modes (**2 tests**); repository lint/type checks were repeated.
+
+### Owner walkthrough — pending
+
+Automated evidence must be recorded separately; these are human acceptance checks.
+Run both enhanced and ordinary forms, with keyboard navigation and a 375px viewport.
+
+1. Review a first submission and a revision containing added, changed, reordered and
+   removed actions. Check complete fields, cleared values, ownership and unchanged
+   context. Confirm the reviewed package contains only live actions in submitted order.
+2. Open the page and confirmation before the deadline, then confirm after it. Verify
+   the renewed prompt explains the changed consequence/late status, says nothing was
+   submitted and requires another confirmation. Confirm again and check pending state.
+3. Inspect other changed expectations and distinguish a changed deadline value from
+   time passing. Review a late first submission; it must still be effective immediately.
+4. Change the saved draft during review and verify conflict recovery never submits a
+   newer package silently. Check keyboard focus, announced feedback, long replacements,
+   literal HTML-like content and narrow-screen comparison readability.
+5. Lose a confirmation or committed response, reload and retry explicitly. Verify the
+   original command is reconciled, its original success meaning is retained across
+   the deadline, and no duplicate submission appears. Recheck dirty input protection.
+
+Owner and screen-reader acceptance remain pending until separately recorded. The
+no-JavaScript application-controlled dirty warning on reload remains unavailable.

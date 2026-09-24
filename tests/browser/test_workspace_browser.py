@@ -9,12 +9,14 @@ import time
 import pytest
 import uvicorn
 from playwright.sync_api import expect, sync_playwright
+from sqlalchemy import select
 from test_admin_database import database  # noqa: F401
 from test_workspace import GAME, NOW, world  # noqa: F401
 
 from living_memory.app import create_app
 from living_memory.clocks import FixedClock
 from living_memory.identity import issue_session
+from living_memory.workspace import DraftAction
 
 pytestmark = pytest.mark.browser
 
@@ -1990,6 +1992,166 @@ def test_confirmation_409_is_not_a_conflict_and_clears_recovery(
             "Unsaved after prompt"
         )
         assert counts(world[0]) == before
+        browser.close()
+
+
+@pytest.mark.parametrize("javascript", [False, True])
+@pytest.mark.parametrize("revision", [False, True])
+def test_deadline_crossing_renews_confirmation_without_submission(
+    workspace_server, world, monkeypatch, javascript, revision
+):
+    """A prompt rendered before the deadline cannot silently commit after it."""
+    from datetime import timedelta
+
+    from sqlalchemy import func, select
+    from test_workspace import ready
+
+    from living_memory.workspace import Amendment, Submission, SubmissionVersion
+
+    ready(world)
+    if revision:
+        from test_workspace import run
+
+        run(world, "submit")
+        with world[0].transaction() as session:
+            saved_revision = session.scalar(select(SubmissionVersion.version))
+        assert saved_revision == 1
+    monkeypatch.setattr(FixedClock, "now", lambda self: NOW.replace(hour=0) - timedelta(seconds=1))
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "player", javascript)
+        page.set_viewport_size({"width": 375, "height": 700})
+        page.goto(f"{url}/play?game_id={GAME}")
+        if revision:
+            page.get_by_role("link", name="Revise saved draft", exact=True).click()
+            page.get_by_role("button", name="Submit revision", exact=True).click()
+        else:
+            page.get_by_role("button", name="Submit turn package", exact=True).click()
+        panel = page.locator("[data-submission-confirmation]")
+        expect(panel).to_be_visible()
+        first_key = panel.locator('[name="key"]').input_value()
+        monkeypatch.setattr(
+            FixedClock, "now", lambda self: NOW.replace(hour=0) + timedelta(seconds=1)
+        )
+        confirm = panel.get_by_role("button", name="Confirm submission", exact=True)
+        confirm.focus()
+        page.keyboard.press("Enter")
+        renewed = page.locator("[data-submission-confirmation]")
+        announcement = page.locator("[data-confirmation-announcement]")
+        expect(renewed.get_by_role("heading", name="Confirm submission again")).to_be_visible()
+        expect(announcement).to_contain_text("The deadline passed while you were confirming.")
+        if revision:
+            expect(announcement).to_contain_text(
+                "The consequence changed from revisions that take effect immediately "
+                "to revisions that require adjudicator acceptance."
+            )
+        expect(announcement).to_contain_text("Nothing was submitted by this attempt.")
+        expect(announcement).to_contain_text("Confirming again is required.")
+        expect(renewed.locator('[name="key"]')).not_to_have_value(first_key)
+        if javascript:
+            expect(renewed).to_be_focused()
+            expect(page.locator("#workspace-status")).to_contain_text(
+                "The deadline passed while you were confirming."
+            )
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+        with world[0].transaction() as session:
+            assert session.scalar(select(func.count()).select_from(SubmissionVersion)) == (
+                1 if revision else 0
+            )
+        renewed.get_by_role("button", name="Confirm submission", exact=True).click()
+        if revision:
+            expect(
+                page.get_by_text("Effective version 1 · Amendment pending.", exact=True)
+            ).to_be_visible()
+        else:
+            expect(page.get_by_text("Turn package submitted.", exact=True)).to_be_visible()
+        with world[0].transaction() as session:
+            assert session.scalar(select(func.count()).select_from(SubmissionVersion)) == (
+                2 if revision else 1
+            )
+            if revision:
+                submission = session.scalar(select(Submission))
+                assert submission.effective_version == 1
+                assert session.scalar(select(Amendment.status)) == "pending"
+        browser.close()
+
+
+@pytest.mark.parametrize("javascript", [False, True])
+def test_confirmation_review_shows_live_package_and_removed_effective_action(
+    workspace_server, world, javascript
+):
+    from test_workspace import BODY, ready, run
+
+    ready(world)
+    run(world, "submit")
+    literal = "<img src=x onerror=alert(1)>"
+    long_description = ("A long reviewed action description. " * 30) + literal
+    run(
+        world,
+        "action",
+        body={**BODY, "title": "Live reviewed action", "description": long_description},
+    )
+    with world[0].transaction() as session:
+        removed = session.scalar(select(DraftAction.id).order_by(DraftAction.position))
+    run(world, "remove", action_id=removed)
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "player", javascript)
+        judge = page_for(browser, url, tokens, "judge", javascript)
+        page.set_viewport_size({"width": 375, "height": 700})
+        page.goto(f"{url}/play?game_id={GAME}")
+        page.get_by_role("link", name="Revise saved draft", exact=True).click()
+        page.get_by_role("button", name="Submit revision", exact=True).click()
+        reviewed = page.locator("[data-reviewed-package]")
+        expect(reviewed).to_contain_text("Live reviewed action")
+        expect(reviewed).to_contain_text(literal)
+        expect(reviewed).not_to_contain_text(BODY["title"])
+        expect(page.locator("img")).to_have_count(0)
+        expect(
+            page.get_by_role("heading", name=f"{BODY['title']} — removed", exact=True)
+        ).to_be_visible()
+        expect(
+            page.get_by_role("heading", name="Live reviewed action — added", exact=True)
+        ).to_be_visible()
+        expect(
+            page.get_by_text(
+                re.compile(
+                    r"Effective version 1 position: 1 · "
+                    r"Saved draft revision \d+ position: Not present"
+                )
+            )
+        ).to_be_visible()
+        expect(
+            page.get_by_text(
+                re.compile(
+                    r"Effective version 1 position: Not present · "
+                    r"Saved draft revision \d+ position: 1"
+                )
+            )
+        ).to_be_visible()
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+        page.get_by_role("button", name="Confirm submission", exact=True).click()
+        expect(
+            page.get_by_text("Amendment proposed for adjudicator review.", exact=True)
+        ).to_be_visible()
+        expect(
+            page.get_by_text("Effective version 1 · Amendment pending.", exact=True)
+        ).to_be_visible()
+        judge.goto(f"{url}/adjudicate?game_id={GAME}")
+        if not javascript:
+            judge.get_by_role("link", name="Review amendment decision", exact=True).click()
+        expect(
+            judge.get_by_text(
+                "Original position: 1 · Proposed position: Not present", exact=True
+            )
+        ).to_be_visible()
+        expect(
+            judge.get_by_text(
+                "Original position: Not present · Proposed position: 1", exact=True
+            )
+        ).to_be_visible()
         browser.close()
 
 
