@@ -25,7 +25,7 @@ from living_memory.memory import Dataset, RebuildState
 
 # Exact compatibility: older archives must be restored by their matching app
 # before the preserving migration is run. Never rewrite archive manifests.
-APP_VERSION = "0.4.0"
+APP_VERSION = "0.5.0"
 
 
 @dataclass(frozen=True)
@@ -325,8 +325,7 @@ def _domain_inventory_session(db_session: Session) -> dict[str, Any]:
 
 
 def _verify_effective_history(session: Session) -> None:
-    # Compare provenance as well as counts. No immediate-revision writer exists
-    # in 0.4.0; its backup contract will accompany that policy in the later PR.
+    # Derive provenance from immutable content and decisions, not the events themselves.
     mismatch = session.scalar(
         text("""
         WITH expected AS (
@@ -338,6 +337,13 @@ def _verify_effective_history(session: Session) -> None:
                    d.created_at,d.id
             FROM ws_amendment a JOIN ws_amendment_decision d ON d.amendment_id=a.id
             WHERE a.status='accepted' AND d.decision='accepted'
+            UNION ALL
+            SELECT v.submission_id,v.version,'immediate_revision',v.submitted_by,
+                   v.created_at,NULL::uuid
+            FROM ws_submission_version v
+            WHERE v.version>1 AND NOT EXISTS (
+                SELECT 1 FROM ws_amendment a
+                WHERE a.submission_id=v.submission_id AND a.version=v.version)
         )
         SELECT EXISTS (
             SELECT 1 FROM expected x FULL JOIN ws_effective_version_event e
@@ -345,6 +351,14 @@ def _verify_effective_history(session: Session) -> None:
             WHERE x.submission_id IS NULL OR e.submission_id IS NULL OR
               (x.mechanism,x.actor,x.at,x.decision) IS DISTINCT FROM
               (e.mechanism,e.responsible_user_id,e.effective_at,e.source_decision_id)
+            UNION ALL
+            SELECT 1 FROM ws_submission_version GROUP BY submission_id
+            HAVING min(version)<>1 OR max(version)<>count(*)
+            UNION ALL
+            SELECT 1 FROM ws_effective_version_event e
+            JOIN ws_submission s ON s.id=e.submission_id
+            WHERE e.mechanism='immediate_revision'
+              AND (e.source_decision_id IS NOT NULL OR e.effective_at>=s.deadline)
             UNION ALL
             SELECT 1 FROM ws_submission s WHERE s.effective_version IS DISTINCT FROM
               (SELECT max(version) FROM ws_effective_version_event e WHERE e.submission_id=s.id)

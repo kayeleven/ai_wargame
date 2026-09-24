@@ -103,7 +103,8 @@ SUCCESS_MESSAGES = {
     "action": "Action saved.",
     "comment": "Comment added.",
     "submit": "Turn package submitted.",
-    "amend": "Amendment proposed.",
+    "amend": "Amendment proposed for adjudicator review.",
+    "immediate_revision": "Revision is now effective.",
     "remove": "Action removed.",
     "reorder": "Action order updated.",
     "decide": "Amendment decision recorded.",
@@ -847,6 +848,12 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                 field_errors=errors,
                 status=422,
             )
+        saved: str = command.operation
+        if (
+            saved == "amend"
+            and result.get("completion", {}).get("expected_consequence") == "immediate"
+        ):
+            saved = "immediate_revision"
         if _enhanced(request) or (
             command.operation in {"submit", "amend"}
             and request.headers.get("content-type", "").startswith("application/json")
@@ -854,6 +861,10 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
             return JSONResponse(
                 {
                     "outcome": "committed",
+                    **(
+                        {"saved": saved, "message": SUCCESS_MESSAGES[saved]}
+                        if command.operation == "amend" else {}
+                    ),
                     "operation": command.operation,
                     "key": str(command.key),
                     "editor": result.get("editor"),
@@ -868,7 +879,7 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                 },
             )
         destination = refresh if review else result["redirect"]
-        return RedirectResponse(f"{destination}&saved={command.operation}", status_code=303)
+        return RedirectResponse(f"{destination}&saved={saved}", status_code=303)
 
     @router.post("/workspace/{game_id}/{team_id}/{turn}/form")
     async def form(request: Request, game_id: str, team_id: str, turn: int) -> Response:

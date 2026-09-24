@@ -124,11 +124,12 @@ def confirmation_for(
             if t.number == turn
         )
     )
-    # PR 3.1 deliberately retains the current amendment-only revision policy.
     return Confirmation(
         effective_version=submission.effective_version if submission else None,
         expected_deadline=deadline,
-        expected_consequence="approval_required" if submission else "immediate",
+        expected_consequence=(
+            "approval_required" if submission and now >= deadline else "immediate"
+        ),
         expected_late=now >= deadline,
     )
 
@@ -476,21 +477,27 @@ def execute(
                     )
                 ).all()
                 content_version = max(versions) + 1
-                session.add(
-                    Amendment(
-                        submission_id=submission.id,
-                        game_id=game_id,
-                        team_id=team_id,
-                        version=content_version,
-                        base_version=submission.effective_version,
-                        proposed_by=user_id,
-                        body=snapshot.model_dump(mode="json"),
-                        status="pending",
-                        created_at=now,
+                assert confirmation is not None
+                if confirmation.expected_consequence == "immediate":
+                    submission.effective_version = content_version
+                    submission.status = "submitted"
+                else:
+                    session.add(
+                        Amendment(
+                            submission_id=submission.id,
+                            game_id=game_id,
+                            team_id=team_id,
+                            version=content_version,
+                            base_version=submission.effective_version,
+                            proposed_by=user_id,
+                            body=snapshot.model_dump(mode="json"),
+                            status="pending",
+                            created_at=now,
+                        )
                     )
-                )
+                    submission.status = "amendment_pending"
                 submission.version += 1
-                submission.status, submission.updated_at = "amendment_pending", now
+                submission.updated_at = now
             session.add(
                 SubmissionVersion(
                     submission_id=submission.id,
@@ -503,12 +510,14 @@ def execute(
                 )
             )
             session.flush()
-            if content_version == 1:
+            if content_version == 1 or (
+                confirmation is not None and confirmation.expected_consequence == "immediate"
+            ):
                 session.add(
                     EffectiveVersionEvent(
                         submission_id=submission.id,
-                        version=1,
-                        mechanism="initial",
+                        version=content_version,
+                        mechanism="initial" if content_version == 1 else "immediate_revision",
                         responsible_user_id=user_id,
                         effective_at=now,
                     )

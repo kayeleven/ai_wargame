@@ -528,7 +528,7 @@ def test_backup_same_head_old_version_rejected_and_roundtrip(world, tmp_path, mo
     path = tmp_path / "workspace.dump"
     backup.create_backup(db.engine.url.render_as_string(hide_password=False), path)
     manifest = backup.verify_backup(path)
-    assert manifest.application_version == "0.4.0" and manifest.schema_heads == ["0006"]
+    assert manifest.application_version == "0.5.0" and manifest.schema_heads == ["0006"]
     sidecar = path.with_suffix(".dump.json")
     original = sidecar.read_text()
     old = json.loads(original)

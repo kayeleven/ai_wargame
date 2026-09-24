@@ -478,3 +478,82 @@ environment issue, not a PR 3.1 defect.
 PR 3.1 approved for merge into `milestone/1u-2`. This approves PR 3.1 only; it
 is not milestone acceptance. The basic confirmation presentation is expected to be
 replaced in PR 4.
+
+## PR 3.2 — B-18 immediate revisions and recovery
+
+Based on merged PR 3.1 at milestone commit `5fc613b`, targeting `milestone/1u-2`.
+No master-only commits needed integration at the initial synchronization check.
+Approved projection was approximately 283 non-test changed lines, including docs;
+this increment retains the approved smaller policy/recovery boundary.
+
+### Delivered behavior and compatibility
+
+- Revisions strictly before the stored submission deadline take effect immediately,
+  without an amendment or adjudicator decision. At/after the deadline they require
+  acceptance. Post-lock time governs; existing pending proposals still need decisions.
+- Immediate events, immutable content/actions, effective state and stored completion
+  commit together. Content allocation includes rejected proposals; effective history
+  skips rejected/pending content, but content versions stay contiguous.
+- Restore derives immediate provenance independently, checks no source decision and
+  a timestamp strictly before the stored deadline, and explicitly checks contiguity.
+- APP_VERSION, package version and lock metadata move together to **0.5.0**.
+  Schema stays 0006 and archive format stays unchanged. Exact-version rejection
+  occurs before restore opens a target. Restore 0.4.0 archives with 0.4.0 first,
+  then upgrade the recovered database; never rewrite version fields in manifests.
+- Ordinary redirects and enhanced responses use the stored completion consequence:
+  “Revision is now effective.” or “Amendment proposed for adjudicator review.”
+  Retries retain the original message after the deadline. Legacy completions without
+  consequence retain proposal feedback.
+
+### Verification coverage
+
+- Service deadline matrix before/at/after; real PostgreSQL lock waits with bounded
+  timeouts and a controlled clock; crossing the deadline writes nothing and requires
+  fresh confirmation before creating the pending proposal.
+- Ordinary/enhanced HTTP messages and replay after the deadline; immediate event
+  actor/time/source, effective state, transaction rollback and concurrent retries.
+- Rejected → immediate preserves content sequence `[1, 2, 3]` and effective events
+  `[1, 3]`. The 0.5.0 archive round trip preserves domain rows and completion replay.
+  Simulated 0.4.0 exact-version checking rejects that archive before target access.
+- Same-count corruption tests cover an immediate event at/after the deadline,
+  an attached decision reference and a content gap. Timestamp corruption also changes
+  immutable content time to match, proving deadline validation independently of
+  provenance equality. An invalid deadline archive leaves recovery blocked.
+- Existing pre-policy pending proposal permits draft editing, blocks another
+  submission before the deadline, and still records adjudicator acceptance.
+- Chromium covers ordinary/enhanced messages for both outcomes. Lost-response replay
+  additionally checks the enhanced message after the deadline without duplicate writes.
+
+### Known interim wording and owner gate
+
+The **Propose amendment** button and amendment help wording remain until PR 4.
+They are a known interim wording issue for immediate revisions; confirmation states
+its actual consequence and success/replay feedback is accurate. Full player lifecycle
+presentation and package review remain PR 4. Existing no-JavaScript reload recovery
+limitations remain unchanged.
+
+Owner verification and approval are pending. Suggested review: submit a revision
+before the deadline, observe immediate effect and no adjudicator proposal; repeat
+at/after it, reject and correct through the existing workflow; verify both success
+messages and retry behavior. Review the matching-version restore instructions.
+Do not merge this implementation PR automatically; this is not milestone acceptance.
+
+### Automated checks and implementation review
+
+The first complete run exposed corruption-test schema leakage and deferred-trigger
+cleanup, plus an existing exact response-shape assertion for unrelated editor saves.
+Corruption-only schema changes now roll back in the same connection after verification;
+the new success fields are limited to `amend`. Restored the two affected constraints
+only in the dedicated test database. The focused rerun passed **22 tests**, including
+schema/catalog parity and both lost-response Chromium scenarios.
+
+Implementation self-review checked transaction ordering, version allocation,
+post-lock confirmation/replay, independent restore provenance, exact compatibility,
+and ordinary/enhanced response scope. No outstanding implementation findings;
+this does not substitute for owner review or milestone acceptance.
+
+Final full suite: **296 passed, 2 warnings in 217.22s**, including PostgreSQL,
+backup/restore and Chromium. Existing warnings are Starlette/httpx and AnyIO
+deprecations. Ruff, mypy (21 source files) and `git diff --check` passed.
+Reproduction uses the same PostgreSQL client PATH/LD_LIBRARY_PATH command above.
+Actual non-test size (additions + deletions, including documentation): 221 lines.

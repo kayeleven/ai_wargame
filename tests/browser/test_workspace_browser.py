@@ -1721,3 +1721,82 @@ def test_confirmation_409_is_not_a_conflict_and_clears_recovery(
         )
         assert counts(world[0]) == before
         browser.close()
+
+
+@pytest.mark.parametrize("javascript", [False, True])
+@pytest.mark.parametrize("immediate", [False, True])
+def test_revision_success_message(workspace_server, world, javascript, immediate):
+    from datetime import timedelta
+
+    from sqlalchemy import select
+    from test_workspace import ready, run
+
+    from living_memory.workspace import Submission
+
+    ready(world)
+    run(world, "submit")
+    if immediate:
+        with world[0].transaction() as s:
+            s.scalars(select(Submission)).one().deadline = NOW + timedelta(minutes=5)
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "player", javascript)
+        page.goto(f"{url}/play?game_id={GAME}")
+        page.get_by_role("button", name="Propose amendment", exact=True).click()
+        page.get_by_role("button", name="Confirm submission", exact=True).click()
+        message = (
+            "Revision is now effective." if immediate
+            else "Amendment proposed for adjudicator review."
+        )
+        expect(page.get_by_text(message, exact=True)).to_be_visible()
+        browser.close()
+
+
+@pytest.mark.parametrize("immediate", [False, True])
+def test_revision_lost_response_replays_original_message(
+    workspace_server, world, monkeypatch, immediate
+):
+    from datetime import timedelta
+
+    from sqlalchemy import select
+    from test_workspace import counts, ready, run
+
+    from living_memory.workspace import Submission
+
+    ready(world)
+    run(world, "submit")
+    if immediate:
+        with world[0].transaction() as s:
+            s.scalars(select(Submission)).one().deadline = NOW + timedelta(minutes=5)
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "player", True)
+        page.goto(f"{url}/play?game_id={GAME}")
+        page.get_by_role("button", name="Propose amendment", exact=True).click()
+        expect(page.locator("[data-submission-confirmation]")).to_be_visible()
+        page.evaluate("""() => {
+            const original = window.fetch.bind(window);
+            let drop = true;
+            window.fetch = async (...args) => {
+                const response = await original(...args);
+                if (drop && args[1]?.method === "POST" && response.ok) {
+                    drop = false;
+                    throw new Error("Lost committed revision response");
+                }
+                return response;
+            };
+        }""")
+        page.get_by_role("button", name="Confirm submission", exact=True).click()
+        expect(page.get_by_text("Save outcome unknown.", exact=False)).to_be_visible()
+        before = counts(world[0])
+        monkeypatch.setattr(FixedClock, "now", lambda self: NOW + timedelta(minutes=6))
+        page.get_by_role("button", name="Retry save", exact=True).click()
+        message = (
+            "Revision is now effective." if immediate
+            else "Amendment proposed for adjudicator review."
+        )
+        expect(page.get_by_text(message, exact=True)).to_be_visible()
+        assert counts(world[0]) == before
+        browser.close()
