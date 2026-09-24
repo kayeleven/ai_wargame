@@ -17,6 +17,7 @@ from test_admin_database import config, database  # noqa: F401
 from living_memory import backup
 from living_memory.admin_access import replace_submitter, set_membership
 from living_memory.administration import (
+    AdminGame,
     AdministrationConflict,
     TeamOperationalState,
     activate_game,
@@ -42,6 +43,7 @@ from living_memory.workspace import (
 from living_memory.workspace_service import (
     Command,
     Conflict,
+    confirmation_for,
     execute,
     get_draft,
     get_submission,
@@ -113,6 +115,23 @@ def world(database):
         connection.execute(text("TRUNCATE " + ",".join(tables) + " CASCADE"))
 
 
+def confirmed_command(world, command, team="team-0"):
+    """Explicitly construct a confirmed command for service fixture setup."""
+    if command.operation not in {"submit", "amend"}:
+        return command
+    db, _, _ = world
+    with db.transaction() as session:
+        previous = session.scalar(select(RequestKey).where(RequestKey.key == command.key))
+        expectations = previous.result_ref.get("completion") if previous else None
+        if expectations is None:
+            game = session.get(AdminGame, GAME)
+            sub = get_submission(session, GAME, team, 1)
+            expectations = confirmation_for(session, game, sub, 1, NOW).model_dump()
+        fields = {k: expectations[k] for k in
+                  ("expected_deadline", "expected_consequence", "expected_late")}
+    return Command.model_validate({**command.model_dump(), **fields})
+
+
 def run(world, operation, version=None, *, who="player", team="team-0", key=None, **values):
     db, _, ids = world
     if version is None:
@@ -120,6 +139,7 @@ def run(world, operation, version=None, *, who="player", team="team-0", key=None
             draft = get_draft(session, GAME, team, 1)
             version = draft.version if draft else 0
     command = Command(operation=operation, key=key or uuid4(), expected_version=version, **values)
+    command = confirmed_command(world, command, team)
     with db.transaction() as session:
         return execute(
             session, user_id=ids[who], game_id=GAME, team_id=team, turn=1,

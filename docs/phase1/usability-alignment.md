@@ -140,11 +140,12 @@ before merge. Do not automatically merge implementation PRs.
 | PR 1: dedicated amendment review | `master` | Immutable base/proposed comparisons, changed-action navigation, complete field comparisons and existing decision recovery. Player changes only a revision link and visible rejection reason. No policy, schema, confirmation or full player-state changes. |
 | PR 2: effective-version history | `master` | New migration after 0005; append-only mechanism/user/time records; preserving backfill from first submissions and accepted decisions; transactional events for existing initial/acceptance paths. Backup compatibility and upgrade/restore docs. No policy, confirmation or UI changes. |
 | PR 3a: command hardening | `master` | Activated size fallback before PR 3: post-lock time/authorization and authorized completion replay for submit/amend/decide. No policy change; the observable retry, timestamp and revocation changes are documented in contracts.md. |
-| PR 3: B-18 service policy | `milestone/1u-2` | Expected effective version/deadline/consequence, no-write/no-key-claim `confirmation_required`, immediate versus approval-required revisions, immediate-revision events and pending-submission blocking. Extend backup.py `_verify_effective_history`'s expected set for immediate revisions and test backup → restore with one present. No player lifecycle UI. |
+| PR 3.1: confirmation contract | `milestone/1u-2` | Expected effective version/deadline/consequence/late status, no-write/no-key-claim `confirmation_required`, explicit ordinary/enhanced confirmation, legacy replay and stored completion facts. Current policy: all amendments require acceptance. No migration, immediate events or full lifecycle UI. |
+| PR 3.2: B-18 policy and recovery | `milestone/1u-2` | Immediate revisions strictly before the stored deadline; approval at/after it; transactional immediate-revision events and recovery. Extend backup.py `_verify_effective_history`'s expected event set and explicitly check version contiguity; backup → restore with an immediate revision. No full player lifecycle UI. |
 | PR 4: player lifecycle | `milestone/1u-2` | Deliberate revision entry preserving saved draft changes; states, package review/confirmation, Submit revision wording, ordinary/enhanced forms, frozen uncertain commands, renewed confirmation and replay-accurate feedback. No extra policy, migration or automatic teammate refresh. |
 | Milestone PR | `milestone/1u-2` → `master` | Integrated regression/walkthrough evidence and final verification record; owner acceptance before merge and before 1U-3. |
 
-Create `milestone/1u-2` from master after PR 3a merges (the branch does not yet exist).
+The owner created `milestone/1u-2` from master after merging PR 3a.
 While PRs 3–4 are open,
 merge master changes into it promptly; review and test conflict resolutions on the
 open PRs so the milestone PR contains no unreviewed resolution. Preparatory PRs 1–2
@@ -162,12 +163,27 @@ PR 3a to master: read authoritative time after locks, recheck authorization afte
 locks and recognize completed matching retries before re-evaluation on existing
 submit/amend/decide paths. Make no submission-policy change; document intended
 observable hardening changes. PR 3 retains B-18
-policy, extended command expectations and `confirmation_required`; do not re-plan
-the sequence from scratch. Bring the merged hardening into the milestone branch.
+policy, extended command expectations and `confirmation_required`, now split into
+PRs 3.1 and 3.2 as approved below.
 This fallback was activated
 for PR 3a: combined PR 3 projected ~900 non-test changed lines; PR 3a projected ~405.
 Concurrency evidence uses real PostgreSQL waits and a test-controlled clock, with
 bounded lock/wait timeouts. PR 3 must retain that test method for deadline policy.
+
+**Approved remaining split:** PR 3.1 establishes a usable confirmation contract under
+current policy; PR 3.2 switches policy and adds immediate-event recovery. Both target
+the milestone branch and must pass the full suite independently, without xfails or
+automatically preconfirmed forms. PR 3.1's minimal consequence/deadline/baseline
+confirmation will be developed into full package review in PR 4. Original projection:
+about 700 non-test changed lines for PR 3.1 and 283 for PR 3.2; record actual size.
+
+**PR 3.2 version rule:** next version = greatest existing + 1; SubmissionVersions
+remain contiguous, including rejected proposals (0006's `version_sequence`
+invariant depends on this). Only effective-event history skips rejected/pending
+versions. The updated restore verifier must explicitly check that contiguity, in
+addition to the expected event set including `immediate_revision`. Test rejected →
+immediate revision, missing content versions, and backup → restore with an immediate
+revision. Keep real lock waits with a controlled clock for before/at/after policy.
 
 **PR 1 sizing decisions:** extract macros first (done); defer word-level highlighting.
 Changed-field markers with complete original/proposed values satisfy this increment.
@@ -186,7 +202,7 @@ Comparison content is server-rendered and template-escaped; no new authored-cont
   append-only enforcement, transaction/retry integrity and backup/restore round trip.
   Before merge, also run the upgrade against a restored copy of the current development
   database and record results. Never migrate the original as the dry run.
-- PR 3: service and HTTP coverage before/at/after deadline, including a real lock wait
+- PRs 3.1–3.2: service and HTTP coverage before/at/after deadline, including a real lock wait
   across it; changed authority/expectations, stale versions, pending draft editing,
   zero writes/key claims on renewed confirmation and replay before deadline evaluation.
 - PR 4: browser lifecycle/recovery coverage in enhanced and ordinary forms plus keyboard,

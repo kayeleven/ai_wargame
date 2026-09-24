@@ -11,7 +11,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from test_admin_database import database  # noqa: F401
 from test_recovery_corrections import target_factory  # noqa: F401
-from test_workspace import GAME, NOW, counts, ready, run, world  # noqa: F401
+from test_workspace import GAME, NOW, confirmed_command, counts, ready, run, world  # noqa: F401
 
 from living_memory import backup
 from living_memory.clocks import FixedClock
@@ -354,7 +354,7 @@ def test_initial_submission_rollback_leaves_no_event_or_command(world):
     db, _, ids = world
     ready(world)
     before = rows(db)
-    cmd = Command(operation="submit", key=uuid4(), expected_version=2)
+    cmd = confirmed_command(world, Command(operation="submit", key=uuid4(), expected_version=2))
     with pytest.raises(RuntimeError, match="abort"), db.transaction() as s:
         execute(
             s,

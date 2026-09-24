@@ -338,3 +338,61 @@ adjudicator role. The full suite after the fix passed: **246 passed in 178.29s**
 including browser tests, with the same two existing dependency warnings. Ruff,
 mypy (21 source files) and whitespace checks passed. The owner finding is fixed;
 the strengthened tests retain the cached role throughout the real lock wait.
+
+## PR 3.1 — Confirmation contract under current policy
+
+PR 3a is merged. The owner created `milestone/1u-2`; this increment targets that
+branch, not master. The approved remaining split is recorded in
+[usability alignment](usability-alignment.md). Master and milestone both pointed to
+`d5cf8a3` at the pre-PR synchronization check; no master changes needed integrating.
+
+### Boundary and evidence
+
+First submissions remain immediately effective and every amendment still requires
+adjudicator acceptance. No schema, migration, backup-format or immediate-event
+changes. Minimal ordinary/enhanced consequence, deadline and draft-baseline
+confirmation is functional now; full package review and lifecycle presentation
+remain PR 4. PR 3.2 must implement the immediate-event expected set and explicit
+SubmissionVersion contiguity check in `_verify_effective_history`, with a backup →
+restore round trip containing an immediate revision.
+
+- `test_workspace_confirmation.py` compares all workspace rows before/after missing
+  or stale expectations for submit and amend; neither a request key nor content,
+  draft, history or completion records are written. It covers typed JSON, malformed
+  deadlines, ordinary renewed confirmation, unchanged draft baselines, current
+  before-deadline amendment policy, stored completion replay and legacy fingerprints.
+- Delayed-original cases hold key A until fresh confirmed key B commits, for both
+  submit and amend. Releasing A produces a conflict with no additional writes:
+  exactly one new content version, no A request record. Thus a no-write confirmation
+  response describes that attempt at response time; it does not prove an earlier
+  lost request was dropped.
+- The real PostgreSQL lock-wait test advances a controlled clock while blocked and
+  obtains a no-write re-prompt after crossing the deadline. Existing bounded lock,
+  cached-authority, original-turn replay and transaction-retry tests remain active.
+- Browser coverage explicitly confirms ordinary/enhanced submissions and amendments.
+  A 409 `confirmation_required` never creates an edit-conflict panel, leaves no
+  pending/unresolved state or unresolved storage, and preserves unsaved input.
+  This also holds after a lost prompt response and reload/retry. Lost committed
+  confirmation responses retain the original frozen command; turn-advance recovery
+  and replaced-submitter denial remain covered.
+- The confirmation panel is server-rendered and template-escaped, inserted through
+  DOM parsing/import. This increment adds no authored-content `innerHTML` path.
+
+**Milestone upgrade note:** a stale pre-upgrade tab uses the previous generic 409
+handler and shows a conflict panel for `confirmation_required`, without writing.
+Reloading obtains the new explicit confirmation flow. This compatibility limitation
+must remain in the milestone PR's verification/acceptance evidence.
+
+Code review checked authorization/replay ordering, legacy fingerprint serialization,
+validation before request-key claims, atomic completion metadata, immutable confirmed
+draft baselines, delayed originals, HTTP result shape compatibility and browser
+recovery. The review retained unrelated editor response shapes (no null completion
+field) and the saved-message redirect from a standalone confirmation page.
+No unresolved findings; owner review remains required.
+
+Full suite: **268 passed in 193.71s**, including Chromium and PostgreSQL coverage;
+two existing FastAPI/Starlette dependency deprecation warnings. No xfails.
+Ruff, mypy (21 source files), offline lockfile and whitespace checks passed.
+Actual non-test size: 319 changed lines (additions plus deletions, including
+documentation and the new template), below the ~700 projection and 800-line ceiling.
+Owner review and the milestone's final manual acceptance remain pending.

@@ -255,6 +255,19 @@
       }
       const type = response.headers.get("content-type") || "", enhancedType = type.toLowerCase().startsWith("application/vnd.living-memory.workspace+json"); const payload = type.includes("json") ? await response.json() : null;
       if (kind === "uncertain") throw new Error();
+      if (response.status === 409 && enhancedType && payload?.outcome === "confirmation_required") {
+        const parsed = new DOMParser().parseFromString(payload.html, "text/html");
+        const panel = parsed.querySelector("[data-submission-confirmation]");
+        if (!panel || payload.key !== frozen.key || payload.operation !== frozen.operation) throw new Error();
+        clearPending(form); workspace().dataset.unresolved = "";
+        if (form.dataset.pendingRecovery) form.closest("section[data-pending-recovery]")?.remove();
+        document.querySelector("[data-submission-confirmation]")?.remove();
+        document.querySelector("#workspace-status").after(document.importNode(panel, true));
+        initialize();
+        announce("Confirm the submission consequence before continuing.");
+        document.querySelector("[data-submission-confirmation]").focus();
+        return;
+      }
       if (kind === "conflict") {
         if (payload?.outcome === "key_conflict") {
           clearPending(form); form.dataset.pending = ""; workspace().dataset.unresolved = "";
@@ -282,6 +295,8 @@
       if (editorId(form)) acknowledgeEditor(form, frozen.authored, payload.committed_draft_version);
       form.querySelector("[data-conflict]")?.remove();
       if (form.dataset.pendingRecovery) form.closest("section[data-pending-recovery]")?.remove();
+      if (document.querySelector("[data-confirmation-page]")) { location.replace(`${payload.refresh}&saved=${encodeURIComponent(frozen.operation)}`); return; }
+      document.querySelector("[data-submission-confirmation]")?.remove();
       announce(payload?.message || success(frozen.operation)); await refresh(form, payload?.refresh || location.href);
     } catch { retainPending(form, frozen); form.dataset.pending = "true"; workspace().dataset.unresolved = "true"; announce("Save outcome unknown. Retry will use the exact original save; other saves are paused.", "notice error", true); }
     finally { workspace().dataset.inflight = ""; form.dataset.inflight = ""; form.removeAttribute("aria-busy"); form.querySelectorAll("button[type=submit],button:not([type])").forEach(button => { button.disabled = Boolean(form.querySelector("[data-unavailable-recovery]")); if (form.dataset.pending) button.textContent = "Retry save"; }); }

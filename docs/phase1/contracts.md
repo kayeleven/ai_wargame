@@ -352,8 +352,9 @@ See [1D-1 verification](verification-1d-1.md) for evidence and limitations.
 Schema 0006 records one append-only event for each effective content version.
 Initial events retain version 1's submitter and creation time. Adjudicator acceptance
 retains the decision ID, adjudicator and decision time. Rejection and pending proposals
-create no event. Event ordering follows content-version numbers, including gaps for
-rejected revisions; tied timestamps do not determine order. Recording is transactional
+create no event. SubmissionVersions remain contiguous, including rejected proposals:
+next version = greatest existing + 1. Only the effective-event sequence skips rejected
+or pending versions; tied timestamps do not determine order. Recording is transactional
 with the existing command; a matching replay creates no event. `immediate_revision`
 is reserved, with no writer or policy change in this increment.
 
@@ -395,3 +396,45 @@ such a denial; it neither declares the original command failed nor starts a new 
 An authorized enhanced replay instead returns `committed` and refreshes the original
 turn, clearing pending state even if that turn is now read-only. Existing request-key
 fingerprints, result formats, schema and backup compatibility remain unchanged.
+
+
+### Explicit submission confirmation (1U-2 PR 3.1)
+
+This increment keeps current submission policy: initial submission is effective
+immediately (including late submissions); every amendment requires adjudicator
+acceptance. B-18's immediate revision policy follows in PR 3.2.
+
+A fresh submit/amend command carries the saved draft baseline (`expected_version`),
+current effective version (null for first submission), timezone-aware stored/governing
+deadline, consequence (`immediate` or `approval_required`) and late status
+(`now >= deadline`). Submission state must permit that operation, with no pending
+amendment. After locks, authorization and completed matching replay, the service
+checks current turn, submission state, draft baseline and content validity. Missing
+or stale confirmation expectations return `confirmation_required` before claiming
+a request key or changing draft, submission, history or completion records. A stale
+draft/state remains a conflict; confirmation never silently rebases saved content.
+
+HTTP returns 409 with explicit expectations and a fresh-key confirmation form,
+retaining the exact draft baseline. Ordinary forms render the confirmation page;
+enhanced forms insert its server-rendered, escaped panel. Typed JSON clients receive
+the same expectations and confirmed completion facts. There is no automatically
+preconfirmed submission form. Enhanced clients route this 409 before edit conflicts,
+clear pending/unresolved state and require an explicit confirmation action.
+Changed expectations prompt again with another fresh key. Unsaved editor input is
+retained; the existing dirty-package guard also applies to confirmation.
+
+The no-write assertion holds **at response time only**: a lost original can be delayed,
+not dropped. Effective-version, submission-state and draft-baseline expectations
+prevent a delayed original and a fresh confirmation from both applying. If fresh
+key B commits while original key A is held, A subsequently conflicts or requires
+confirmation without writes. Never change the payload of an unresolved original:
+recovery retries its frozen fields and original key until a definite response.
+Authorization denial continues to retain an uncertain outcome.
+
+Completed matching commands are recognized before renewed deadline checks. New
+submit/amend completions store original deadline, consequence, late status, effective
+baseline, submission ID, content version and post-lock command time transactionally
+in the request record. Replay returns those facts after later changes. Legacy
+commands without the new fields preserve their fingerprints and stored result
+shape; completed retries remain recoverable without retroactive confirmation.
+No schema, backup format, adjudicator decision or unrelated editor contract changes.

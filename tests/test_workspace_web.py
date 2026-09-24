@@ -725,6 +725,11 @@ def test_transaction_retry_reads_clock_again(world, monkeypatch):
     response = client.post(f"/workspace/{GAME}/team-0/1/form", headers=ENHANCED,
                            data=dict(csrf_token=csrf, key=str(key), operation="submit",
                                      expected_version=2))
+    assert response.status_code == 409
+    confirmation = response.json()["confirm"]
+    key = confirmation["key"]
+    response = client.post(f"/workspace/{GAME}/team-0/1/form", headers=ENHANCED,
+                           data={**confirmation, "csrf_token": csrf})
     assert response.status_code == 200 and response.json()["outcome"] == "committed"
     assert attempts == [NOW, NOW + timedelta(seconds=10)]
     with world[0].transaction() as session:
