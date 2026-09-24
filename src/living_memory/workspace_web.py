@@ -31,6 +31,7 @@ from living_memory.workspace import (
 from living_memory.workspace_service import (
     ActionText,
     Command,
+    ConfirmationRequired,
     Conflict,
     Package,
     authorize,
@@ -269,7 +270,17 @@ def _conflict_display(value: Any, view: WorkspaceView) -> dict[str, Any]:
             "state": "removed" if value.get("removed") else "available",
             "fields": fields,
         }
+    if "submission_status" in value:
+        value = {
+            **value,
+            "submission_status": {
+                "submitted": "Submitted",
+                "amendment_pending": "Amendment pending",
+                None: "Not submitted",
+            }.get(value["submission_status"], value["submission_status"]),
+        }
     labels = {
+        "submission_status": "Submission status",
         "operation": "Requested operation",
         "overall_intention": "Overall intention",
         "decision": "Decision",
@@ -736,6 +747,47 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
             raise HTTPException(404, "Not found") from None
         except PermissionError as exc:
             raise HTTPException(403, str(exc)) from None
+        except ConfirmationRequired as exc:
+            expectations = exc.expectations.model_dump(mode="json")
+            confirmed = command.model_copy(update={**exc.expectations.model_dump(), "key": uuid4()})
+            # Only scalar fields used by submit/amend; retain the exact draft baseline.
+            values = confirmed.model_dump(mode="json", exclude_none=True)
+            values.pop("body")
+            values.pop("order")
+            context = {
+                "request": request,
+                "expectations": expectations,
+                "values": values,
+                "workspace_id": f"{game_id}:{team_id}:{turn}",
+                "endpoint": f"/workspace/{game_id}/{team_id}/{turn}/form",
+                "refresh": refresh,
+                "csrf": csrf_token(request),
+                "shell": shell_context(request, db, settings),
+            }
+            rendered = templates.TemplateResponse(
+                request,
+                "workspace_confirmation.html",
+                context,
+                status_code=409,
+                headers={"Cache-Control": "no-store"},
+            )
+            if _enhanced(request) or request.headers.get("content-type", "").startswith(
+                "application/json"
+            ):
+                return JSONResponse(
+                    {
+                        "outcome": "confirmation_required",
+                        "operation": command.operation,
+                        "key": str(command.key),
+                        "expectations": expectations,
+                        "confirm": values,
+                        "html": bytes(rendered.body).decode("utf-8"),
+                    },
+                    status_code=409,
+                    media_type=ENHANCED_MEDIA_TYPE,
+                    headers={"Cache-Control": "no-store", "Vary": "Accept, X-Workspace-Enhanced"},
+                )
+            return rendered
         except Conflict as exc:
             if _enhanced(request):
                 return enhanced_error(
@@ -795,7 +847,10 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                 field_errors=errors,
                 status=422,
             )
-        if _enhanced(request):
+        if _enhanced(request) or (
+            command.operation in {"submit", "amend"}
+            and request.headers.get("content-type", "").startswith("application/json")
+        ):
             return JSONResponse(
                 {
                     "outcome": "committed",
@@ -804,6 +859,7 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                     "editor": result.get("editor"),
                     "refresh": refresh if review else result["redirect"],
                     "committed_draft_version": result.get("committed_draft_version"),
+                    **({"completion": result["completion"]} if "completion" in result else {}),
                 },
                 media_type=ENHANCED_MEDIA_TYPE,
                 headers={
@@ -822,7 +878,10 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
         values: dict[str, Any] = {k: str(v) for k, v in fields.items() if k != "csrf_token"}
         if values.get("operation") == "action":
             values["body"] = {k: values.pop(k, "") for k in ActionText.model_fields}
-        for k in ("action_id", "owner_user_id", "effective_version", "amendment_id", "decision"):
+        for k in (
+            "action_id", "owner_user_id", "effective_version", "amendment_id", "decision",
+            "expected_deadline", "expected_consequence", "expected_late",
+        ):
             if values.get(k) == "":
                 values.pop(k)
         if "order" in values:

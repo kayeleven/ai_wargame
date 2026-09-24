@@ -338,3 +338,143 @@ adjudicator role. The full suite after the fix passed: **246 passed in 178.29s**
 including browser tests, with the same two existing dependency warnings. Ruff,
 mypy (21 source files) and whitespace checks passed. The owner finding is fixed;
 the strengthened tests retain the cached role throughout the real lock wait.
+
+## PR 3.1 — Confirmation contract under current policy
+
+PR 3a is merged. The owner created `milestone/1u-2`; this increment targets that
+branch, not master. The approved remaining split is recorded in
+[usability alignment](usability-alignment.md). Master and milestone both pointed to
+`d5cf8a3` at the pre-PR synchronization check; no master changes needed integrating.
+
+### Boundary and evidence
+
+First submissions remain immediately effective and every amendment still requires
+adjudicator acceptance. No schema, migration, backup-format or immediate-event
+changes. Minimal ordinary/enhanced consequence, deadline and draft-baseline
+confirmation is functional now; full package review and lifecycle presentation
+remain PR 4. PR 3.2 must implement the immediate-event expected set and explicit
+SubmissionVersion contiguity check in `_verify_effective_history`, with a backup →
+restore round trip containing an immediate revision.
+
+- `test_workspace_confirmation.py` compares all workspace rows before/after missing
+  or stale expectations for submit and amend; neither a request key nor content,
+  draft, history or completion records are written. It covers typed JSON, malformed
+  deadlines, ordinary renewed confirmation, unchanged draft baselines, current
+  before-deadline amendment policy, stored completion replay and legacy fingerprints.
+- Delayed-original cases hold key A until fresh confirmed key B commits, for both
+  submit and amend. Releasing A produces a conflict with no additional writes:
+  exactly one new content version, no A request record. Thus a no-write confirmation
+  response describes that attempt at response time; it does not prove an earlier
+  lost request was dropped.
+- The real PostgreSQL lock-wait test advances a controlled clock while blocked and
+  obtains a no-write re-prompt after crossing the deadline. Existing bounded lock,
+  cached-authority, original-turn replay and transaction-retry tests remain active.
+- Browser coverage explicitly confirms ordinary/enhanced submissions and amendments.
+  A 409 `confirmation_required` never creates an edit-conflict panel, leaves no
+  pending/unresolved state or unresolved storage, and preserves unsaved input.
+  This also holds after a lost prompt response and reload/retry. Lost committed
+  confirmation responses retain the original frozen command; turn-advance recovery
+  and replaced-submitter denial remain covered.
+- The confirmation panel is server-rendered and template-escaped, inserted through
+  DOM parsing/import. This increment adds no authored-content `innerHTML` path.
+
+**Milestone upgrade note:** a stale pre-upgrade tab uses the previous generic 409
+handler and shows a conflict panel for `confirmation_required`, without writing.
+Reloading obtains the new explicit confirmation flow. This compatibility limitation
+must remain in the milestone PR's verification/acceptance evidence.
+
+Code review checked authorization/replay ordering, legacy fingerprint serialization,
+validation before request-key claims, atomic completion metadata, immutable confirmed
+draft baselines, delayed originals, HTTP result shape compatibility and browser
+recovery. The review retained unrelated editor response shapes (no null completion
+field) and the saved-message redirect from a standalone confirmation page.
+No unresolved findings; owner review remains required.
+
+Full suite: **268 passed in 193.71s**, including Chromium and PostgreSQL coverage;
+two existing FastAPI/Starlette dependency deprecation warnings. No xfails.
+Ruff, mypy (21 source files), offline lockfile and whitespace checks passed.
+Actual non-test size: 319 changed lines (additions plus deletions, including
+documentation and the new template), below the ~700 projection and 800-line ceiling.
+Owner review and the milestone's final manual acceptance remain pending.
+
+### Owner review correction — readable submission eligibility conflicts
+
+Eligibility conflicts supplied a submission status that the conflict presenter did
+not recognize, leaving Current blank. The payload now includes both submission
+status and effective version; the presenter labels them and displays "Submitted"
+or "Amendment pending". The missing-submission case displays "Not submitted".
+Raw status values remain available in the enhanced conflict payload.
+
+The new web regression covers a stale Submit after another tab submits and a stale
+amendment command after another proposal becomes pending, in both ordinary and
+enhanced responses. It asserts the Current side's labels/values, not merely text
+elsewhere on the workspace. Before the fix all four cases failed (**4 failed,
+30 deselected in 3.65s**). After the fix the affected web and confirmation suites
+passed: **54 passed in 34.85s**.
+
+Full suite after the fix: **272 passed in 196.41s**, including browser tests, with
+the same two existing dependency deprecation warnings. Ruff, mypy (21 source files),
+offline lockfile and whitespace checks passed. Review confirmed the presentation
+mapping leaves raw conflict data unchanged and both response modes use the same
+labels. The owner's finding is fixed; this update does not merge the PR.
+
+## PR 3.1 owner manual review
+
+Reviewer: project owner · Date: 2026-09-24 · Environment: [browser + version], [OS],
+local development server against a freshly recreated development database at schema
+0006. Test game created from a two-team configuration with turn deadlines on
+2026-09-30, 2026-10-07 and 2026-10-14 (UTC), so first submissions were before the deadline.
+
+Automated results are recorded above; this section records manual observations only.
+
+| # | Check | Result | Observations |
+|---|---|---|---|
+| 1 | First submission shows confirmation before committing | Pass | Prompt stated effective immediately, before the deadline, current effective version "none" and the deadline. Nothing submitted until Confirm. |
+| 2 | Amendment shows confirmation stating approval required | Pass | After Confirm, the amendment appeared pending adjudicator review. |
+| 3 | Adjudicator accepts the pending amendment | Pass | Passed after the environment issue below was resolved. |
+| 4 | Return to workspace without confirming | Pass | Nothing submitted; draft remained editable. |
+| 5 | Stale confirmation (draft saved in another tab, then Confirm) | Pass | [Conflict / renewed prompt]; nothing submitted. |
+| 6 | Second submitter's stale Submit after another submission | Pass | Conflict Current side shows "Submitted" (correction above). |
+| 7 | Keyboard: prompt receives focus; Confirm and Return reachable by Tab | Pass | |
+
+Not checked manually: deadline crossing during confirmation, lost Confirm responses,
+delayed originals and stale pre-upgrade tabs (covered by automated tests only);
+screen reader; no-JavaScript confirmation page.
+
+### Environment finding — development database not upgraded to 0006
+
+During check 3, the adjudicator's acceptance and a new first submission failed with
+503 and "Save outcome unknown". Amendment proposal succeeded. Cause: the development
+database was still at schema 0005. PR 2 deliberately rehearsed 0006 on a restored
+copy and left the real upgrade (development.md step 6) to the owner, and that step
+had not been performed. Only operations that write effective-version events failed,
+because `ws_effective_version_event` did not exist. Startup does not run migrations,
+and ordinary requests do not check the schema, so pages loaded normally. The generic
+database 503 message did not reveal the mismatch.
+
+Resolution: the development data was disposable test content, so the owner
+recreated the database (volume removed, `make db-up`, `make migrate`, `make seed`)
+instead of performing the preserving backup-and-upgrade procedure. This was a
+deliberate owner decision for non-valuable data. The preserving procedure remains
+required for any database whose contents matter. The failed requests had rolled back
+without claiming request keys, so no partial writes occurred. This was an
+environment issue, not a PR 3.1 defect.
+
+### Findings and follow-ups
+
+- No blocking PR 3.1 findings from the manual review. The eligibility-conflict
+  display finding was fixed and verified above.
+- Follow-up (separate small PR to master): when schema heads do not match, refuse
+  writes with an explicit "schema mismatch, run migrate" response instead of a
+  generic database-unavailable 503. Readiness already detects the mismatch;
+  ordinary requests do not.
+- Process follow-up for the milestone PR checklist: a merged migration requires an
+  explicit "development database upgraded or recreated" step, recorded here.
+- Carried forward: a stale pre-upgrade tab shows a conflict panel for
+  `confirmation_required` without writing (milestone upgrade note above).
+
+### Decision
+
+PR 3.1 approved for merge into `milestone/1u-2`. This approves PR 3.1 only; it
+is not milestone acceptance. The basic confirmation presentation is expected to be
+replaced in PR 4.

@@ -66,6 +66,7 @@ def test_draft_submit_smoke(workspace_server, javascript):
         expect(page.get_by_text("Draft revision 1.", exact=False)).to_be_visible()
         expect(page.get_by_text("Overall intention saved.", exact=True)).to_be_visible()
         page.get_by_role("button", name="Submit turn package", exact=True).click()
+        page.get_by_role("button", name="Confirm submission", exact=True).click()
         expect(page.get_by_text("Effective version 1 · submitted.", exact=True)).to_be_visible()
         expect(page.get_by_text("Turn package submitted.", exact=True)).to_be_visible()
         expect(page.get_by_text("Late submission", exact=True)).to_be_visible()
@@ -107,6 +108,7 @@ def test_shared_conflict_and_amendment_decision(workspace_server, javascript):
         expect(mate.get_by_text("Draft revision 2.", exact=False)).to_be_visible()
         player.reload()
         player.get_by_role("button", name="Submit turn package", exact=True).click()
+        player.get_by_role("button", name="Confirm submission", exact=True).click()
         expect(player.get_by_text("Effective version 1 · submitted.", exact=True)).to_be_visible()
         if not javascript:
             player.get_by_role("link", name="Edit overall intention").click()
@@ -114,6 +116,7 @@ def test_shared_conflict_and_amendment_decision(workspace_server, javascript):
         player.get_by_role("button", name="Save intention", exact=True).click()
         expect(player.get_by_text("Draft revision 4.", exact=False)).to_be_visible()
         player.get_by_role("button", name="Propose amendment", exact=True).click()
+        player.get_by_role("button", name="Confirm submission", exact=True).click()
         expect(player.get_by_text("amendment_pending", exact=False)).to_be_visible()
         judge.goto(f"{url}/adjudicate?game_id={GAME}")
         if not javascript:
@@ -191,6 +194,7 @@ def test_independent_dirty_editor_survives_save_and_blocks_submission(workspace_
         action.get_by_role("button", name="Save action", exact=True).click()
         expect(page.get_by_text("Draft revision 4.", exact=False)).to_be_visible()
         page.get_by_role("button", name="Submit turn package", exact=True).click()
+        page.get_by_role("button", name="Confirm submission", exact=True).click()
         expect(page.get_by_text("Effective version 1 · submitted.", exact=True)).to_be_visible()
         browser.close()
 
@@ -933,6 +937,7 @@ def test_package_conflict_requires_review_before_renewal(workspace_server, world
             "Changed package state"
         )
         stale.get_by_role("button", name="Submit turn package", exact=True).click()
+        stale.get_by_role("button", name="Confirm submission", exact=True).click()
         expect(stale.get_by_text("Effective version 1 · submitted.", exact=True)).to_be_visible()
         browser.close()
 
@@ -1196,6 +1201,8 @@ def test_unknown_package_command_restores_after_reload(workspace_server, world):
         browser = p.chromium.launch()
         page = page_for(browser, url, tokens, "player", True)
         page.goto(f"{url}/play?game_id={GAME}")
+        page.get_by_role("button", name="Submit turn package", exact=True).click()
+        expect(page.get_by_role("button", name="Confirm submission", exact=True)).to_be_visible()
         page.evaluate(
             """() => {
                 const original = window.fetch.bind(window);
@@ -1207,7 +1214,7 @@ def test_unknown_package_command_restores_after_reload(workspace_server, world):
                 };
             }"""
         )
-        page.get_by_role("button", name="Submit turn package", exact=True).click()
+        page.get_by_role("button", name="Confirm submission", exact=True).click()
         expect(page.get_by_role("button", name="Retry save", exact=True)).to_be_visible()
         page.reload()
         expect(page.get_by_text("A previous submit has an unknown outcome.")).to_be_visible()
@@ -1618,6 +1625,8 @@ def test_lost_submission_response_after_authority_or_turn_change(
         browser = p.chromium.launch()
         page = page_for(browser, url, tokens, "player", True)
         page.goto(f"{url}/play?game_id={GAME}&team_id=team-0&turn=1")
+        page.get_by_role("button", name="Submit turn package", exact=True).click()
+        expect(page.get_by_role("button", name="Confirm submission", exact=True)).to_be_visible()
         page.evaluate("""() => {
             const original = window.fetch.bind(window); let dropped = false;
             window.fetch = (...args) => {
@@ -1626,7 +1635,7 @@ def test_lost_submission_response_after_authority_or_turn_change(
                 return original(...args).then(() => Promise.reject(new TypeError('dropped')));
             };
         }""")
-        page.get_by_role("button", name="Submit turn package", exact=True).click()
+        page.get_by_role("button", name="Confirm submission", exact=True).click()
         retry = page.get_by_role("button", name="Retry save", exact=True)
         expect(retry).to_be_visible()
         form = page.locator('form:has(button:text-is("Retry save"))')
@@ -1662,4 +1671,53 @@ def test_lost_submission_response_after_authority_or_turn_change(
             )).to_be_visible()
         with world[0].transaction() as session:
             assert len(session.scalars(select(EffectiveVersionEvent)).all()) == 1
+        browser.close()
+
+
+@pytest.mark.parametrize("lost_prompt", [False, True])
+def test_confirmation_409_is_not_a_conflict_and_clears_recovery(
+    workspace_server, world, lost_prompt
+):
+    from test_workspace import counts, ready
+
+    ready(world)
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "player", True)
+        page.goto(f"{url}/play?game_id={GAME}")
+        before = counts(world[0])
+        if lost_prompt:
+            page.evaluate("""() => {
+                const original = window.fetch.bind(window);
+                let drop = true;
+                window.fetch = async (...args) => {
+                    const response = await original(...args);
+                    if (drop && args[1]?.method === "POST") {
+                        drop = false;
+                        throw new Error("Lost confirmation response");
+                    }
+                    return response;
+                };
+            }""")
+        page.get_by_role("button", name="Submit turn package", exact=True).click()
+        if lost_prompt:
+            expect(page.get_by_text("Save outcome unknown.", exact=False)).to_be_visible()
+            page.reload()
+            page.get_by_role("button", name="Retry save", exact=True).click()
+        panel = page.locator("[data-submission-confirmation]")
+        expect(panel).to_be_visible()
+        expect(page.locator("[data-conflict]")).to_have_count(0)
+        expect(page.locator('[data-pending="true"]')).to_have_count(0)
+        expect(page.locator("[data-workspace]")).not_to_have_attribute("data-unresolved", "true")
+        assert page.evaluate("""() => Object.keys(sessionStorage).filter(key =>
+            key.includes("unresolved-command")).length""") == 0
+        assert counts(world[0]) == before
+        # The prompt does not discard authored input, and confirmation cannot submit it.
+        page.get_by_label("Overall intention", exact=True).fill("Unsaved after prompt")
+        panel.get_by_role("button", name="Confirm submission", exact=True).click()
+        expect(page.get_by_label("Overall intention", exact=True)).to_have_value(
+            "Unsaved after prompt"
+        )
+        assert counts(world[0]) == before
         browser.close()

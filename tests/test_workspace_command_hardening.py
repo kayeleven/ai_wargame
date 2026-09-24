@@ -12,7 +12,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select, text
 from test_admin_database import database  # noqa: F401
-from test_workspace import GAME, NOW, counts, ready, run, world  # noqa: F401
+from test_workspace import GAME, NOW, confirmed_command, counts, ready, run, world  # noqa: F401
 
 from living_memory.admin_access import replace_submitter
 from living_memory.administration import AdminGame, lock_game
@@ -63,7 +63,7 @@ def prepared(world, operation):
                 decision="accepted",
                 reason="Accept",
             )
-    return cmd, "judge" if operation == "decide" else "player"
+    return confirmed_command(world, cmd), "judge" if operation == "decide" else "player"
 
 
 def call(world, cmd, who, clock):
