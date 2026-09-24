@@ -467,3 +467,19 @@ verifier independently derives immediate events from noninitial content without
 amendments, requires matching actor/time and no source decision, and requires the
 effective timestamp strictly before the stored deadline. It checks contiguous
 content versions as well as complete effective provenance and the effective pointer.
+
+### Player revision entry (1U-2 PR 4a)
+
+After a first submission, `/play` opens the effective-package overview. Explicit
+**Revise saved draft** navigation uses `mode=revise` and opens the existing shared
+draft without writing, resetting or copying submitted content over saved changes.
+Editor links also enter drafting; draft validation, conflict recovery and successful
+save refreshes retain revision entry. Successful submission returns to the overview.
+A pending revision prevents another submission while leaving draft editing available.
+Effective content, a pending revision and later saved draft changes remain distinct.
+
+Player controls say **Submit revision**. Workspace consequence hints describe the
+rule: before the deadline revisions take effect immediately; at or after it they
+require adjudicator acceptance. These hints are advisory and may be stale;
+confirmation remains authoritative. The 1U-1 protected-input, frozen-command retry,
+scoped storage and no-JavaScript reload limitations continue to apply.
