@@ -270,7 +270,17 @@ def _conflict_display(value: Any, view: WorkspaceView) -> dict[str, Any]:
             "state": "removed" if value.get("removed") else "available",
             "fields": fields,
         }
+    if "submission_status" in value:
+        value = {
+            **value,
+            "submission_status": {
+                "submitted": "Submitted",
+                "amendment_pending": "Amendment pending",
+                None: "Not submitted",
+            }.get(value["submission_status"], value["submission_status"]),
+        }
     labels = {
+        "submission_status": "Submission status",
         "operation": "Requested operation",
         "overall_intention": "Overall intention",
         "decision": "Decision",

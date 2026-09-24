@@ -396,3 +396,24 @@ Ruff, mypy (21 source files), offline lockfile and whitespace checks passed.
 Actual non-test size: 319 changed lines (additions plus deletions, including
 documentation and the new template), below the ~700 projection and 800-line ceiling.
 Owner review and the milestone's final manual acceptance remain pending.
+
+### Owner review correction — readable submission eligibility conflicts
+
+Eligibility conflicts supplied a submission status that the conflict presenter did
+not recognize, leaving Current blank. The payload now includes both submission
+status and effective version; the presenter labels them and displays "Submitted"
+or "Amendment pending". The missing-submission case displays "Not submitted".
+Raw status values remain available in the enhanced conflict payload.
+
+The new web regression covers a stale Submit after another tab submits and a stale
+amendment command after another proposal becomes pending, in both ordinary and
+enhanced responses. It asserts the Current side's labels/values, not merely text
+elsewhere on the workspace. Before the fix all four cases failed (**4 failed,
+30 deselected in 3.65s**). After the fix the affected web and confirmation suites
+passed: **54 passed in 34.85s**.
+
+Full suite after the fix: **272 passed in 196.41s**, including browser tests, with
+the same two existing dependency deprecation warnings. Ruff, mypy (21 source files),
+offline lockfile and whitespace checks passed. Review confirmed the presentation
+mapping leaves raw conflict data unchanged and both response modes use the same
+labels. The owner's finding is fixed; this update does not merge the PR.

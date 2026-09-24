@@ -736,3 +736,47 @@ def test_transaction_retry_reads_clock_again(world, monkeypatch):
         assert session.scalars(select(EffectiveVersionEvent)).one().effective_at == attempts[1]
         record = session.scalars(select(RequestKey).where(RequestKey.key == key)).one()
         assert record.created_at == attempts[1]
+
+
+@pytest.mark.parametrize("enhanced", [False, True])
+@pytest.mark.parametrize(
+    ("pending", "status", "display_status"),
+    [(False, "submitted", "Submitted"), (True, "amendment_pending", "Amendment pending")],
+)
+def test_submission_eligibility_conflict_names_current_status(
+    world, enhanced, pending, status, display_status
+):
+    ready(world)
+    client = client_for(world)
+    csrf = workspace_csrf(client)
+    # A stale tab of the designated submitter races another tab's committed command.
+    run(world, "submit")
+    if pending:
+        run(world, "amend", effective_version=1)
+    response = client.post(
+        f"/workspace/{GAME}/team-0/1/form",
+        data={
+            "csrf_token": csrf,
+            "operation": "amend" if pending else "submit",
+            "expected_version": 3 if pending else 2,
+            "effective_version": 1 if pending else "",
+            "key": str(uuid4()),
+        },
+        headers=ENHANCED if enhanced else {},
+    )
+    assert response.status_code == 409
+    if enhanced:
+        payload = response.json()
+        assert payload["outcome"] == "conflict"
+        assert payload["conflict"]["current"] == {
+            "submission_status": status, "effective_version": 1,
+        }
+        fields = payload["conflict_display"]["current"]["fields"]
+        assert {"label": "Submission status", "value": display_status, "empty": False} in fields
+        assert {"label": "Effective version", "value": 1, "empty": False} in fields
+        html = payload["html"]
+    else:
+        html = response.text
+    current = re.search(r"<h3>Current</h3>(.*?)<h3>Mine</h3>", html, re.S)[1]
+    assert f'<dt>Submission status</dt><dd class="authored">{display_status}</dd>' in current
+    assert '<dt>Effective version</dt><dd class="authored">1</dd>' in current

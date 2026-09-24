@@ -344,7 +344,10 @@ def execute(
         ):
             raise Conflict(
                 None,
-                {"submission_status": submission.status if submission else None},
+                {
+                    "submission_status": submission.status if submission else None,
+                    "effective_version": submission.effective_version if submission else None,
+                },
                 command.model_dump(mode="json"),
             )
         _check_command_baseline(session, draft, current, command)
