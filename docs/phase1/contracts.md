@@ -438,3 +438,32 @@ in the request record. Replay returns those facts after later changes. Legacy
 commands without the new fields preserve their fingerprints and stored result
 shape; completed retries remain recoverable without retroactive confirmation.
 No schema, backup format, adjudicator decision or unrelated editor contract changes.
+
+
+### Deadline policy and recovery (1U-2 PR 3.2)
+
+B-18 now governs revisions: post-lock server time strictly before
+`Submission.deadline` gives `immediate`; at/after it gives `approval_required`.
+First submissions remain immediate, including late ones. The confirmation and
+completed-retry ordering above is unchanged. Existing pending amendments still
+require a decision and block another submission while draft editing remains allowed.
+
+Immediate revisions write immutable content/actions, advance the effective pointer
+and record `immediate_revision` with the submitting user and post-lock time in the
+same transaction as the completion. They create no amendment or decision. Content
+versions use greatest existing + 1, including rejected proposals; only effective
+history skips rejected/pending versions.
+
+Ordinary redirects use `saved=immediate_revision` for an immediate revision and
+`saved=amend` for an approval-required proposal. Enhanced responses add `saved` and
+`message`, derived from the stored completion consequence. Both paths, including
+replay, say “Revision is now effective.” or “Amendment proposed for adjudicator
+review.” Legacy completions without consequence retain approval-required feedback.
+
+Application/backup version is 0.5.0; schema remains 0006 and archive format is
+unchanged. Exact-version checks reject mismatches before opening a restore target.
+Restore 0.4.0 archives using 0.4.0 before upgrading the recovered database. The
+verifier independently derives immediate events from noninitial content without
+amendments, requires matching actor/time and no source decision, and requires the
+effective timestamp strictly before the stored deadline. It checks contiguous
+content versions as well as complete effective provenance and the effective pointer.

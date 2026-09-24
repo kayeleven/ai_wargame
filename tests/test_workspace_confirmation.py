@@ -145,15 +145,15 @@ def test_stale_confirmed_draft_is_not_silently_rebased(world):
     assert rows(world[0]) == before
 
 
-def test_before_deadline_revision_still_requires_acceptance(world):
+def test_before_deadline_revision_is_immediate(world):
     cmd, who = prepared(world, "amend")
     before_deadline = NOW.replace(hour=0) - timedelta(seconds=1)
     with pytest.raises(ConfirmationRequired) as prompt:
         call(world, cmd, who, FixedClock(before_deadline))
-    assert prompt.value.expectations.expected_consequence == "approval_required"
+    assert prompt.value.expectations.expected_consequence == "immediate"
     confirmed = cmd.model_copy(update=prompt.value.expectations.model_dump())
     result = call(world, confirmed, who, FixedClock(before_deadline))
-    assert result["completion"]["expected_consequence"] == "approval_required"
+    assert result["completion"]["expected_consequence"] == "immediate"
     assert result["completion"]["expected_late"] is False
 
 

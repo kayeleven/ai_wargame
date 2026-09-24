@@ -229,7 +229,7 @@
     form.prepend(panel); panel.focus(); mark(form);
   }
   const classify = response => [401, 403, 404].includes(response.status) ? "rejected" : response.status >= 500 ? "uncertain" : response.status === 409 ? "conflict" : response.status === 422 ? "validation" : response.ok ? "acknowledged" : "uncertain";
-  const success = operation => ({intention:"Overall intention saved.",action:"Action saved.",comment:"Comment added.",submit:"Turn package submitted.",amend:"Amendment proposed.",remove:"Action removed.",reorder:"Action order updated.",decide:"Amendment decision recorded."})[operation] || "Saved.";
+  const success = operation => ({intention:"Overall intention saved.",action:"Action saved.",comment:"Comment added.",submit:"Turn package submitted.",amend:"Amendment proposed for adjudicator review.",immediate_revision:"Revision is now effective.",remove:"Action removed.",reorder:"Action order updated.",decide:"Amendment decision recorded."})[operation] || "Saved.";
   async function refresh(form, destination = location.href) {
     try { const response = await fetch(destination, { headers: { Accept:"text/html", "X-Workspace-Enhanced":"1" } }); if ([401, 403, 404].includes(response.status)) { workspace().dataset.refreshPending = "true"; document.querySelector("[data-retry-refresh]")?.remove(); announce("Saved. This workspace is no longer available to you.", "notice error", true); if (!document.querySelector("[data-access-changed-home]")) { const home = document.createElement("a"); home.href = "/"; home.dataset.accessChangedHome = "true"; home.textContent = "Go to Home"; document.querySelector("#workspace-status")?.after(home); } return; } if (!response.ok) throw new Error(); const parsed = new DOMParser().parseFromString(await response.text(), "text/html"); replaceCleanRegions(parsed, form); if (form.isConnected && editorId(form)) { if (form.dataset.dirty === "true") { const next = incomingEditor(parsed, editorId(form)); const csrf = next?.elements.namedItem("csrf_token"), current = form.elements.namedItem("csrf_token"); if (csrf && current) current.value = csrf.value; mark(form); } else freshToken(form, parsed); } workspace().dataset.refreshPending = ""; document.querySelector("[data-retry-refresh]")?.remove(); document.querySelector("[data-access-changed-home]")?.remove(); }
     catch {
@@ -295,9 +295,9 @@
       if (editorId(form)) acknowledgeEditor(form, frozen.authored, payload.committed_draft_version);
       form.querySelector("[data-conflict]")?.remove();
       if (form.dataset.pendingRecovery) form.closest("section[data-pending-recovery]")?.remove();
-      if (document.querySelector("[data-confirmation-page]")) { location.replace(`${payload.refresh}&saved=${encodeURIComponent(frozen.operation)}`); return; }
+      if (document.querySelector("[data-confirmation-page]")) { location.replace(`${payload.refresh}&saved=${encodeURIComponent(payload.saved || frozen.operation)}`); return; }
       document.querySelector("[data-submission-confirmation]")?.remove();
-      announce(payload?.message || success(frozen.operation)); await refresh(form, payload?.refresh || location.href);
+      announce(payload?.message || success(payload.saved || frozen.operation)); await refresh(form, payload?.refresh || location.href);
     } catch { retainPending(form, frozen); form.dataset.pending = "true"; workspace().dataset.unresolved = "true"; announce("Save outcome unknown. Retry will use the exact original save; other saves are paused.", "notice error", true); }
     finally { workspace().dataset.inflight = ""; form.dataset.inflight = ""; form.removeAttribute("aria-busy"); form.querySelectorAll("button[type=submit],button:not([type])").forEach(button => { button.disabled = Boolean(form.querySelector("[data-unavailable-recovery]")); if (form.dataset.pending) button.textContent = "Retry save"; }); }
   }
