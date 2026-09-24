@@ -139,14 +139,16 @@ before merge. Do not automatically merge implementation PRs.
 | Macro prerequisite | `master` | Pure move of shared template macros; existing tests green. [GitHub #2](https://github.com/kayeleven/ai_wargame/pull/2) merged by owner. No behavior changes. |
 | PR 1: dedicated amendment review | `master` | Immutable base/proposed comparisons, changed-action navigation, complete field comparisons and existing decision recovery. Player changes only a revision link and visible rejection reason. No policy, schema, confirmation or full player-state changes. |
 | PR 2: effective-version history | `master` | New migration after 0005; append-only mechanism/user/time records; preserving backfill from first submissions and accepted decisions; transactional events for existing initial/acceptance paths. Backup compatibility and upgrade/restore docs. No policy, confirmation or UI changes. |
-| PR 3: B-18 service policy | `milestone/1u-2` | Post-lock authoritative time/authorization, authorized replay before re-evaluation, expected effective version/deadline/consequence, no-write/no-key-claim `confirmation_required`, immediate versus approval-required revisions, immediate-revision events and pending-submission blocking. No player lifecycle UI. |
+| PR 3a: command hardening | `master` | Activated size fallback before PR 3: post-lock time/authorization and authorized completion replay for submit/amend/decide. No policy change; the observable retry, timestamp and revocation changes are documented in contracts.md. |
+| PR 3: B-18 service policy | `milestone/1u-2` | Expected effective version/deadline/consequence, no-write/no-key-claim `confirmation_required`, immediate versus approval-required revisions, immediate-revision events and pending-submission blocking. Extend backup.py `_verify_effective_history`'s expected set for immediate revisions and test backup → restore with one present. No player lifecycle UI. |
 | PR 4: player lifecycle | `milestone/1u-2` | Deliberate revision entry preserving saved draft changes; states, package review/confirmation, Submit revision wording, ordinary/enhanced forms, frozen uncertain commands, renewed confirmation and replay-accurate feedback. No extra policy, migration or automatic teammate refresh. |
 | Milestone PR | `milestone/1u-2` → `master` | Integrated regression/walkthrough evidence and final verification record; owner acceptance before merge and before 1U-3. |
 
-Create `milestone/1u-2` from master after PRs 1–2 merge. While PRs 3–4 are open,
+Create `milestone/1u-2` from master after PR 3a merges (the branch does not yet exist).
+While PRs 3–4 are open,
 merge master changes into it promptly; review and test conflict resolutions on the
 open PRs so the milestone PR contains no unreviewed resolution. Preparatory PRs 1–2
-can merge independently of the milestone gate. The new policy reaches master only
+and 3a can merge independently of the milestone gate. The new policy reaches master only
 with history, confirmation/recovery and presentation together through the milestone PR.
 
 **Size:** aim for about 400–800 non-test changed lines per implementation PR,
@@ -158,9 +160,14 @@ The smaller pure-move prerequisite is exempt from the lower guideline.
 **Pre-agreed PR 3 fallback:** if PR 3 exceeds the guideline, flag it and extract
 PR 3a to master: read authoritative time after locks, recheck authorization after
 locks and recognize completed matching retries before re-evaluation on existing
-submit/amend/decide paths. Keep it behavior-preserving hardening. PR 3 retains B-18
+submit/amend/decide paths. Make no submission-policy change; document intended
+observable hardening changes. PR 3 retains B-18
 policy, extended command expectations and `confirmation_required`; do not re-plan
 the sequence from scratch. Bring the merged hardening into the milestone branch.
+This fallback was activated
+for PR 3a: combined PR 3 projected ~900 non-test changed lines; PR 3a projected ~405.
+Concurrency evidence uses real PostgreSQL waits and a test-controlled clock, with
+bounded lock/wait timeouts. PR 3 must retain that test method for deadline policy.
 
 **PR 1 sizing decisions:** extract macros first (done); defer word-level highlighting.
 Changed-field markers with complete original/proposed values satisfy this increment.

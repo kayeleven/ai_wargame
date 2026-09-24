@@ -22,6 +22,7 @@ from living_memory.administration import (
     activate_game,
     create_game,
 )
+from living_memory.clocks import FixedClock
 from living_memory.db import Database
 from living_memory.identity import GameRole, TeamMembership, create_local_user, deactivate_user
 from living_memory.workspace import (
@@ -121,7 +122,8 @@ def run(world, operation, version=None, *, who="player", team="team-0", key=None
     command = Command(operation=operation, key=key or uuid4(), expected_version=version, **values)
     with db.transaction() as session:
         return execute(
-            session, user_id=ids[who], game_id=GAME, team_id=team, turn=1, command=command, now=NOW
+            session, user_id=ids[who], game_id=GAME, team_id=team, turn=1,
+            command=command, clock=FixedClock(NOW)
         )
 
 

@@ -14,6 +14,7 @@ from test_recovery_corrections import target_factory  # noqa: F401
 from test_workspace import GAME, NOW, counts, ready, run, world  # noqa: F401
 
 from living_memory import backup
+from living_memory.clocks import FixedClock
 from living_memory.db import ROOT, migration_config
 from living_memory.workspace import Amendment, EffectiveVersionEvent, Submission
 from living_memory.workspace_service import Command, execute
@@ -194,7 +195,7 @@ def test_events_replay_and_rollback(world):
             team_id="team-0",
             turn=1,
             command=cmd,
-            now=NOW + timedelta(seconds=1),
+            clock=FixedClock(NOW + timedelta(seconds=1)),
         )
         raise RuntimeError("abort")
     assert counts(db) == before
@@ -206,7 +207,7 @@ def test_events_replay_and_rollback(world):
             team_id="team-0",
             turn=1,
             command=cmd,
-            now=NOW + timedelta(seconds=2),
+            clock=FixedClock(NOW + timedelta(seconds=2)),
         )
     with db.transaction() as s:
         assert (
@@ -217,7 +218,7 @@ def test_events_replay_and_rollback(world):
                 team_id="team-0",
                 turn=1,
                 command=cmd,
-                now=NOW + timedelta(seconds=3),
+                clock=FixedClock(NOW + timedelta(seconds=3)),
             )
             == result
         )
@@ -356,7 +357,13 @@ def test_initial_submission_rollback_leaves_no_event_or_command(world):
     cmd = Command(operation="submit", key=uuid4(), expected_version=2)
     with pytest.raises(RuntimeError, match="abort"), db.transaction() as s:
         execute(
-            s, user_id=ids["player"], game_id=GAME, team_id="team-0", turn=1, command=cmd, now=NOW
+            s,
+            user_id=ids["player"],
+            game_id=GAME,
+            team_id="team-0",
+            turn=1,
+            command=cmd,
+            clock=FixedClock(NOW),
         )
         assert s.scalar(select(EffectiveVersionEvent)) is not None
         raise RuntimeError("abort")

@@ -53,6 +53,29 @@ class WorkspaceConflict(ValueError):
     pass
 
 
+def completed_request(
+    session: Session,
+    *,
+    game_id: str,
+    branch_id: str,
+    operation: str,
+    key: UUID,
+    fingerprint: str,
+) -> RequestKey | None:
+    """Read a completed result without claiming a key. Caller must authorize first."""
+    existing = session.scalar(
+        select(RequestKey).where(
+            RequestKey.game_id == game_id,
+            RequestKey.branch_id == branch_id,
+            RequestKey.operation == operation,
+            RequestKey.key == key,
+        )
+    )
+    if existing is not None and existing.fingerprint != fingerprint:
+        raise IdempotencyConflict("request key was already used with different content")
+    return existing
+
+
 def claim_request_key(
     session: Session,
     *,
@@ -83,16 +106,15 @@ def claim_request_key(
         return row, False
     except IntegrityError:
         point.rollback()
-    existing = session.scalars(
-        select(RequestKey).where(
-            RequestKey.game_id == game_id,
-            RequestKey.branch_id == branch_id,
-            RequestKey.operation == operation,
-            RequestKey.key == key,
-        )
-    ).one()
-    if existing.fingerprint != fingerprint:
-        raise IdempotencyConflict("request key was already used with different content")
+    existing = completed_request(
+        session,
+        game_id=game_id,
+        branch_id=branch_id,
+        operation=operation,
+        key=key,
+        fingerprint=fingerprint,
+    )
+    assert existing is not None
     return existing, True
 
 

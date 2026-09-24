@@ -634,7 +634,7 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                         team_id=team_id,
                         turn=turn,
                         command=command,
-                        now=request.app.state.clock.now(),
+                        clock=request.app.state.clock,
                     )
                 )
                 editor = _editor_identity(command)

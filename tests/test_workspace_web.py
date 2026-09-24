@@ -656,3 +656,78 @@ def test_comparison_summary_omits_zero_counts_and_handles_empty_packages(world):
     assert "No actions in either version." in page.text
     for label in ("added", "removed", "changed", "unchanged"):
         assert f"0 {label}" not in page.text
+
+
+@pytest.mark.parametrize("operation", ["submit", "amend", "decide"])
+@pytest.mark.parametrize("enhanced", [False, True])
+def test_completed_replay_after_turn_advance_refreshes_original_turn(world, operation, enhanced):
+    from urllib.parse import parse_qs, urlsplit
+
+    from test_workspace_command_hardening import prepared
+
+    from living_memory.administration import AdminGame
+
+    command, who = prepared(world, operation)
+    client = client_for(world, who)
+    route = "/adjudicate" if who == "judge" else "/play"
+    page = client.get(f"{route}?game_id={GAME}&team_id=team-0&turn=1")
+    csrf = re.search(r'name="csrf_token" value="([^"]+)"', page.text)[1]
+    values = command.model_dump(mode="json", exclude_defaults=True)
+    values["csrf_token"] = csrf
+    endpoint = f"/workspace/{GAME}/team-0/1/form"
+    headers = ENHANCED if enhanced else {}
+    original = client.post(endpoint, data=values, headers=headers, follow_redirects=False)
+    assert original.status_code == (200 if enhanced else 303)
+    with world[0].transaction() as session:
+        session.get(AdminGame, GAME).current_turn = 2
+    replay = client.post(endpoint, data=values, headers=headers, follow_redirects=False)
+    assert replay.status_code == original.status_code
+    if enhanced:
+        assert replay.json() == original.json()
+        assert replay.json()["outcome"] == "committed"
+        assert replay.json()["key"] == str(command.key)
+        refresh = replay.json()["refresh"]
+    else:
+        refresh = replay.headers["location"]
+        assert refresh == original.headers["location"]
+    assert parse_qs(urlsplit(refresh).query)["turn"] == ["1"]
+    assert client.get(refresh).status_code == 200
+
+
+def test_transaction_retry_reads_clock_again(world, monkeypatch):
+    from datetime import timedelta
+
+    from sqlalchemy import select
+    from test_workspace_command_hardening import ControlledClock
+
+    from living_memory import workspace_web
+    from living_memory.team_authority import RetryableConflict
+    from living_memory.workspace import EffectiveVersionEvent, RequestKey
+
+    ready(world)
+    clock = ControlledClock()
+    client = client_for(world)
+    client.app.state.clock = clock
+    csrf = workspace_csrf(client)
+    original_execute = workspace_web.execute
+    attempts = []
+
+    def transient_failure(*args, **kwargs):
+        result = original_execute(*args, **kwargs)
+        attempts.append(clock.now())
+        if len(attempts) == 1:
+            clock.advance(NOW + timedelta(seconds=10))
+            raise RetryableConflict("Retry the transaction")
+        return result
+
+    monkeypatch.setattr(workspace_web, "execute", transient_failure)
+    key = uuid4()
+    response = client.post(f"/workspace/{GAME}/team-0/1/form", headers=ENHANCED,
+                           data=dict(csrf_token=csrf, key=str(key), operation="submit",
+                                     expected_version=2))
+    assert response.status_code == 200 and response.json()["outcome"] == "committed"
+    assert attempts == [NOW, NOW + timedelta(seconds=10)]
+    with world[0].transaction() as session:
+        assert session.scalars(select(EffectiveVersionEvent)).one().effective_at == attempts[1]
+        record = session.scalars(select(RequestKey).where(RequestKey.key == key)).one()
+        assert record.created_at == attempts[1]

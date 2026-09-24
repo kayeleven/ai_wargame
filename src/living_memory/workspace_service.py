@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from living_memory.administration import AdminGame, governing_configuration, lock_game
+from living_memory.clocks import Clock
 from living_memory.identity import TeamMembership, User, resolve_principal
 from living_memory.team_authority import effective_memberships
 from living_memory.workspace import (
@@ -28,6 +29,7 @@ from living_memory.workspace import (
     WorkspaceConflict,
     canonical_fingerprint,
     claim_request_key,
+    completed_request,
 )
 
 
@@ -220,7 +222,7 @@ def get_submission(session: Session, game_id: str, team_id: str, turn: int) -> S
 
 
 def require_submitter(session: Session, user_id: UUID, game_id: str, team_id: str) -> None:
-    member = session.get(TeamMembership, (user_id, game_id, team_id))
+    member = session.get(TeamMembership, (user_id, game_id, team_id), populate_existing=True)
     if member is None or member.authority != "submitter":
         raise PermissionError("Only the designated submitter may submit or propose amendments")
 
@@ -233,64 +235,76 @@ def execute(
     team_id: str,
     turn: int,
     command: Command,
-    now: datetime,
+    clock: Clock,
 ) -> dict[str, Any]:
     review = command.operation == "decide"
-    game = authorize(session, user_id, game_id, team_id, now, review=review, write=True)
-    # Administration also locks the game before changing memberships. Lock users in stable order.
+    # Cheap preflight only: no authority or timestamp from here survives the locks.
+    authorize(session, user_id, game_id, team_id, clock.now(), review=review)
+    game = lock_game(session, game_id)
+    # Match administration's game -> sorted users lock order.
     for uid in sorted({user_id} | ({command.owner_user_id} if command.owner_user_id else set())):
         session.get(User, uid, with_for_update=True, populate_existing=True)
-    authorize(session, user_id, game_id, team_id, now, review=review)
-    if command.operation in {"submit", "amend"}:
-        require_submitter(session, user_id, game_id, team_id)
-    if game.status != "active" or turn != game.current_turn:
-        raise ValueError("Only the active current turn can be changed")
     draft = get_draft(session, game_id, team_id, turn)
     if draft is not None:
         session.refresh(draft, with_for_update=True)
     submission = get_submission(session, game_id, team_id, turn)
     if submission is not None:
         session.refresh(submission, with_for_update=True)
-    current = package(session, draft)
     amendment = None
-    if review:
-        amendment = session.get(Amendment, command.amendment_id) if command.amendment_id else None
-        if amendment is None or submission is None or amendment.submission_id != submission.id:
-            raise LookupError("Not found")
+    if review and submission is not None and command.amendment_id is not None:
+        amendment = session.scalar(
+            select(Amendment)
+            .where(
+                Amendment.id == command.amendment_id,
+                Amendment.submission_id == submission.id,
+            )
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    now = clock.now()
+    authorize(session, user_id, game_id, team_id, now, review=review)
+    if command.operation in {"submit", "amend"}:
+        require_submitter(session, user_id, game_id, team_id)
+    fingerprint = canonical_fingerprint(
+        {
+            "user": str(user_id),
+            "team": team_id,
+            "turn": turn,
+            "command": command.model_dump(mode="json"),
+        }
+    )
+    if command.operation in {"submit", "amend", "decide"}:
+        completed = completed_request(
+            session,
+            game_id=game_id,
+            branch_id=game.root_branch_id,
+            operation=command.operation,
+            key=command.key,
+            fingerprint=fingerprint,
+        )
+        if completed is not None:
+            return completed.result_ref
+    if game.status != "active" or turn != game.current_turn:
+        raise ValueError("Only the active current turn can be changed")
+    current = package(session, draft)
+    if review and (amendment is None or submission is None):
+        raise LookupError("Not found")
     result_id = str(uuid4())
     result_kind = "amendment_decision" if review else "package_revision"
     redirect = (
         f"/{'adjudicate' if review else 'play'}?game_id={game_id}&team_id={team_id}&turn={turn}"
     )
-    _, replay = claim_request_key(
+    record, replay = claim_request_key(
         session,
         game_id=game_id,
         branch_id=game.root_branch_id,
         operation=command.operation,
         key=command.key,
-        fingerprint=canonical_fingerprint(
-            {
-                "user": str(user_id),
-                "team": team_id,
-                "turn": turn,
-                "command": command.model_dump(mode="json"),
-            }
-        ),
+        fingerprint=fingerprint,
         result_ref={"kind": result_kind, "id": result_id, "redirect": redirect},
         now=now,
     )
     if replay:
-        from living_memory.workspace import RequestKey
-
-        record = session.scalar(
-            select(RequestKey).where(
-                RequestKey.game_id == game_id,
-                RequestKey.branch_id == game.root_branch_id,
-                RequestKey.operation == command.operation,
-                RequestKey.key == command.key,
-            )
-        )
-        assert record is not None
         return record.result_ref
     if command.action_id is not None and command.action_id not in {a.id for a in current.actions}:
         raise LookupError("Not found")

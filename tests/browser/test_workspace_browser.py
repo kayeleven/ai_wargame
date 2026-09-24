@@ -1599,3 +1599,67 @@ def test_review_added_removed_and_unchanged_context(workspace_server, world):
         page.get_by_text("Unchanged actions (1)", exact=True).click()
         expect(page.get_by_role("heading", name="Unchanged context — unchanged")).to_be_visible()
         browser.close()
+
+
+@pytest.mark.parametrize("after_commit", ["advance", "replace_submitter"])
+def test_lost_submission_response_after_authority_or_turn_change(
+    workspace_server, world, after_commit
+):
+    from sqlalchemy import select
+    from test_workspace import ready
+
+    from living_memory.admin_access import replace_submitter
+    from living_memory.administration import AdminGame
+    from living_memory.workspace import EffectiveVersionEvent
+
+    ready(world)
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "player", True)
+        page.goto(f"{url}/play?game_id={GAME}&team_id=team-0&turn=1")
+        page.evaluate("""() => {
+            const original = window.fetch.bind(window); let dropped = false;
+            window.fetch = (...args) => {
+                if ((args[1]?.method || 'GET') !== 'POST' || dropped) return original(...args);
+                dropped = true;
+                return original(...args).then(() => Promise.reject(new TypeError('dropped')));
+            };
+        }""")
+        page.get_by_role("button", name="Submit turn package", exact=True).click()
+        retry = page.get_by_role("button", name="Retry save", exact=True)
+        expect(retry).to_be_visible()
+        form = page.locator('form:has(button:text-is("Retry save"))')
+        original_key = form.locator('[name="key"]').input_value()
+        with world[0].transaction() as session:
+            if after_commit == "advance":
+                session.get(AdminGame, GAME).current_turn = 2
+            else:
+                ids = world[2]
+                replace_submitter(session, ids["admin"], GAME, "team-0",
+                                  ids["player"], ids["teammate"], NOW)
+        with page.expect_response(lambda r: r.request.method == "POST") as response:
+            retry.click()
+        if after_commit == "advance":
+            payload = response.value.json()
+            assert payload["outcome"] == "committed" and "turn=1" in payload["refresh"]
+            expect(page.locator('[data-workspace]')).to_have_attribute("data-unresolved", "")
+            expect(page.locator('[data-workspace]')).to_have_attribute("data-refresh-pending", "")
+            expect(page.locator('form[data-pending="true"]')).to_have_count(0)
+            expect(page.locator('[data-pending-recovery]')).to_have_count(0)
+            expect(page.get_by_text("Effective version 1 · submitted.", exact=True)).to_be_visible()
+            assert page.evaluate(
+                "Object.keys(sessionStorage).filter(k => k.endsWith(':pending')).length"
+            ) == 0
+        else:
+            assert response.value.status == 403
+            expect(page.locator('[data-workspace]')).to_have_attribute("data-unresolved", "true")
+            expect(form).to_have_attribute("data-pending", "true")
+            expect(form.locator('[name="key"]')).to_have_value(original_key)
+            expect(page.get_by_text(
+                "The retry was rejected; the original save outcome is still unknown.",
+                exact=False,
+            )).to_be_visible()
+        with world[0].transaction() as session:
+            assert len(session.scalars(select(EffectiveVersionEvent)).all()) == 1
+        browser.close()
