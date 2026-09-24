@@ -557,3 +557,52 @@ backup/restore and Chromium. Existing warnings are Starlette/httpx and AnyIO
 deprecations. Ruff, mypy (21 source files) and `git diff --check` passed.
 Reproduction uses the same PostgreSQL client PATH/LD_LIBRARY_PATH command above.
 Actual non-test size (additions + deletions, including documentation): 221 lines.
+
+## PR 3.2 owner manual review
+
+Reviewer: project owner · Date: 2026-09-24 · Environment: [browser + version], [OS],
+local development server against the recreated development database (schema 0006,
+application 0.5.0; no migration required). Dedicated test game with a turn 1
+deadline of [YYYY-MM-DDTHH:MM:SSZ], about 15 minutes after the start of testing,
+so both B-18 paths could be exercised in one session.
+
+Automated results are recorded above; this section records manual observations only.
+
+| # | Check | Result | Observations |
+|---|---|---|---|
+| 1 | First submission before the deadline | Pass | Confirmation stated effective immediately and before the deadline. |
+| 2 | Revision before the deadline is immediate | Pass | Confirmation stated effective immediately; message "Revision is now effective."; version 2 shown as effective; no amendment awaiting adjudicator review. |
+| 3 | Revision after the deadline requires approval | Pass | Confirmation stated requires adjudicator acceptance and late; message "Amendment proposed for adjudicator review." |
+| 4 | Adjudicator rejects with reason | Pass | Player saw the rejection and reason; version 2 remained effective. |
+| 5 | Further proposal accepted | Pass | Content versions contiguous (1, 2, 3 rejected, 4); effective history 1 → 2 → 4. |
+| 6 | Deadline crossed while confirming | Pass, with UX finding | Confirm after the deadline wrote nothing and returned a renewed prompt stating approval required. See finding below. |
+
+Not checked manually: exact-deadline boundary, real lock waits, concurrent retries,
+restore verification and corrupted-archive rejection (covered by automated tests only);
+screen reader; no-JavaScript confirmation page.
+
+Known interim wording, as recorded above: "Propose amendment" button and help text
+remain before the deadline, even though the result is an immediate revision. Expected;
+replaced in PR 4.
+
+### Findings and follow-ups
+
+- No blocking PR 3.2 findings. Policy, history and messages behaved correctly.
+- **UX finding for PR 4 (check 6):** when the deadline passed during confirmation,
+  the renewed prompt correctly showed "requires adjudicator acceptance". It did not
+  make clear that the consequence had changed since the previous prompt, or that
+  nothing had been submitted and the player had to confirm again. It read like the
+  same prompt re-displayed. PR 4's confirmation presentation should state the
+  change explicitly, for example: "The deadline passed while you were confirming.
+  Nothing was submitted. This revision now requires adjudicator acceptance. Confirm
+  again to propose it." The server already has both the command's previous
+  expectations and the current ones, so the change can be described precisely.
+  This applies to any changed expectation (effective version, deadline, late status),
+  not just the deadline crossing.
+
+### Decision
+
+PR 3.2 approved for merge into `milestone/1u-2`. This approves PR 3.2 only; it is not
+milestone acceptance. The B-18 service policy, confirmation contract, effective-version
+history and recovery compatibility are now complete on the milestone branch. PR 4
+(player lifecycle presentation) is the remaining implementation increment.
