@@ -1,9 +1,11 @@
 # Phase 1U-2 verification
 
-Status: **PR 1 owner-approved; full-suite merge condition satisfied; milestone still implementing**. The full milestone is
-not delivered or accepted. The agreed PR sequence, boundaries and gates are in
+Status: **Accepted** by the project owner on `e1d0ca5`; awaiting the owner-managed merge.
+The agreed PR sequence, boundaries and gates are in
 [usability alignment](usability-alignment.md#agreed-1u-2-pr-delivery-sequence--2026-09-23).
-Append later PR evidence here; finalize this same record at the milestone gate.
+The [acceptance traceability and finding dispositions](#milestone-acceptance-traceability)
+are the owner decision basis. Historical increment evidence remains below; the
+milestone acceptance is [recorded below](#final-owner-acceptance--2026-09-25), before merge to `master`.
 
 ## Prerequisite — macro extraction
 
@@ -338,3 +340,615 @@ adjudicator role. The full suite after the fix passed: **246 passed in 178.29s**
 including browser tests, with the same two existing dependency warnings. Ruff,
 mypy (21 source files) and whitespace checks passed. The owner finding is fixed;
 the strengthened tests retain the cached role throughout the real lock wait.
+
+## PR 3.1 — Confirmation contract under current policy
+
+PR 3a is merged. The owner created `milestone/1u-2`; this increment targets that
+branch, not master. The approved remaining split is recorded in
+[usability alignment](usability-alignment.md). Master and milestone both pointed to
+`d5cf8a3` at the pre-PR synchronization check; no master changes needed integrating.
+
+### Boundary and evidence
+
+First submissions remain immediately effective and every amendment still requires
+adjudicator acceptance. No schema, migration, backup-format or immediate-event
+changes. Minimal ordinary/enhanced consequence, deadline and draft-baseline
+confirmation is functional now; full package review and lifecycle presentation
+remain PR 4. PR 3.2 must implement the immediate-event expected set and explicit
+SubmissionVersion contiguity check in `_verify_effective_history`, with a backup →
+restore round trip containing an immediate revision.
+
+- `test_workspace_confirmation.py` compares all workspace rows before/after missing
+  or stale expectations for submit and amend; neither a request key nor content,
+  draft, history or completion records are written. It covers typed JSON, malformed
+  deadlines, ordinary renewed confirmation, unchanged draft baselines, current
+  before-deadline amendment policy, stored completion replay and legacy fingerprints.
+- Delayed-original cases hold key A until fresh confirmed key B commits, for both
+  submit and amend. Releasing A produces a conflict with no additional writes:
+  exactly one new content version, no A request record. Thus a no-write confirmation
+  response describes that attempt at response time; it does not prove an earlier
+  lost request was dropped.
+- The real PostgreSQL lock-wait test advances a controlled clock while blocked and
+  obtains a no-write re-prompt after crossing the deadline. Existing bounded lock,
+  cached-authority, original-turn replay and transaction-retry tests remain active.
+- Browser coverage explicitly confirms ordinary/enhanced submissions and amendments.
+  A 409 `confirmation_required` never creates an edit-conflict panel, leaves no
+  pending/unresolved state or unresolved storage, and preserves unsaved input.
+  This also holds after a lost prompt response and reload/retry. Lost committed
+  confirmation responses retain the original frozen command; turn-advance recovery
+  and replaced-submitter denial remain covered.
+- The confirmation panel is server-rendered and template-escaped, inserted through
+  DOM parsing/import. This increment adds no authored-content `innerHTML` path.
+
+**Milestone upgrade note:** a stale pre-upgrade tab uses the previous generic 409
+handler and shows a conflict panel for `confirmation_required`, without writing.
+Reloading obtains the new explicit confirmation flow. This compatibility limitation
+must remain in the milestone PR's verification/acceptance evidence.
+
+Code review checked authorization/replay ordering, legacy fingerprint serialization,
+validation before request-key claims, atomic completion metadata, immutable confirmed
+draft baselines, delayed originals, HTTP result shape compatibility and browser
+recovery. The review retained unrelated editor response shapes (no null completion
+field) and the saved-message redirect from a standalone confirmation page.
+No unresolved findings; owner review remains required.
+
+Full suite: **268 passed in 193.71s**, including Chromium and PostgreSQL coverage;
+two existing FastAPI/Starlette dependency deprecation warnings. No xfails.
+Ruff, mypy (21 source files), offline lockfile and whitespace checks passed.
+Actual non-test size: 319 changed lines (additions plus deletions, including
+documentation and the new template), below the ~700 projection and 800-line ceiling.
+Owner review and the milestone's final manual acceptance remain pending.
+
+### Owner review correction — readable submission eligibility conflicts
+
+Eligibility conflicts supplied a submission status that the conflict presenter did
+not recognize, leaving Current blank. The payload now includes both submission
+status and effective version; the presenter labels them and displays "Submitted"
+or "Amendment pending". The missing-submission case displays "Not submitted".
+Raw status values remain available in the enhanced conflict payload.
+
+The new web regression covers a stale Submit after another tab submits and a stale
+amendment command after another proposal becomes pending, in both ordinary and
+enhanced responses. It asserts the Current side's labels/values, not merely text
+elsewhere on the workspace. Before the fix all four cases failed (**4 failed,
+30 deselected in 3.65s**). After the fix the affected web and confirmation suites
+passed: **54 passed in 34.85s**.
+
+Full suite after the fix: **272 passed in 196.41s**, including browser tests, with
+the same two existing dependency deprecation warnings. Ruff, mypy (21 source files),
+offline lockfile and whitespace checks passed. Review confirmed the presentation
+mapping leaves raw conflict data unchanged and both response modes use the same
+labels. The owner's finding is fixed; this update does not merge the PR.
+
+## PR 3.1 owner manual review
+
+Reviewer: project owner · Date: 2026-09-24 · Environment: [browser + version], [OS],
+local development server against a freshly recreated development database at schema
+0006. Test game created from a two-team configuration with turn deadlines on
+2026-09-30, 2026-10-07 and 2026-10-14 (UTC), so first submissions were before the deadline.
+
+Automated results are recorded above; this section records manual observations only.
+
+| # | Check | Result | Observations |
+|---|---|---|---|
+| 1 | First submission shows confirmation before committing | Pass | Prompt stated effective immediately, before the deadline, current effective version "none" and the deadline. Nothing submitted until Confirm. |
+| 2 | Amendment shows confirmation stating approval required | Pass | After Confirm, the amendment appeared pending adjudicator review. |
+| 3 | Adjudicator accepts the pending amendment | Pass | Passed after the environment issue below was resolved. |
+| 4 | Return to workspace without confirming | Pass | Nothing submitted; draft remained editable. |
+| 5 | Stale confirmation (draft saved in another tab, then Confirm) | Pass | [Conflict / renewed prompt]; nothing submitted. |
+| 6 | Second submitter's stale Submit after another submission | Pass | Conflict Current side shows "Submitted" (correction above). |
+| 7 | Keyboard: prompt receives focus; Confirm and Return reachable by Tab | Pass | |
+
+Not checked manually: deadline crossing during confirmation, lost Confirm responses,
+delayed originals and stale pre-upgrade tabs (covered by automated tests only);
+screen reader; no-JavaScript confirmation page.
+
+### Environment finding — development database not upgraded to 0006
+
+During check 3, the adjudicator's acceptance and a new first submission failed with
+503 and "Save outcome unknown". Amendment proposal succeeded. Cause: the development
+database was still at schema 0005. PR 2 deliberately rehearsed 0006 on a restored
+copy and left the real upgrade (development.md step 6) to the owner, and that step
+had not been performed. Only operations that write effective-version events failed,
+because `ws_effective_version_event` did not exist. Startup does not run migrations,
+and ordinary requests do not check the schema, so pages loaded normally. The generic
+database 503 message did not reveal the mismatch.
+
+Resolution: the development data was disposable test content, so the owner
+recreated the database (volume removed, `make db-up`, `make migrate`, `make seed`)
+instead of performing the preserving backup-and-upgrade procedure. This was a
+deliberate owner decision for non-valuable data. The preserving procedure remains
+required for any database whose contents matter. The failed requests had rolled back
+without claiming request keys, so no partial writes occurred. This was an
+environment issue, not a PR 3.1 defect.
+
+### Findings and follow-ups
+
+- No blocking PR 3.1 findings from the manual review. The eligibility-conflict
+  display finding was fixed and verified above.
+- Follow-up (separate small PR to master): when schema heads do not match, refuse
+  writes with an explicit "schema mismatch, run migrate" response instead of a
+  generic database-unavailable 503. Readiness already detects the mismatch;
+  ordinary requests do not.
+- Process follow-up for the milestone PR checklist: a merged migration requires an
+  explicit "development database upgraded or recreated" step, recorded here.
+- Carried forward: a stale pre-upgrade tab shows a conflict panel for
+  `confirmation_required` without writing (milestone upgrade note above).
+
+### Decision
+
+PR 3.1 approved for merge into `milestone/1u-2`. This approves PR 3.1 only; it
+is not milestone acceptance. The basic confirmation presentation is expected to be
+replaced in PR 4.
+
+## PR 3.2 — B-18 immediate revisions and recovery
+
+Based on merged PR 3.1 at milestone commit `5fc613b`, targeting `milestone/1u-2`.
+No master-only commits needed integration at the initial synchronization check.
+Approved projection was approximately 283 non-test changed lines, including docs;
+this increment retains the approved smaller policy/recovery boundary.
+
+### Delivered behavior and compatibility
+
+- Revisions strictly before the stored submission deadline take effect immediately,
+  without an amendment or adjudicator decision. At/after the deadline they require
+  acceptance. Post-lock time governs; existing pending proposals still need decisions.
+- Immediate events, immutable content/actions, effective state and stored completion
+  commit together. Content allocation includes rejected proposals; effective history
+  skips rejected/pending content, but content versions stay contiguous.
+- Restore derives immediate provenance independently, checks no source decision and
+  a timestamp strictly before the stored deadline, and explicitly checks contiguity.
+- APP_VERSION, package version and lock metadata move together to **0.5.0**.
+  Schema stays 0006 and archive format stays unchanged. Exact-version rejection
+  occurs before restore opens a target. Restore 0.4.0 archives with 0.4.0 first,
+  then upgrade the recovered database; never rewrite version fields in manifests.
+- Ordinary redirects and enhanced responses use the stored completion consequence:
+  “Revision is now effective.” or “Amendment proposed for adjudicator review.”
+  Retries retain the original message after the deadline. Legacy completions without
+  consequence retain proposal feedback.
+
+### Verification coverage
+
+- Service deadline matrix before/at/after; real PostgreSQL lock waits with bounded
+  timeouts and a controlled clock; crossing the deadline writes nothing and requires
+  fresh confirmation before creating the pending proposal.
+- Ordinary/enhanced HTTP messages and replay after the deadline; immediate event
+  actor/time/source, effective state, transaction rollback and concurrent retries.
+- Rejected → immediate preserves content sequence `[1, 2, 3]` and effective events
+  `[1, 3]`. The 0.5.0 archive round trip preserves domain rows and completion replay.
+  Simulated 0.4.0 exact-version checking rejects that archive before target access.
+- Same-count corruption tests cover an immediate event at/after the deadline,
+  an attached decision reference and a content gap. Timestamp corruption also changes
+  immutable content time to match, proving deadline validation independently of
+  provenance equality. An invalid deadline archive leaves recovery blocked.
+- Existing pre-policy pending proposal permits draft editing, blocks another
+  submission before the deadline, and still records adjudicator acceptance.
+- Chromium covers ordinary/enhanced messages for both outcomes. Lost-response replay
+  additionally checks the enhanced message after the deadline without duplicate writes.
+
+### Known interim wording and owner gate
+
+The **Propose amendment** button and amendment help wording remain until PR 4.
+They are a known interim wording issue for immediate revisions; confirmation states
+its actual consequence and success/replay feedback is accurate. Full player lifecycle
+presentation and package review remain PR 4. Existing no-JavaScript reload recovery
+limitations remain unchanged.
+
+Owner verification and approval are pending. Suggested review: submit a revision
+before the deadline, observe immediate effect and no adjudicator proposal; repeat
+at/after it, reject and correct through the existing workflow; verify both success
+messages and retry behavior. Review the matching-version restore instructions.
+Do not merge this implementation PR automatically; this is not milestone acceptance.
+
+### Automated checks and implementation review
+
+The first complete run exposed corruption-test schema leakage and deferred-trigger
+cleanup, plus an existing exact response-shape assertion for unrelated editor saves.
+Corruption-only schema changes now roll back in the same connection after verification;
+the new success fields are limited to `amend`. Restored the two affected constraints
+only in the dedicated test database. The focused rerun passed **22 tests**, including
+schema/catalog parity and both lost-response Chromium scenarios.
+
+Implementation self-review checked transaction ordering, version allocation,
+post-lock confirmation/replay, independent restore provenance, exact compatibility,
+and ordinary/enhanced response scope. No outstanding implementation findings;
+this does not substitute for owner review or milestone acceptance.
+
+Final full suite: **296 passed, 2 warnings in 217.22s**, including PostgreSQL,
+backup/restore and Chromium. Existing warnings are Starlette/httpx and AnyIO
+deprecations. Ruff, mypy (21 source files) and `git diff --check` passed.
+Reproduction uses the same PostgreSQL client PATH/LD_LIBRARY_PATH command above.
+Actual non-test size (additions + deletions, including documentation): 221 lines.
+
+## PR 3.2 owner manual review
+
+Reviewer: project owner · Date: 2026-09-24 · Environment: [browser + version], [OS],
+local development server against the recreated development database (schema 0006,
+application 0.5.0; no migration required). Dedicated test game with a turn 1
+deadline of [YYYY-MM-DDTHH:MM:SSZ], about 15 minutes after the start of testing,
+so both B-18 paths could be exercised in one session.
+
+Automated results are recorded above; this section records manual observations only.
+
+| # | Check | Result | Observations |
+|---|---|---|---|
+| 1 | First submission before the deadline | Pass | Confirmation stated effective immediately and before the deadline. |
+| 2 | Revision before the deadline is immediate | Pass | Confirmation stated effective immediately; message "Revision is now effective."; version 2 shown as effective; no amendment awaiting adjudicator review. |
+| 3 | Revision after the deadline requires approval | Pass | Confirmation stated requires adjudicator acceptance and late; message "Amendment proposed for adjudicator review." |
+| 4 | Adjudicator rejects with reason | Pass | Player saw the rejection and reason; version 2 remained effective. |
+| 5 | Further proposal accepted | Pass | Content versions contiguous (1, 2, 3 rejected, 4); effective history 1 → 2 → 4. |
+| 6 | Deadline crossed while confirming | Pass, with UX finding | Confirm after the deadline wrote nothing and returned a renewed prompt stating approval required. See finding below. |
+
+Not checked manually: exact-deadline boundary, real lock waits, concurrent retries,
+restore verification and corrupted-archive rejection (covered by automated tests only);
+screen reader; no-JavaScript confirmation page.
+
+Known interim wording, as recorded above: "Propose amendment" button and help text
+remain before the deadline, even though the result is an immediate revision. Expected;
+replaced in PR 4.
+
+### Findings and follow-ups
+
+- No blocking PR 3.2 findings. Policy, history and messages behaved correctly.
+- **UX finding for PR 4 (check 6):** when the deadline passed during confirmation,
+  the renewed prompt correctly showed "requires adjudicator acceptance". It did not
+  make clear that the consequence had changed since the previous prompt, or that
+  nothing had been submitted and the player had to confirm again. It read like the
+  same prompt re-displayed. PR 4's confirmation presentation should state the
+  change explicitly, for example: "The deadline passed while you were confirming.
+  Nothing was submitted. This revision now requires adjudicator acceptance. Confirm
+  again to propose it." The server already has both the command's previous
+  expectations and the current ones, so the change can be described precisely.
+  This applies to any changed expectation (effective version, deadline, late status),
+  not just the deadline crossing.
+
+### Decision
+
+PR 3.2 approved for merge into `milestone/1u-2`. This approves PR 3.2 only; it is not
+milestone acceptance. The B-18 service policy, confirmation contract, effective-version
+history and recovery compatibility are now complete on the milestone branch. PR 4
+(player lifecycle presentation) is the remaining implementation increment.
+
+## PR 4a — Player lifecycle and deliberate revision entry
+
+PR 4 was split at the owner-approved seam before implementation. Estimated non-test
+additions plus deletions, including documentation: PR 4a 350; PR 4b 690. Both target
+`milestone/1u-2`; each must be independently functional and green. PR 4b owns package
+review, effective-version comparison and the PR 3.2 renewed-confirmation finding.
+
+PR 4a presents effective, saved draft, pending and rejected states, preserves the
+existing draft through explicit `mode=revise` entry, and uses **Submit revision**.
+Consequence hints state the deadline rule rather than promising a current outcome.
+Confirmation and the command service remain authoritative. No policy or schema change.
+
+### Automated verification
+
+Coverage adds explicit revision entry without writes, retained saved/unsaved draft
+content, pending editing, rejected → corrected → accepted flow, advisory deadline
+wording, member/current-turn restrictions, and keyboard/375px long-content checks
+in ordinary and enhanced modes. Existing original-key replay and recovery assertions
+remain, with entry/wording updates for the new lifecycle view.
+
+Review found an overview-refresh edge case: a removed dirty editor could be detached
+before fallback recovery was inserted, allowing its wrapper to become hidden. The
+visibility decision now considers all dirty editors, including detached ones. A
+browser regression verifies lost committed response → teammate removal → same-key
+replay retains visible copy/discard controls, authored text and its baseline, with
+only one durable submission. The focused recovery/correction rerun passed **4 tests**.
+
+Independent review also caught the adjudicator's strict-after late label at the
+exact deadline. Both role templates now use the inclusive boundary. A new regression
+submits through the real service at the deadline, verifies the stored timestamps,
+and checks the late label in both authorized views; its focused run passed.
+
+Final full suite: **307 passed, 2 existing dependency deprecation warnings in
+233.01s**, including isolated PostgreSQL, backup/restore and Chromium checks.
+Ruff (project and Codex tooling), mypy (21 source files) and whitespace checks passed.
+Actual non-test additions plus deletions, including this record: **187 lines**.
+
+Python Ruff/type checks and Jinja rendering cover their respective sources. Node is
+not installed, so there is no standalone JavaScript lint result; Chromium exercises
+the changed script. There are no CSS changes. Human acceptance is separate below.
+
+### Owner walkthrough — completed in combined PR 4 review
+
+Run in both enhanced and ordinary form modes, using keyboard-only navigation and a
+375px-wide viewport. Automated evidence does not substitute for owner acceptance.
+
+1. Submit a first package, then open **Revise saved draft**. Verify saved changes are
+   intact and the effective package is clearly separate from the editable draft.
+2. Save a correction, inspect the deadline rule and submit an immediate revision;
+   repeat at/after the deadline for a revision requiring adjudicator acceptance.
+3. While a revision is pending, edit the draft but verify another submission is not
+   offered. Reject with a reason, correct and resubmit, then accept. Check state and
+   success feedback throughout and confirm the rejection reason remains discoverable.
+4. Check visible focus, keyboard access, long-content wrapping and usable controls
+   on a narrow screen. Exercise Cancel, navigation, reload and uncertain-operation
+   recovery with enhanced forms; verify ordinary validation/conflict retention.
+
+No-JavaScript reload still cannot offer an application-controlled dirty warning.
+Owner observations and manual exclusions are recorded in the
+[combined PR 4 owner manual review](#pr-4-combined-owner-manual-review-4a--4b).
+
+### PR 4a owner-review corrections — 2026-09-25
+
+Discussion and Draft history now remain visible in the overview on every turn,
+including historical and completed turns opened without `mode=revise`. Only the
+saved-draft editing area is hidden until revision entry; its recovery behavior is
+unchanged. A browser regression checks actual visibility in both form modes.
+
+An effective version newer than the latest rejected amendment now supersedes the
+rejection notice and rejected overview state. This handles pre-B-18 histories in
+which a rejected amendment precedes a later immediate revision. The historical
+amendment and its reason remain available. A regression creates that sequence and
+checks the effective overview without losing the rejection history.
+
+PR 4a merged into `milestone/1u-2` on 2026-09-25 as squash commit `5b46b62`
+([PR #8](https://github.com/kayeleven/ai_wargame/pull/8)), following owner code
+review of `f1d42f6` and automated evidence. Its manual owner walkthrough was
+deferred at merge and is now **complete**, as recorded in the
+[combined PR 4 owner manual review](#pr-4-combined-owner-manual-review-4a--4b).
+This completed PR 4 acceptance only; the subsequent [final milestone acceptance](#final-owner-acceptance--2026-09-25)
+is now recorded below.
+
+Full suite after both corrections: **310 passed, 2 existing dependency deprecation
+warnings in 237.92s**, including PostgreSQL, backup/restore and Chromium. Focused
+checks also passed: legacy rejection/immediate-revision HTTP case (1 test) and
+current/historical/completed overview visibility in both browser modes (2 tests).
+Project and Codex-tooling Ruff, mypy (21 source files), Jinja parsing and whitespace
+checks passed. No JavaScript or CSS changed in this correction.
+
+## PR 4b — Exact package review and renewed-confirmation explanation
+
+This increment follows the independently verified PR 4a and targets `milestone/1u-2`.
+Its pre-implementation estimate was 690 non-test changed lines, including docs.
+Confirmation reviews the exact immutable saved draft after the shared live-action
+submission projection, with a complete comparison against the effective version
+named by the server's expectations. Removed actions appear only as comparison context,
+not as content that will be submitted. Existing amendment review shares the escaped
+comparison rendering and retains its immutable sources.
+
+The PR 3.2 owner finding is addressed in both ordinary and enhanced forms: a renewed
+prompt describes what changed since the previous prompt, says nothing was submitted
+by this attempt, and requires confirmation again. It handles effective version,
+deadline, consequence and late status changes, while distinguishing initial review.
+Workspace deadline hints remain advisory rules; confirmation remains authoritative.
+
+Pre-rebase full suite: **324 passed, 2 existing dependency deprecation warnings in
+247.62s**, including PostgreSQL, backup/restore and Chromium. Focused regressions
+cover actual reviewed template content equal to the committed snapshot with a
+removed action, immutable draft read races, every expectation change and equivalent
+timezone instants. Both browser modes cover first/revision deadline crossing,
+no submission on renewal, explicit second confirmation, pending/effective state,
+keyboard focus/live feedback, literal authored content and 375px comparison layout.
+
+Ruff (project and Codex tooling), mypy (21 source files) and whitespace checks passed.
+Jinja templates render in the tests; Chromium exercises the changed JavaScript.
+Node is unavailable, so there is no standalone JavaScript lint result. No CSS changed.
+Pre-rebase non-test additions plus deletions, including documentation: **396 lines**.
+
+After the full run, independent review found position captions still used generic
+Original/Proposed labels in confirmation. The shared macro now uses the configured
+version labels while preserving adjudication defaults. The affected browser flow
+passed again in both modes (**2 tests**); repository lint/type checks were repeated.
+
+### Original combined PR 4 walkthrough checklist
+
+The checklist below was the original plan. Actual observations and exclusions are
+recorded in the completed owner review below; unperformed checks are not implied.
+Run both enhanced and ordinary forms, with keyboard navigation and a 375px viewport.
+
+1. Review a first submission and a revision containing added, changed, reordered and
+   removed actions. Check complete fields, cleared values, ownership and unchanged
+   context. Confirm the reviewed package contains only live actions in submitted order.
+2. Open the page and confirmation before the deadline, then confirm after it. Verify
+   the renewed prompt explains the changed consequence/late status, says nothing was
+   submitted and requires another confirmation. Confirm again and check pending state.
+3. Inspect other changed expectations and distinguish a changed deadline value from
+   time passing. Review a late first submission; it must still be effective immediately.
+4. Change the saved draft during review and verify conflict recovery never submits a
+   newer package silently. Check keyboard focus, announced feedback, long replacements,
+   literal HTML-like content and narrow-screen comparison readability.
+5. Lose a confirmation or committed response, reload and retry explicitly. Verify the
+   original command is reconciled, its original success meaning is retained across
+   the deadline, and no duplicate submission appears. Recheck dirty input protection.
+
+PR 4 owner acceptance is complete as recorded below; screen-reader output was not
+checked manually. The no-JavaScript application-controlled dirty warning on reload
+remains unavailable.
+
+### Rebased PR 4b verification — 2026-09-25
+
+Rebased from `c8a7708` onto the merged milestone commit `5b46b62`. The only
+conflict was this verification record; both increments' evidence was retained.
+The commit comparison confirmed the original 4b code patch was unchanged, with
+4a's history visibility and superseded-rejection fixes inherited from the base.
+The PR diff contains only 4b changes and the requested delivery documentation.
+
+- `make check`: passed (Ruff and mypy, 21 source files).
+- `make test`: **248 passed**, 2 existing deprecation warnings, 115.79s.
+- `make test-browser`: **79 passed**, 2 existing deprecation warnings, 137.44s.
+- Total: **327 tests passed** on the rebased branch.
+- Codex-tooling Ruff and whitespace checks passed. Chromium exercises JavaScript
+  and template rendering; standalone JavaScript lint remains unavailable (no Node).
+
+At rebased verification, non-test size against `origin/milestone/1u-2`, counting
+additions plus deletions and including documentation, was **425 lines**. No schema or policy changes.
+PR 4b is owner-approved; the completed combined manual review is recorded below.
+
+Merge-readiness confirmation after the documentation-only owner approval update:
+**327 tests passed**, 2 existing dependency warnings, 251.36s. `make check`,
+Codex-tooling Ruff and whitespace checks passed; no runtime code changed.
+
+## PR 4 combined owner manual review (4a + 4b)
+
+Reviewer: project owner · Date: 2026-09-25 · Environment: [browser + version], [OS],
+local development server on the rebased PR 4b branch (schema 0006, application 0.5.0).
+Two test games were used: one with a turn 1 deadline several days away, and one with a
+turn 1 deadline about 15 minutes after the start of testing, so both B-18 paths and a
+deadline crossing could be exercised. This completes the PR 4a walkthrough that was
+deferred at its merge.
+
+Automated results are recorded above; this section records manual observations only.
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Before first submission: overview shows "Not submitted" and the deadline | Pass |
+| 2 | After first submission: effective package first; Discussion and Draft history visible | Pass |
+| 3 | Revise saved draft: existing saved content intact, `mode=revise` preserved across saves | Pass |
+| 4 | Pending revision: "Revision pending", Submit disabled with explanation, draft editing available | Pass |
+| 5 | Rejection → correction → acceptance: rejected state and notice clear after acceptance | Pass |
+| 6 | Historical turn: effective package, Discussion and Draft history visible; no revise entry | Pass |
+| 7 | Non-submitter can edit but sees "Only the designated submitter can submit revisions." | Pass |
+| 8 | First-submission confirmation shows the complete package, with no comparison | Pass |
+| 9 | Revision confirmation shows the package and "Changes from effective version N" with correct change labels | Pass |
+| 10 | Removed action excluded from the reviewed package and shown as removed in the comparison | Pass |
+| 11 | Deadline crossed during confirmation: "Confirm submission again", changes listed including "The deadline passed while you were confirming.", nothing submitted until confirmed again | Pass |
+| 12 | Teammate saves during confirmation: Confirm produces a conflict; prompt never shows the newer draft | Pass |
+| 13 | JavaScript disabled: standalone confirmation page shows equivalent package review and renewed-confirmation content | Pass |
+| 14 | Keyboard only and 375px width: focus on the prompt, comparison navigable, long text wraps, no horizontal page scrolling | Pass |
+
+The PR 3.2 owner finding (renewed confirmation did not explain what changed) is
+resolved by check 11. Not checked manually: screen-reader output, lost responses,
+concurrent retries and restore behavior (covered by automated tests only).
+
+### Findings and follow-ups
+
+- No blocking findings.
+- Polish follow-up (not blocking, for a later milestone): deadlines in confirmation
+  change descriptions and elsewhere are shown as raw ISO timestamps
+  (e.g. `2026-09-30T18:00:00+00:00`). Consider a human-readable UTC format.
+
+### Decision
+
+PR 4 (4a and 4b) approved. PR 4b approved for merge into `milestone/1u-2`. This
+completes the PR 4a walkthrough deferred at its merge. It is not milestone
+acceptance; the milestone PR's end-to-end acceptance remains required.
+
+## Milestone acceptance traceability
+
+Status: **Accepted** against these tables by the project owner; see the
+[final owner acceptance](#final-owner-acceptance--2026-09-25). This decision is separate from earlier
+PR-level approvals and automated results. Test links name tests present at the milestone baseline
+`bdcce4c`; numbered manual check references point to the combined PR 4 record above,
+with the final owner smoke cited separately below. “Automated only” means no manual result is claimed.
+
+### Delivery PR index
+
+| Delivery increment | GitHub PR | Merged evidence / role in this milestone |
+| --- | --- | --- |
+| Macro prerequisite | [#2](https://github.com/kayeleven/ai_wargame/pull/2) | Shared template-macro extraction. |
+| PR 1: amendment review | [#3](https://github.com/kayeleven/ai_wargame/pull/3) | Immutable adjudicator comparisons and decisions. |
+| PR 2: effective history | [#4](https://github.com/kayeleven/ai_wargame/pull/4) | 0006 effective-version provenance and preserving backfill. |
+| PR 3a: command hardening | [#5](https://github.com/kayeleven/ai_wargame/pull/5) | Post-lock time, authority and completed-command replay. |
+| PR 3.1: confirmation | [#6](https://github.com/kayeleven/ai_wargame/pull/6) | No-write explicit confirmation contract. |
+| PR 3.2: B-18 | [#7](https://github.com/kayeleven/ai_wargame/pull/7) | Before-deadline immediate revisions and at/after-deadline approval path. |
+| PR 4a: lifecycle | [#8](https://github.com/kayeleven/ai_wargame/pull/8) | Player lifecycle presentation. |
+| PR 4b: package review | [#9](https://github.com/kayeleven/ai_wargame/pull/9) | Exact package review and renewed-confirmation explanation. |
+
+### 1U-2 acceptance criteria
+
+| Criterion and complete scope | Delivery / automated evidence | Manual evidence and limit |
+| --- | --- | --- |
+| **1. Members, current turn and late first submissions.** Ordinary members can draft but cannot submit; only the active current turn is writable; a late first submission remains allowed and visibly late. | Retained baseline [`test_draft_history_submission_amendment`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace.py#L175), [`test_member_cannot_submit_or_decide_and_foreign_action_is_hidden`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace.py#L349), and [`test_inactive_noncurrent_mutations_and_replays_leave_no_writes`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace.py#L687) cover drafting and turn/member restrictions. [#8](https://github.com/kayeleven/ai_wargame/pull/8): [`test_exact_deadline_first_submission_is_late_in_player_and_adjudicator_views`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_web.py#L194) covers the late label. | Combined PR 4 checks **1** (pre-submit state/deadline), **7** (a non-submitter can edit but cannot submit), and **11** (deadline crossing). Late first submission itself is **automated-only** in this manual record. |
+| **2. B-18 revision paths and pending state.** A revision strictly before the stored deadline becomes effective without a decision; at/after it needs acceptance; an existing pending amendment still needs a decision; pending blocks another submission while draft editing remains available. | [#7](https://github.com/kayeleven/ai_wargame/pull/7): [`test_deadline_policy_and_replay`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_immediate_revisions.py#L47), [`test_real_wait_deadline_policy`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_immediate_revisions.py#L76), and [`test_legacy_pending_before_deadline_still_blocks_submission`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_immediate_revisions.py#L303). Retained baseline [`test_draft_history_submission_amendment`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace.py#L175) decides pending amendments; [#8](https://github.com/kayeleven/ai_wargame/pull/8) [`test_pending_revision_still_allows_editing_but_not_resubmission`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L226) covers editing/blocking presentation. | Combined PR 4 checks **4**, **5**, and **11** cover pending editing, rejection/correction/acceptance, and deadline crossing. |
+| **3. Lock-time confirmation.** Server time is read after mutation locks; requests waiting across a deadline, stale effective versions and changed confirmation expectations are exercised; `confirmation_required` writes nothing and does not claim its request key. | [#5](https://github.com/kayeleven/ai_wargame/pull/5): [`test_timestamp_is_read_after_real_lock_wait`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_command_hardening.py#L141). [#6](https://github.com/kayeleven/ai_wargame/pull/6): [`test_clock_crossing_during_real_lock_wait_reprompts`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_confirmation.py#L97), [`test_missing_or_stale_confirmation_writes_nothing`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_confirmation.py#L52), and [`test_read_only_confirmation_does_not_claim_original_key`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_confirmation.py#L151). [#9](https://github.com/kayeleven/ai_wargame/pull/9): [`test_renewed_confirmation_lists_each_changed_expectation`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_confirmation.py#L197). | Combined PR 4 checks **11** and **12** observe renewed confirmation and a stale-draft conflict. Real lock waits and key-claim assertions are **automated-only**. |
+| **4. Replay and uncertain operations.** An authorized matching completed retry returns its original result before deadline re-evaluation; a lost response cannot duplicate or change meaning; renewed confirmation uses a new key only after the uncertain original operation is resolved. | [#5](https://github.com/kayeleven/ai_wargame/pull/5): [`test_completed_result_precedes_fresh_write_checks`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_command_hardening.py#L215). [#6](https://github.com/kayeleven/ai_wargame/pull/6): [`test_delayed_original_cannot_apply_after_fresh_confirmation`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_confirmation.py#L70), [`test_http_confirmation_and_completion_replay`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_confirmation.py#L128), and [`test_confirmation_409_is_not_a_conflict_and_clears_recovery`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L1950). [#7](https://github.com/kayeleven/ai_wargame/pull/7): [`test_http_success_and_replay`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_immediate_revisions.py#L99). Retained 1U-1 baseline [`test_unknown_outcome_retries_frozen_command_once`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L448). [#9](https://github.com/kayeleven/ai_wargame/pull/9): [`test_deadline_crossing_renews_confirmation_without_submission`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L2000). The #6/#9 cases reconcile the original no-write/uncertain operation before a new-key confirmation. | Lost responses and concurrent retries are explicitly listed as **not checked manually** in the combined PR 4 review; this criterion’s manual evidence is therefore **automated-only**. |
+| **5. Effective-version provenance and preserving backfill.** Every effective-version change records mechanism, user and time; backfill is traceable to immutable data, preserves versions, decisions and pending amendments, and invents no historical events. | [#4](https://github.com/kayeleven/ai_wargame/pull/4): [`test_preserving_backfill_tied_times_inactive_actor_and_repeat`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_effective_history.py#L107), [`test_each_invariant_aborts_without_changes`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_effective_history.py#L146), [`test_events_replay_and_rollback`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_effective_history.py#L169), and [`test_migrated_history_backup_restore`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_effective_history.py#L296). [#7](https://github.com/kayeleven/ai_wargame/pull/7): [`test_rejected_then_immediate_and_restore`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_immediate_revisions.py#L167). | Provenance, backfill and restore are **automated-only**; restore is explicitly excluded from the combined PR 4 manual review. |
+| **6. Coherent player/adjudicator workflow and comparison.** Players and adjudicators complete submission, rejection, correction and acceptance with visible state and next steps; comparisons cover changed, added and removed actions, cleared fields, long replacements and unchanged context without sequential rereading. | [#3](https://github.com/kayeleven/ai_wargame/pull/3): [`test_complete_values_clearing_whitespace_and_hostile_text`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_amendment_review.py#L42) and [`test_review_added_removed_and_unchanged_context`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L1850). [#8](https://github.com/kayeleven/ai_wargame/pull/8): [`test_rejected_revision_can_be_corrected_and_accepted_from_lifecycle_view`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L298). [#9](https://github.com/kayeleven/ai_wargame/pull/9): [`test_generic_comparison_projects_removed_draft_actions_but_keeps_effective_removals`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_amendment_review.py#L79) and [`test_confirmation_review_shows_live_package_and_removed_effective_action`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L2081). | Combined PR 4 checks **2–5**, **8–10**, and **14** cover state/next steps, comparison labels, removed actions, keyboard navigation and long-text narrow layout. Cleared fields are **automated-only** in this manual record. |
+
+### UX finding disposition
+
+| Finding | Disposition and bounded rationale | Evidence |
+| --- | --- | --- |
+| UX-38 | **Resolved.** The owner passed Use current, Save mine and Edit combined value in the [final smoke](#final-owner-acceptance--2026-09-25), completing the earlier conflict-recovery evidence. | [`test_package_conflict_requires_review_before_renewal`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L1103), [`test_use_current_loads_authoritative_conflict_value`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L887), and [`test_action_use_current_and_intention_save_combined`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L910); combined PR 4 check **12**. |
+| UX-43 | **Partial, accepted as recorded.** Effective/submitted status and package are shown in the workspace and confirmation flow. Automatic teammate status refresh is a **1U-3** scope item and is not claimed here. | [#8](https://github.com/kayeleven/ai_wargame/pull/8); combined PR 4 checks **1–2** and **8**. |
+| UX-44 | **Resolved.** Explicit revise mode separates effective content, saved draft and pending/rejected state. | [`test_effective_overview_keyboard_enters_revision_mode_without_writing`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L167); combined PR 4 checks **3–5**. |
+| UX-45 | **Resolved.** “Submit revision” and its rule-based consequence/status explain immediate versus adjudicator-reviewed outcomes. | [`test_revision_consequence_hint_is_a_rule_and_members_cannot_submit`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_web.py#L256); combined PR 4 checks **4**, **5**, and **11**. |
+| UX-46 | **Resolved through B-18 semantics, not a late-submission ban.** The active turn remains writable for late first submissions; revisions are immediate strictly before the stored deadline and require acceptance at/after it, with confirmation authoritative after a stale page or deadline crossing. | [`test_real_wait_deadline_policy`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_immediate_revisions.py#L76), [`test_exact_deadline_first_submission_is_late_in_player_and_adjudicator_views`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_web.py#L194); combined PR 4 check **11**. |
+| UX-49 | **Resolved.** Immutable side-by-side comparison exposes changed, added, removed, cleared and unchanged context, with changed-action navigation. Word-level diff remains deliberately deferred. | [`test_review_added_removed_and_unchanged_context`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L1850); combined PR 4 checks **9**, **10**, and **14**. |
+| UX-50 | **Resolved.** Rejection state/reason and a correction route appear in the workspace; historical reason remains discoverable after later state changes. | [`test_rejected_revision_can_be_corrected_and_accepted_from_lifecycle_view`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L298), [`test_rejected_then_accepted_clears_notice_without_erasing_history`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_web.py#L724); combined PR 4 check **5**. |
+| UX-51 | **Partial, accepted as recorded.** The delivered submit → review → reject/revise or accept path and final owner smoke are complete. Automatic teammate refresh and selected-action layout remain **1U-3** scope items, not delivered by 1U-2. | Combined PR 4 checks **2–5**, **8–12**, **14**; [#3](https://github.com/kayeleven/ai_wargame/pull/3), [#8](https://github.com/kayeleven/ai_wargame/pull/8), and [#9](https://github.com/kayeleven/ai_wargame/pull/9). |
+
+### Environment, follow-up and remaining acceptance
+
+The only environment record is owner evidence: during PR 3.1 review, the development
+database was recreated from disposable data at **0.5.0**. No per-environment test,
+backup, upgrade, or restoration receipt is asserted here. The preserving future
+0.4.0 → 0.5.0 procedure remains in [development.md](../development.md#future-environment-upgrade-040--050),
+including its no-0006-migration and exact-version constraints.
+
+[Issue #10](https://github.com/kayeleven/ai_wargame/issues/10) remains open as the
+schema-mismatch write-refusal follow-up; it is not implemented by this milestone.
+The stale pre-upgrade-tab `confirmation_required` behavior is a recorded compatibility
+limitation, not evidence of a new runtime change.
+
+The owner completed the narrowed smoke on `e1d0ca5`, with a fresh development
+database, an immediate revision, an approval-required revision and adjudicator
+decision, a JavaScript-disabled check, and UX-38 conflict actions. The owner accepted
+1U-2 against this traceability; the exact [acceptance record](#final-owner-acceptance--2026-09-25)
+is appended below. The 1U-3 prerequisite is met. Any subsequent non-documentation
+change requires re-scoping the walkthrough; this acceptance-record update is docs-only.
+
+### Conditional post-merge record
+
+Owner acceptance, 1U-2 **Accepted** status and the 1U-3 prerequisite are recorded
+**before the merge**. The owner will merge `milestone/1u-2` into `master` using a
+**merge commit (not squash)**. The only remaining post-merge actions are deleting
+`milestone/1u-2` and creating annotated tag `v0.5.0` on that merge commit.
+Neither post-merge action has occurred; this documentation update does not merge.
+
+### Final milestone preparation and automated verification — 2026-09-25
+
+Fetched `master` at `d5cf8a3` and merged it into the milestone branch before final
+checks: already up to date, with no conflict resolutions. The preparation diff
+from `bdcce4c` changes only five Markdown documents; runtime code, schema and tests
+are unchanged. The owner subsequently completed the narrowed smoke on the tested
+milestone PR head `e1d0ca5`; its results and acceptance decision are recorded below.
+
+| Check | Final preparation result |
+| --- | --- |
+| `make check` | Pass: Ruff and mypy, 21 source files. |
+| `make test` | 248 passed, 2 existing dependency warnings, 115.64s. |
+| `make test-browser` | 79 passed, 2 existing dependency warnings, 136.93s. |
+| Total | 327 tests passed; automated evidence does not replace owner acceptance. |
+| Additional checks | Codex-tooling Ruff, whitespace and local documentation-link targets passed; 41 pinned test references checked against actual definitions; supplied PR 4 manual record unchanged. |
+
+Chromium exercises JavaScript and Jinja rendering; standalone JavaScript lint
+remains unavailable because Node is absent. No runtime file changed during this
+preparation. No deployment, development-database recreation or manual smoke was
+performed as part of preparing this PR.
+
+### Approved merge commit message
+
+Use a merge commit to preserve the individual reviewed delivery PR squashes.
+Do not squash the milestone. The approved message is:
+
+```text
+Complete submission and amendment usability alignment (1U-2)
+
+Add dedicated amendment comparisons, effective-version provenance, and player lifecycle and package review. Harden command timing, authorization and retry recovery. Require explicit confirmation, explain changed expectations, and apply B-18 revision timing while preserving 1U-1 guarantees.
+
+Advance application and backup compatibility to 0.5.0 on schema 0006, with documented environment upgrades, restore compatibility and stale-tab limitations.
+```
+
+The annotated `v0.5.0` tag must name that merge commit, not a later documentation
+commit. Acceptance and the 1U-3 prerequisite are already recorded before merge;
+only branch deletion and this tag remain post-merge actions for the owner-managed merge.
+
+## Final owner acceptance — 2026-09-25
+
+Reviewer: project owner. Tested commit: `e1d0ca5` (milestone PR head), fresh development
+database, schema 0006, application 0.5.0.
+
+| Smoke check | Result |
+|---|---|
+| Immediate revision before the deadline | Pass |
+| Approval-required revision after the deadline, with adjudicator decision | Pass |
+| JavaScript-disabled submission/confirmation | Pass |
+| UX-38 conflict actions: Use current, Save mine, Edit combined value | Pass |
+
+Decision: **1U-2 accepted** against the acceptance traceability and finding-disposition
+tables above. Partial dispositions are accepted as recorded: UX-43 and UX-51 remainders
+are 1U-3 scope; UX-38 resolved by the smoke check above.
+Open follow-ups: issue #10 (schema-mismatch write refusal); human-readable deadline formatting.

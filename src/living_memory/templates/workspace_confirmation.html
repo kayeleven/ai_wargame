@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "workspace_macros.html" import show_comparison, show_package with context %}
+{% block title %}Confirm submission · Living Memory{% endblock %}
+{% block content %}
+<div data-workspace="{{ workspace_id }}" data-confirmation-page>
+<div id="workspace-status" aria-live="polite"></div>
+<section class="card" data-submission-confirmation tabindex="-1" aria-labelledby="confirmation-title">
+<h1 id="confirmation-title">{{ 'Confirm submission again' if renewed_confirmation else 'Confirm submission' }}</h1>
+{% if renewed_confirmation %}
+<div data-confirmation-announcement>
+<section class="notice" aria-labelledby="confirmation-changes-title">
+<h2 id="confirmation-changes-title">What changed since the previous prompt</h2>
+<ul>{% for change in confirmation_changes %}<li>{{ change }}</li>{% endfor %}</ul>
+</section>
+<p>{{ confirmation_announcement }}</p>
+</div>
+{% else %}
+<p data-confirmation-announcement>{{ confirmation_announcement }}</p>
+{% endif %}
+<p>{{ 'Effective immediately.' if expectations.expected_consequence == 'immediate' else 'Requires adjudicator acceptance.' }}</p>
+<p>{{ 'Late: the deadline has been reached.' if expectations.expected_late else 'Before the deadline.' }}</p>
+<p>Current effective version: {{ expectations.effective_version if expectations.effective_version is not none else 'none' }}.</p>
+<p>Deadline: <time datetime="{{ expectations.expected_deadline }}">{{ expectations.expected_deadline }}</time>.</p>
+<p>This submits saved draft revision {{ values.expected_version }}.{% if not renewed_confirmation %} Nothing has been submitted by this attempt.{% endif %}</p>
+<section data-reviewed-package aria-labelledby="reviewed-package-title">
+<h2 id="reviewed-package-title">Package to submit: saved draft revision {{ values.expected_version }}</h2>
+<p>This is the complete live-action package that will be submitted.</p>
+{{ show_package(reviewed_package) }}
+</section>
+{% if comparison %}
+<section aria-labelledby="effective-comparison-title">
+<h2 id="effective-comparison-title">Changes from effective version {{ comparison.base_version }}</h2>
+<p>Effective version {{ comparison.base_version }} is compared with saved draft revision {{ comparison.proposed_version }}.</p>
+{{ show_comparison(comparison, 'confirmation-comparison', 'Effective version ' ~ comparison.base_version, 'Saved draft revision ' ~ comparison.proposed_version) }}
+</section>
+{% endif %}
+<form data-workspace-form data-package-command method="post" action="{{ endpoint }}">
+<input type="hidden" name="csrf_token" value="{{ csrf }}">
+{% for name, value in values.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+<button type="submit">Confirm submission</button>
+</form>
+<a href="{{ refresh }}">Return to workspace</a>
+</section>
+</div>
+{% endblock %}

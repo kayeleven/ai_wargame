@@ -8,12 +8,13 @@ RFI and import workflows remain outstanding alongside white-cell, framework and 
 
 ## Immediate delivery and research checkpoint: B-17
 
-Before advancing to 1D-2, implement the revised design in existing templates and
-resolve the [usability review](usability-review-2026-09-15.md) findings through the
+Before advancing to 1D-2, deliver the bounded usability milestones through the
 [roadmap's immediate gate](../../roadmap.md#immediate-next-work--usability-remediation-and-template-implementation).
-This does not silently change late-submission or amendment policy; unresolved
-lifecycle decisions must be settled explicitly. Historical verification is not
-acceptance of the unimplemented design.
+1U-1 is accepted. The 1U-2 implementation and combined PR 4 walkthrough are complete,
+and the integrated milestone is **Awaiting owner acceptance**. This status does not
+accept proposed 1U-3 action-volume layouts, comment placement or automatic teammate
+refresh, nor any other unimplemented design. Policy changes remain explicit in the
+decision record rather than inferred from presentation work.
 
 The remaining phase order stands. Phase 2 adds an early complete agent-played
 DATE World game before its full method/backend comparison. Scenario specifics are
@@ -289,6 +290,22 @@ Internal identifiers are not presentation labels. Recovery
 storage is scoped by signed-in user and workspace; unavailable browser storage degrades
 to in-page retention with a visible warning.
 
+### 1U-2 current integrated state
+
+The milestone branch implements the dedicated adjudicator review and complete player
+lifecycle: effective, pending, rejected and saved-draft states; deliberate
+**Revise saved draft** entry; **Submit revision**; exact immutable live-package review;
+and explicit initial and renewed confirmation. Discussion and Draft history remain
+visible on current, historical and completed workspace overviews without entering
+revision mode. The [combined PR 4 owner walkthrough](verification-1u-2.md#pr-4-combined-owner-manual-review-4a--4b)
+is complete; final milestone acceptance remains pending.
+
+B-18 is authoritative. Revisions strictly before the stored deadline take effect
+immediately; revisions at or after it require adjudicator acceptance. First submissions
+remain effective immediately even when late, and the inclusive boundary is labeled late.
+Confirmation uses post-lock server state and remains authoritative over advisory page
+hints. The 1U-3 action-volume layout and automatic teammate refresh are not implemented.
+
 ### 1U-2 PR 1 amendment review and local navigation
 
 Adjudicator comparisons read the selected amendment's immutable base and proposed
@@ -305,10 +322,11 @@ amendment; these presentation URLs do not modify persisted command results.
 
 The player rejection notice follows the newest completed amendment decision. Show
 it when the newest amendment is rejected, and retain that rejection's reason/link
-while a later correction is pending. A later acceptance clears the notice; starting
-another pending revision after that acceptance must not resurrect an older rejection.
-A new rejection replaces the earlier notice. Historical decisions/reasons remain
-accessible regardless of whether the notice is shown.
+while a later correction is pending. A later acceptance or a newer effective version
+supersedes the rejection notice and rejected overview state; starting another pending
+revision afterward must not resurrect an older rejection. A new rejection replaces
+the earlier notice. Historical decisions/reasons remain accessible regardless of
+whether the notice is shown.
 
 The 1U-1 dirty-navigation contract now permits same-document fragment links to an
 existing element when origin, path and query match. This only moves within the
@@ -352,10 +370,12 @@ See [1D-1 verification](verification-1d-1.md) for evidence and limitations.
 Schema 0006 records one append-only event for each effective content version.
 Initial events retain version 1's submitter and creation time. Adjudicator acceptance
 retains the decision ID, adjudicator and decision time. Rejection and pending proposals
-create no event. Event ordering follows content-version numbers, including gaps for
-rejected revisions; tied timestamps do not determine order. Recording is transactional
-with the existing command; a matching replay creates no event. `immediate_revision`
-is reserved, with no writer or policy change in this increment.
+create no event. SubmissionVersions remain contiguous, including rejected proposals:
+next version = greatest existing + 1. Only the effective-event sequence skips rejected
+or pending versions; tied timestamps do not determine order. Recording is transactional
+with the existing command; a matching replay creates no event. At PR 2 delivery,
+`immediate_revision` was reserved with no writer or policy change. PR 3.2 subsequently
+added its transactional writer under the current B-18 rule documented below.
 
 UPDATE and DELETE are rejected. RESTRICT foreign keys retain the referenced content,
 decision and responsible user: **provenance makes these rows permanent**. Submission
@@ -373,9 +393,10 @@ refused; rollback requires restoring the pre-upgrade backup with its matching ap
 
 ### Post-lock commands and completed retries (1U-2 PR 3a)
 
-PR 3a makes **no submission-policy change**: late first submissions remain allowed,
-all revisions still require adjudicator decisions, and only the active current turn
-accepts new writes. It intentionally changes three observable results:
+At delivery, PR 3a made **no submission-policy change**: late first submissions
+remained allowed, all revisions still required adjudicator decisions, and only the
+active current turn accepted new writes. PR 3.2 later changed the revision rule under
+B-18. PR 3a intentionally changed three observable results that remain current:
 
 - Completed `submit`, `amend` and `decide` retries after turn advancement, game
   completion or later edits return the original stored result instead of a fresh
@@ -395,3 +416,129 @@ such a denial; it neither declares the original command failed nor starts a new 
 An authorized enhanced replay instead returns `committed` and refreshes the original
 turn, clearing pending state even if that turn is now read-only. Existing request-key
 fingerprints, result formats, schema and backup compatibility remain unchanged.
+
+
+### Explicit submission confirmation (1U-2 PR 3.1)
+
+At delivery, this increment kept the then-current submission policy: initial
+submission was effective immediately (including late submissions), and every
+amendment required adjudicator acceptance. PR 3.2 subsequently delivered B-18's
+current immediate-before-deadline revision policy.
+
+A fresh submit/amend command carries the saved draft baseline (`expected_version`),
+current effective version (null for first submission), timezone-aware stored/governing
+deadline, consequence (`immediate` or `approval_required`) and late status
+(`now >= deadline`). Submission state must permit that operation, with no pending
+amendment. After locks, authorization and completed matching replay, the service
+checks current turn, submission state, draft baseline and content validity. Missing
+or stale confirmation expectations return `confirmation_required` before claiming
+a request key or changing draft, submission, history or completion records. A stale
+draft/state remains a conflict; confirmation never silently rebases saved content.
+
+HTTP returns 409 with explicit expectations and a fresh-key confirmation form,
+retaining the exact draft baseline. Ordinary forms render the confirmation page;
+enhanced forms insert its server-rendered, escaped panel. Typed JSON clients receive
+the same expectations and confirmed completion facts. There is no automatically
+preconfirmed submission form. Enhanced clients route this 409 before edit conflicts,
+clear pending/unresolved state and require an explicit confirmation action.
+Changed expectations prompt again with another fresh key. Unsaved editor input is
+retained; the existing dirty-package guard also applies to confirmation.
+
+The no-write assertion holds **at response time only**: a lost original can be delayed,
+not dropped. Effective-version, submission-state and draft-baseline expectations
+prevent a delayed original and a fresh confirmation from both applying. If fresh
+key B commits while original key A is held, A subsequently conflicts or requires
+confirmation without writes. Never change the payload of an unresolved original:
+recovery retries its frozen fields and original key until a definite response.
+Authorization denial continues to retain an uncertain outcome.
+
+Completed matching commands are recognized before renewed deadline checks. New
+submit/amend completions store original deadline, consequence, late status, effective
+baseline, submission ID, content version and post-lock command time transactionally
+in the request record. Replay returns those facts after later changes. Legacy
+commands without the new fields preserve their fingerprints and stored result
+shape; completed retries remain recoverable without retroactive confirmation.
+No schema, backup format, adjudicator decision or unrelated editor contract changes.
+
+
+### Deadline policy and recovery (1U-2 PR 3.2)
+
+B-18 now governs revisions: post-lock server time strictly before
+`Submission.deadline` gives `immediate`; at/after it gives `approval_required`.
+First submissions remain immediate, including late ones. The confirmation and
+completed-retry ordering above is unchanged. Existing pending amendments still
+require a decision and block another submission while draft editing remains allowed.
+
+Immediate revisions write immutable content/actions, advance the effective pointer
+and record `immediate_revision` with the submitting user and post-lock time in the
+same transaction as the completion. They create no amendment or decision. Content
+versions use greatest existing + 1, including rejected proposals; only effective
+history skips rejected/pending versions.
+
+Ordinary redirects use `saved=immediate_revision` for an immediate revision and
+`saved=amend` for an approval-required proposal. Enhanced responses add `saved` and
+`message`, derived from the stored completion consequence. Both paths, including
+replay, say “Revision is now effective.” or “Amendment proposed for adjudicator
+review.” Legacy completions without consequence retain approval-required feedback.
+
+Application/backup version is 0.5.0; schema remains 0006 and archive format is
+unchanged. Exact-version checks reject mismatches before opening a restore target.
+Restore 0.4.0 archives using 0.4.0 before upgrading the recovered database. The
+verifier independently derives immediate events from noninitial content without
+amendments, requires matching actor/time and no source decision, and requires the
+effective timestamp strictly before the stored deadline. It checks contiguous
+content versions as well as complete effective provenance and the effective pointer.
+
+### Player revision entry (1U-2 PR 4a)
+
+After a first submission, `/play` opens the effective-package overview. Explicit
+**Revise saved draft** navigation uses `mode=revise` and opens the existing shared
+draft without writing, resetting or copying submitted content over saved changes.
+Editor links also enter drafting; draft validation, conflict recovery and successful
+save refreshes retain revision entry. Successful submission returns to the overview.
+A pending revision prevents another submission while leaving draft editing available.
+Effective content, a pending revision and later saved draft changes remain distinct.
+Discussion and Draft history remain visible in the overview on current, historical
+and completed turns without `mode=revise`; only the saved-draft editing region is
+gated by deliberate revision entry.
+
+A rejected amendment remains in history with its reason. If a later effective version
+is newer than that rejection, the effective overview supersedes the current rejection
+notice/state without deleting the historical amendment.
+
+Player controls say **Submit revision**. Workspace consequence hints describe the
+rule: before the deadline revisions take effect immediately; at or after it they
+require adjudicator acceptance. These hints are advisory and may be stale;
+confirmation remains authoritative. The 1U-1 protected-input, frozen-command retry,
+scoped storage and no-JavaScript reload limitations continue to apply.
+
+### Reviewed package and renewed confirmation (1U-2 PR 4b)
+
+Confirmation reviews the immutable saved draft revision named by the command, using
+exactly the submission snapshot projection: live actions only, in submitted order,
+with complete authored values. Submission persistence uses the same projection.
+Removed actions may appear in the effective-version comparison, but never as content
+of the reviewed submission package. The comparison uses the effective content version
+named by the server's confirmation expectations, not a later effective version.
+Missing immutable source content fails closed. A draft edit between validation and
+review rendering cannot substitute newer content; confirming an outdated draft still
+requires the existing conflict/review path.
+
+A renewed prompt compares the command's previous expectations with the server's
+current expectations and describes every change in effective version, deadline,
+consequence and late status. Equivalent datetime offsets do not invent a changed
+deadline. The prompt explicitly states that this attempt submitted nothing and that
+confirming again is required. Initial review is distinguished from renewed review.
+Ordinary and enhanced forms use the same escaped server-rendered explanation and
+complete comparisons; enhanced forms announce the changes and focus the review.
+
+Confirmation remains a no-write/no-request-key-claim outcome with an explicit fresh
+confirmation key and unchanged draft baseline. Unknown outcomes must first reconcile
+the exact frozen original command. Authorized completion replay retains the original
+result and consequence before deadline evaluation. No service policy, schema,
+command fingerprint or automatic teammate refresh changes are introduced.
+
+The combined PR 4 owner walkthrough covering this review flow and the PR 4a lifecycle
+is complete. This is PR 4 acceptance, not final 1U-2 milestone acceptance; the
+integrated milestone remains **Awaiting owner acceptance**. See the
+[manual record](verification-1u-2.md#pr-4-combined-owner-manual-review-4a--4b).

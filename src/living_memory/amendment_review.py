@@ -28,6 +28,15 @@ class ActionComparison:
 
 
 @dataclass(frozen=True)
+class PackageComparison:
+    base_version: int
+    proposed_version: int
+    intention: FieldComparison
+    actions: list[ActionComparison]
+    counts: dict[str, int]
+
+
+@dataclass(frozen=True)
 class AmendmentComparison:
     amendment_id: UUID
     base_version: int
@@ -45,14 +54,13 @@ FIELDS = (
 )
 
 
-def compare_amendment(
-    amendment_id: UUID,
+def compare_packages(
     base_version: int,
     proposed_version: int,
     original: Package,
     proposed: Package,
     owners: dict[UUID, str],
-) -> AmendmentComparison:
+) -> PackageComparison:
     before = {a.action_id: a for a in original.actions if not a.removed}
     after = {a.action_id: a for a in proposed.actions if not a.removed}
     original_positions = {key: i for i, key in enumerate(before, 1)}
@@ -111,8 +119,7 @@ def compare_amendment(
             )
         )
         counts[status] += 1
-    return AmendmentComparison(
-        amendment_id,
+    return PackageComparison(
         base_version,
         proposed_version,
         FieldComparison(
@@ -124,4 +131,26 @@ def compare_amendment(
         ),
         actions,
         counts,
+    )
+
+
+def compare_amendment(
+    amendment_id: UUID,
+    base_version: int,
+    proposed_version: int,
+    original: Package,
+    proposed: Package,
+    owners: dict[UUID, str],
+) -> AmendmentComparison:
+    """Keep the amendment-specific interface while sharing package comparison logic."""
+    comparison = compare_packages(
+        base_version, proposed_version, original, proposed, owners
+    )
+    return AmendmentComparison(
+        amendment_id=amendment_id,
+        base_version=comparison.base_version,
+        proposed_version=comparison.proposed_version,
+        intention=comparison.intention,
+        actions=comparison.actions,
+        counts=comparison.counts,
     )

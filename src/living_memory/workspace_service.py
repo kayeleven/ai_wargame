@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -76,6 +76,9 @@ class Command(BaseModel):
     key: UUID
     expected_version: int = Field(ge=0)
     effective_version: int | None = None
+    expected_deadline: AwareDatetime | None = None
+    expected_consequence: Literal["immediate", "approval_required"] | None = None
+    expected_late: bool | None = None
     action_id: UUID | None = None
     owner_user_id: UUID | None = None
     body: ActionText = Field(default_factory=ActionText)
@@ -87,13 +90,57 @@ class Command(BaseModel):
     reason: str = ""
 
 
+class Confirmation(BaseModel):
+    effective_version: int | None
+    expected_deadline: AwareDatetime
+    expected_consequence: Literal["immediate", "approval_required"]
+    expected_late: bool
+
+
+class ConfirmationRequired(ValueError):
+    def __init__(self, expectations: Confirmation):
+        super().__init__("Confirm the submission consequence before continuing.")
+        self.expectations = expectations
+
+
+def command_payload(command: Command) -> dict[str, Any]:
+    """Keep old fingerprints identical when the new confirmation fields are absent."""
+    payload = command.model_dump(mode="json")
+    for name in ("expected_deadline", "expected_consequence", "expected_late"):
+        if payload[name] is None:
+            del payload[name]
+    return payload
+
+
+def confirmation_for(
+    session: Session, game: AdminGame, submission: Submission | None, turn: int, now: datetime
+) -> Confirmation:
+    deadline = (
+        submission.deadline
+        if submission
+        else next(
+            t.submission_deadline
+            for t in governing_configuration(session, game, now).turns
+            if t.number == turn
+        )
+    )
+    return Confirmation(
+        effective_version=submission.effective_version if submission else None,
+        expected_deadline=deadline,
+        expected_consequence=(
+            "approval_required" if submission and now >= deadline else "immediate"
+        ),
+        expected_late=now >= deadline,
+    )
+
+
 class Conflict(WorkspaceConflict):
     def __init__(self, base: Any, current: Any, submitted: Any):
         super().__init__("This workspace changed. Compare your input with the current version.")
         self.base, self.current, self.submitted = base, current, submitted
 
 
-def _package_at_version(session: Session, draft: Draft | None, version: int) -> Package:
+def package_at_version(session: Session, draft: Draft | None, version: int) -> Package:
     """Return an existing immutable draft snapshot; never invent missing history."""
     if version == 0:
         return Package()
@@ -108,6 +155,11 @@ def _package_at_version(session: Session, draft: Draft | None, version: int) -> 
     if revision is None:
         raise Conflict(None, package(session, draft).model_dump(mode="json"), {"version": version})
     return Package.model_validate(revision.snapshot)
+
+
+def submission_snapshot(value: Package) -> Package:
+    """Project a draft package to the exact live content persisted on submission."""
+    return value.model_copy(update={"actions": [a for a in value.actions if not a.removed]})
 
 
 def _action_scope(value: Package, action_id: UUID) -> dict[str, Any] | None:
@@ -128,7 +180,7 @@ def _check_command_baseline(
     version = draft.version if draft else 0
     if command.expected_version == version:
         return
-    base = _package_at_version(session, draft, command.expected_version)
+    base = package_at_version(session, draft, command.expected_version)
     if command.operation == "intention":
         if base.overall_intention == current.overall_intention:
             return
@@ -270,7 +322,7 @@ def execute(
             "user": str(user_id),
             "team": team_id,
             "turn": turn,
-            "command": command.model_dump(mode="json"),
+            "command": command_payload(command),
         }
     )
     if command.operation in {"submit", "amend", "decide"}:
@@ -289,6 +341,28 @@ def execute(
     current = package(session, draft)
     if review and (amendment is None or submission is None):
         raise LookupError("Not found")
+    confirmation = None
+    if command.operation in {"submit", "amend"}:
+        if (
+            (command.operation == "submit" and submission is not None)
+            or (command.operation == "amend" and submission is None)
+            or (submission is not None and submission.status == "amendment_pending")
+        ):
+            raise Conflict(
+                None,
+                {
+                    "submission_status": submission.status if submission else None,
+                    "effective_version": submission.effective_version if submission else None,
+                },
+                command.model_dump(mode="json"),
+            )
+        _check_command_baseline(session, draft, current, command)
+        current.validate_submission()
+        confirmation = confirmation_for(session, game, submission, turn, now)
+        if any(
+            getattr(command, name) != value for name, value in confirmation.model_dump().items()
+        ):
+            raise ConfirmationRequired(confirmation)
     result_id = str(uuid4())
     result_kind = "amendment_decision" if review else "package_revision"
     redirect = (
@@ -377,25 +451,7 @@ def execute(
             session.flush()
         if command.operation in {"submit", "amend"}:
             current.validate_submission()
-            if command.operation == "submit" and submission is not None:
-                raise Conflict(
-                    None,
-                    {"effective_version": submission.effective_version},
-                    command.model_dump(mode="json"),
-                )
-            if command.operation == "amend" and (
-                submission is None
-                or submission.status == "amendment_pending"
-                or submission.effective_version != command.effective_version
-            ):
-                raise Conflict(
-                    {"effective_version": command.effective_version},
-                    {"effective_version": submission.effective_version if submission else None},
-                    command.model_dump(mode="json"),
-                )
-            snapshot = current.model_copy(
-                update={"actions": [a for a in current.actions if not a.removed]}
-            )
+            snapshot = submission_snapshot(current)
             if submission is None:
                 deadline = next(
                     t.submission_deadline
@@ -424,21 +480,27 @@ def execute(
                     )
                 ).all()
                 content_version = max(versions) + 1
-                session.add(
-                    Amendment(
-                        submission_id=submission.id,
-                        game_id=game_id,
-                        team_id=team_id,
-                        version=content_version,
-                        base_version=submission.effective_version,
-                        proposed_by=user_id,
-                        body=snapshot.model_dump(mode="json"),
-                        status="pending",
-                        created_at=now,
+                assert confirmation is not None
+                if confirmation.expected_consequence == "immediate":
+                    submission.effective_version = content_version
+                    submission.status = "submitted"
+                else:
+                    session.add(
+                        Amendment(
+                            submission_id=submission.id,
+                            game_id=game_id,
+                            team_id=team_id,
+                            version=content_version,
+                            base_version=submission.effective_version,
+                            proposed_by=user_id,
+                            body=snapshot.model_dump(mode="json"),
+                            status="pending",
+                            created_at=now,
+                        )
                     )
-                )
+                    submission.status = "amendment_pending"
                 submission.version += 1
-                submission.status, submission.updated_at = "amendment_pending", now
+                submission.updated_at = now
             session.add(
                 SubmissionVersion(
                     submission_id=submission.id,
@@ -451,12 +513,14 @@ def execute(
                 )
             )
             session.flush()
-            if content_version == 1:
+            if content_version == 1 or (
+                confirmation is not None and confirmation.expected_consequence == "immediate"
+            ):
                 session.add(
                     EffectiveVersionEvent(
                         submission_id=submission.id,
-                        version=1,
-                        mechanism="initial",
+                        version=content_version,
+                        mechanism="initial" if content_version == 1 else "immediate_revision",
                         responsible_user_id=user_id,
                         effective_at=now,
                     )
@@ -555,4 +619,16 @@ def execute(
             )
         )
     session.flush()
-    return {"kind": result_kind, "id": result_id, "redirect": redirect}
+    if confirmation is not None:
+        assert submission is not None
+        record.result_ref = {
+            **record.result_ref,
+            "completion": {
+                **confirmation.model_dump(mode="json"),
+                "submission_id": str(submission.id),
+                "content_version": content_version,
+                "command_time": now.isoformat(),
+            },
+        }
+        session.flush()
+    return record.result_ref

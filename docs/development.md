@@ -15,13 +15,55 @@ remain 1E. Framework decoupling, white-cell lenses, AI and replay remain planned
 
 ## Schema and backup compatibility
 
-Schema head is **0006**, application/backup version **0.4.0**. Migration 0006
+Schema head is **0006**, application/backup version **0.5.0**. Migration 0006
 preserves the supported **0005/0.3.0** baseline and backfills effective-version
 provenance. It does not change submission policy. The older in-place 0005/0.2.0
 shape and populated 0004 remain unsupported; do not treat those as 0.3.0 or reset
 a database containing valuable data to work around a compatibility failure.
 
-For a preserving upgrade, stop the application and all writers:
+Version 0.5.0 adds immediate revisions without changing schema head or archive
+format. Valid effective history has changed, so application-version matching stays
+exact: 0.4.0 rejects 0.5.0 archives before starting restore. To recover a 0.4.0
+archive, restore with the matching 0.4.0 application into an empty target first;
+then stop writers and upgrade that restored database to 0.5.0. Do not edit manifests.
+Existing pending amendments still need decisions. Keep the original archive and
+verify a new 0.5.0 backup/restore round trip before adopting the upgrade. Once
+immediate revisions exist, do not run 0.4.0 against that database; rollback uses the
+original 0.4.0 archive and matching application in a fresh empty target.
+
+### Future environment upgrade: 0.4.0 → 0.5.0
+
+An environment already running 0.4.0 on schema **0006** needs an application upgrade,
+not a schema migration. This procedure is for future environments; it is not a
+claim that additional environments were deployed or upgraded during 1U-2.
+
+1. Record the environment, operator/date, running application version/commit and
+   actual database schema head. If the database is below 0006, stop and use the
+   appropriate preserving migration procedure first; do not assume a merged PR
+   upgraded the database and do not reset valuable data.
+2. Stop writers and take a backup using the existing 0.4.0 application. Retain its
+   checksum and matching application/restore tooling. Rehearse restore into an
+   empty disposable target before changing the environment.
+3. Install the 0.5.0 application and locked dependencies. Schema remains 0006; no
+   migration is required for this version step. Verify readiness, then smoke-test
+   a first submission, an immediate revision, and an approval-required revision
+   with an adjudicator decision on appropriate test data.
+4. Create a new backup with **0.5.0**, restore it to an empty target using **0.5.0**,
+   and verify the effective history. Backups require the exact matching application
+   version; an old 0.4.0 archive must first be restored with 0.4.0, then upgraded.
+5. Record the before/after application commit/version, schema, readiness and smoke
+   results, backup checksum and restore outcome for each environment actually
+   upgraded. Reload pre-upgrade browser tabs: old clients can show
+   `confirmation_required` as a generic conflict without writing; reload obtains
+   the explicit confirmation flow. Do not run 0.4.0 against data containing new
+   immediate revisions; rollback uses the retained old archive in a fresh target.
+
+The schema-mismatch write-refusal follow-up remains open as
+[issue #10](https://github.com/kayeleven/ai_wargame/issues/10). Readiness detects a
+mismatch, but ordinary writes do not yet receive the proposed clear refusal.
+
+The following historical 0.3.0 → 0.4.0 procedure installs migration 0006.
+For that preserving upgrade, stop the application and all writers:
 
 1. Using the old 0.3.0 checkout (commit `250033b`), create a backup with the existing
    `backup` CLI and retain its manifest and checksum securely.
@@ -57,8 +99,10 @@ All current teammates can edit shared drafts; an assigned owner indicates
 responsibility only. Save operations use version checks. A conflict preserves
 base/current/submitted content and attempted input; compare it before explicitly
 saving against the current revision. Submit freezes intention and ordered action
-content together. Later edits require an explicit amendment, with one pending
-proposal at a time. Accepting changes the effective version; rejecting retains it.
+content together. Revisions strictly before the stored submission deadline become
+effective immediately; at/after it they create an amendment requiring acceptance.
+Only one proposal may be pending; teammates can still edit the saved draft.
+Accepting changes the effective version; rejecting retains it.
 Late submissions are permitted in the active current turn and retain their original
 deadline/timestamp. Zero-action packages require only overall intention.
 

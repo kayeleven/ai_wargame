@@ -14,7 +14,11 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
 
 from living_memory.administration import AdminGame, governing_configuration
-from living_memory.amendment_review import compare_amendment
+from living_memory.amendment_review import (
+    PackageComparison,
+    compare_amendment,
+    compare_packages,
+)
 from living_memory.config import Settings
 from living_memory.db import Database, run_retryable
 from living_memory.forms import csrf_token
@@ -31,6 +35,8 @@ from living_memory.workspace import (
 from living_memory.workspace_service import (
     ActionText,
     Command,
+    Confirmation,
+    ConfirmationRequired,
     Conflict,
     Package,
     authorize,
@@ -38,6 +44,9 @@ from living_memory.workspace_service import (
     get_draft,
     get_submission,
     package,
+    package_at_version,
+    require_submitter,
+    submission_snapshot,
 )
 
 
@@ -93,6 +102,8 @@ class WorkspaceView(BaseModel):
     submission_status: str | None = None
     submitted_at: datetime | None = None
     deadline: datetime | None = None
+    governing_deadline: datetime
+    viewed_at: datetime
     historical_owners: dict[UUID, str] = {}
 
 
@@ -102,7 +113,8 @@ SUCCESS_MESSAGES = {
     "action": "Action saved.",
     "comment": "Comment added.",
     "submit": "Turn package submitted.",
-    "amend": "Amendment proposed.",
+    "amend": "Amendment proposed for adjudicator review.",
+    "immediate_revision": "Revision is now effective.",
     "remove": "Action removed.",
     "reorder": "Action order updated.",
     "decide": "Amendment decision recorded.",
@@ -134,9 +146,87 @@ def _editor_identity(values: Command | dict[str, Any]) -> str | None:
     return None
 
 
-def _refresh_url(game_id: str, team_id: str, turn: int, review: bool) -> str:
+def _refresh_url(
+    game_id: str, team_id: str, turn: int, review: bool, *, revision_mode: bool = False
+) -> str:
     page = "adjudicate" if review else "play"
-    return f"/{page}?game_id={game_id}&team_id={team_id}&turn={turn}"
+    url = f"/{page}?game_id={game_id}&team_id={team_id}&turn={turn}"
+    return f"{url}&mode=revise" if revision_mode and not review else url
+
+
+def _expectation_label(value: str) -> str:
+    return (
+        "take effect immediately"
+        if value == "immediate"
+        else "require adjudicator acceptance"
+    )
+
+
+def _effective_version_label(value: int | None) -> str:
+    return "none" if value is None else str(value)
+
+
+def _confirmation_change_summary(
+    command: Command, current: Confirmation
+) -> tuple[bool, list[str], str]:
+    renewed = all(
+        value is not None
+        for value in (
+            command.expected_deadline,
+            command.expected_consequence,
+            command.expected_late,
+        )
+    )
+    if not renewed:
+        return (
+            False,
+            [],
+            "Review the saved package and current submission consequence, then confirm.",
+        )
+
+    changes: list[str] = []
+    if command.effective_version != current.effective_version:
+        changes.append(
+            "The effective version changed from "
+            f"{_effective_version_label(command.effective_version)} to "
+            f"{_effective_version_label(current.effective_version)}."
+        )
+    # Compare aware datetime values as instants. Formatting happens only for a real change,
+    # so equivalent offsets do not produce a misleading renewal explanation.
+    if command.expected_deadline != current.expected_deadline:
+        assert command.expected_deadline is not None
+        changes.append(
+            f"The deadline changed from {command.expected_deadline.isoformat()} to "
+            f"{current.expected_deadline.isoformat()}."
+        )
+    if command.expected_consequence != current.expected_consequence:
+        assert command.expected_consequence is not None
+        changes.append(
+            "The consequence changed from revisions that "
+            f"{_expectation_label(command.expected_consequence)} to revisions that "
+            f"{_expectation_label(current.expected_consequence)}."
+        )
+    if command.expected_late != current.expected_late:
+        assert command.expected_late is not None
+        if (
+            command.expected_deadline == current.expected_deadline
+            and not command.expected_late
+            and current.expected_late
+        ):
+            changes.append("The deadline passed while you were confirming.")
+        else:
+            previous = (
+                "at or after the deadline"
+                if command.expected_late
+                else "before the deadline"
+            )
+            now = "at or after the deadline" if current.expected_late else "before the deadline"
+            changes.append(f"The deadline status changed from {previous} to {now}.")
+    announcement = (
+        "Submission details changed. Nothing was submitted by this attempt. "
+        "Confirming again is required."
+    )
+    return True, changes, announcement
 
 
 def _field_error(field: str, message: str) -> dict[str, str]:
@@ -269,7 +359,17 @@ def _conflict_display(value: Any, view: WorkspaceView) -> dict[str, Any]:
             "state": "removed" if value.get("removed") else "available",
             "fields": fields,
         }
+    if "submission_status" in value:
+        value = {
+            **value,
+            "submission_status": {
+                "submitted": "Submitted",
+                "amendment_pending": "Amendment pending",
+                None: "Not submitted",
+            }.get(value["submission_status"], value["submission_status"]),
+        }
     labels = {
+        "submission_status": "Submission status",
         "operation": "Requested operation",
         "overall_intention": "Overall intention",
         "decision": "Decision",
@@ -455,6 +555,7 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                             decided_at=decision.created_at if decision else None,
                         )
                     )
+            selected_turn_config = next(t for t in config.turns if t.number == selected_turn)
             return WorkspaceView(
                 game_id=game_id,
                 title=game.title,
@@ -478,6 +579,8 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                 submission_status=submission.status if submission else None,
                 submitted_at=submission.submitted_at if submission else None,
                 deadline=submission.deadline if submission else None,
+                governing_deadline=selected_turn_config.submission_deadline,
+                viewed_at=now,
                 historical_owners={
                     u.id: u.display_name for u in session.scalars(
                         select(User).where(User.id.in_({
@@ -486,6 +589,58 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                         }))
                     )
                 } if review else {},
+            )
+
+    def confirmation_review(
+        request: Request,
+        game_id: str,
+        team_id: str,
+        turn: int,
+        command: Command,
+        expectations: Confirmation,
+    ) -> tuple[Package, PackageComparison | None]:
+        """Read only the immutable versions named by the confirmed command state."""
+        uid = identity(request)
+        now = request.app.state.clock.now()
+        with db.transaction() as session:
+            authorize(session, uid, game_id, team_id, now)
+            require_submitter(session, uid, game_id, team_id)
+            draft = get_draft(session, game_id, team_id, turn)
+            reviewed = submission_snapshot(
+                package_at_version(session, draft, command.expected_version)
+            )
+            if expectations.effective_version is None:
+                return reviewed, None
+            submission = get_submission(session, game_id, team_id, turn)
+            if submission is None:
+                raise LookupError("Not found")
+            effective_row = session.scalar(
+                select(SubmissionVersion).where(
+                    SubmissionVersion.submission_id == submission.id,
+                    SubmissionVersion.game_id == game_id,
+                    SubmissionVersion.team_id == team_id,
+                    SubmissionVersion.version == expectations.effective_version,
+                )
+            )
+            if effective_row is None:
+                raise LookupError("Not found")
+            effective = Package.model_validate(effective_row.snapshot)
+            owner_ids = {
+                item.owner_user_id
+                for value in (effective, reviewed)
+                for item in value.actions
+                if item.owner_user_id is not None
+            }
+            owners = {
+                user.id: user.display_name
+                for user in session.scalars(select(User).where(User.id.in_(owner_ids)))
+            }
+            return reviewed, compare_packages(
+                expectations.effective_version,
+                command.expected_version,
+                effective,
+                reviewed,
+                owners,
             )
 
     def render(
@@ -512,6 +667,14 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
             selected_editor = _editor_identity(attempted)
         if selected_editor is None and raw is not None:
             selected_editor = _editor_identity(raw)
+        revision_mode = bool(
+            not review
+            and view.effective_version is not None
+            and (
+                request.query_params.get("mode") == "revise"
+                or selected_editor is not None
+            )
+        )
         selected_amendment = None
         comparison = None
         revision = request.query_params.get("revision") if not review else None
@@ -548,6 +711,16 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                     )
         # A pending correction does not supersede the latest completed decision.
         latest_decision = next((a for a in view.amendments if a.status != "pending"), None)
+        latest_rejection = (
+            latest_decision
+            if latest_decision
+            and latest_decision.status == "rejected"
+            and (
+                view.effective_version is None
+                or view.effective_version <= latest_decision.version
+            )
+            else None
+        )
         return templates.TemplateResponse(
             request=request,
             name="adjudicate.html" if review else "play.html",
@@ -556,10 +729,7 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                 "selected_amendment": selected_amendment,
                 "comparison": comparison,
                 "selected_revision": int(revision) if revision else None,
-                "latest_rejection": (
-                    latest_decision if latest_decision and latest_decision.status == "rejected"
-                    else None
-                ),
+                "latest_rejection": latest_rejection,
                 "shell": shell_context(request, db, settings),
                 "csrf": csrf_token(request),
                 "new_key": lambda: str(uuid4()),
@@ -578,6 +748,15 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                     else None
                 ),
                 "editor": selected_editor,
+                "revision_mode": revision_mode,
+                "effective_package": next(
+                    (
+                        item
+                        for item in view.submissions
+                        if item.version == view.effective_version
+                    ),
+                    None,
+                ),
                 "saved_message": SUCCESS_MESSAGES.get(request.query_params.get("saved", "")),
                 "conflict_base": (
                     Package.model_validate(conflict.base)
@@ -620,7 +799,10 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
     ) -> Response:
         uid = identity(request)
         review = command.operation == "decide"
-        refresh = _refresh_url(game_id, team_id, turn, review)
+        revision_mode = request.query_params.get("mode") == "revise" and not review
+        refresh = _refresh_url(
+            game_id, team_id, turn, review, revision_mode=revision_mode
+        )
         if review:
             refresh += f"&amendment_id={command.amendment_id}"
 
@@ -736,6 +918,70 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
             raise HTTPException(404, "Not found") from None
         except PermissionError as exc:
             raise HTTPException(403, str(exc)) from None
+        except ConfirmationRequired as exc:
+            try:
+                view = read(request, game_id, team_id, turn, False)
+                reviewed_package, confirmation_comparison = confirmation_review(
+                    request, game_id, team_id, turn, command, exc.expectations
+                )
+            except LookupError:
+                raise HTTPException(404, "Not found") from None
+            except PermissionError as review_error:
+                raise HTTPException(403, str(review_error)) from None
+            except Conflict as review_error:
+                raise HTTPException(409, str(review_error)) from None
+            renewed, confirmation_changes, confirmation_announcement = (
+                _confirmation_change_summary(command, exc.expectations)
+            )
+            expectations = exc.expectations.model_dump(mode="json")
+            confirmed = command.model_copy(update={**exc.expectations.model_dump(), "key": uuid4()})
+            # Only scalar fields used by submit/amend; retain the exact draft baseline.
+            values = confirmed.model_dump(mode="json", exclude_none=True)
+            values.pop("body")
+            values.pop("order")
+            context = {
+                "request": request,
+                "view": view,
+                "reviewed_package": reviewed_package,
+                "comparison": confirmation_comparison,
+                "renewed_confirmation": renewed,
+                "confirmation_changes": confirmation_changes,
+                "confirmation_announcement": confirmation_announcement,
+                "expectations": expectations,
+                "values": values,
+                "workspace_id": f"{game_id}:{team_id}:{turn}",
+                "endpoint": (
+                    f"/workspace/{game_id}/{team_id}/{turn}/form"
+                    f"{'?mode=revise' if revision_mode else ''}"
+                ),
+                "refresh": refresh,
+                "csrf": csrf_token(request),
+                "shell": shell_context(request, db, settings),
+            }
+            rendered = templates.TemplateResponse(
+                request,
+                "workspace_confirmation.html",
+                context,
+                status_code=409,
+                headers={"Cache-Control": "no-store"},
+            )
+            if _enhanced(request) or request.headers.get("content-type", "").startswith(
+                "application/json"
+            ):
+                return JSONResponse(
+                    {
+                        "outcome": "confirmation_required",
+                        "operation": command.operation,
+                        "key": str(command.key),
+                        "expectations": expectations,
+                        "confirm": values,
+                        "html": bytes(rendered.body).decode("utf-8"),
+                    },
+                    status_code=409,
+                    media_type=ENHANCED_MEDIA_TYPE,
+                    headers={"Cache-Control": "no-store", "Vary": "Accept, X-Workspace-Enhanced"},
+                )
+            return rendered
         except Conflict as exc:
             if _enhanced(request):
                 return enhanced_error(
@@ -795,15 +1041,37 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                 field_errors=errors,
                 status=422,
             )
-        if _enhanced(request):
+        saved: str = command.operation
+        if (
+            saved == "amend"
+            and result.get("completion", {}).get("expected_consequence") == "immediate"
+        ):
+            saved = "immediate_revision"
+        if _enhanced(request) or (
+            command.operation in {"submit", "amend"}
+            and request.headers.get("content-type", "").startswith("application/json")
+        ):
             return JSONResponse(
                 {
                     "outcome": "committed",
+                    **(
+                        {"saved": saved, "message": SUCCESS_MESSAGES[saved]}
+                        if command.operation == "amend" else {}
+                    ),
                     "operation": command.operation,
                     "key": str(command.key),
                     "editor": result.get("editor"),
-                    "refresh": refresh if review else result["redirect"],
+                    "refresh": (
+                        refresh
+                        if review
+                        or (
+                            revision_mode
+                            and command.operation not in {"submit", "amend"}
+                        )
+                        else result["redirect"]
+                    ),
                     "committed_draft_version": result.get("committed_draft_version"),
+                    **({"completion": result["completion"]} if "completion" in result else {}),
                 },
                 media_type=ENHANCED_MEDIA_TYPE,
                 headers={
@@ -811,8 +1079,13 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                     "Vary": "Accept, X-Workspace-Enhanced",
                 },
             )
-        destination = refresh if review else result["redirect"]
-        return RedirectResponse(f"{destination}&saved={command.operation}", status_code=303)
+        destination = (
+            refresh
+            if review
+            or (revision_mode and command.operation not in {"submit", "amend"})
+            else result["redirect"]
+        )
+        return RedirectResponse(f"{destination}&saved={saved}", status_code=303)
 
     @router.post("/workspace/{game_id}/{team_id}/{turn}/form")
     async def form(request: Request, game_id: str, team_id: str, turn: int) -> Response:
@@ -822,7 +1095,10 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
         values: dict[str, Any] = {k: str(v) for k, v in fields.items() if k != "csrf_token"}
         if values.get("operation") == "action":
             values["body"] = {k: values.pop(k, "") for k in ActionText.model_fields}
-        for k in ("action_id", "owner_user_id", "effective_version", "amendment_id", "decision"):
+        for k in (
+            "action_id", "owner_user_id", "effective_version", "amendment_id", "decision",
+            "expected_deadline", "expected_consequence", "expected_late",
+        ):
             if values.get(k) == "":
                 values.pop(k)
         if "order" in values:
@@ -853,7 +1129,15 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                     "operation": values.get("operation"),
                     "key": values.get("key"),
                     "editor": _editor_identity(values),
-                    "refresh": _refresh_url(game_id, team_id, turn, review),
+                    "refresh": _refresh_url(
+                        game_id,
+                        team_id,
+                        turn,
+                        review,
+                        revision_mode=(
+                            request.query_params.get("mode") == "revise" and not review
+                        ),
+                    ),
                     "errors": errors,
                     "values": values,
                     "html": bytes(rendered.body).decode("utf-8"),

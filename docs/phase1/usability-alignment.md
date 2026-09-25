@@ -35,15 +35,15 @@ this document without the intermediate reviews.
 | Milestone | Outcome | Status | Verification |
 | --- | --- | --- | --- |
 | 1U-1 | Protected input, shared navigation and fixture recovery | Accepted | [Verification](verification-1u-1.md) |
-| 1U-2 | Coherent submission/revision and dedicated amendment review | Implementing (PR 1 only) | [Verification](verification-1u-2.md) |
+| 1U-2 | Coherent submission/revision and dedicated amendment review | Accepted | [Verification](verification-1u-2.md) |
 | 1U-3 | Practical action volume and safe automatic saved updates | Proposed | Not yet produced |
 | 1U-4 | Account management and participant placement | Proposed | Not yet produced |
 | 1U-5 | Guided configuration and activation | Proposed | Not yet produced |
 | 1U-6 | Integrated usability acceptance and deferred checks | Proposed | Not yet produced |
 
-Status progression: **proposed → ready → implementing → awaiting review → accepted**.
+Status progression: **proposed → ready → implementing → awaiting owner acceptance → accepted**.
 Ready means the bounded implementation plan and prerequisites are established.
-Passing tests and completed code lead to awaiting review; owner acceptance is
+Passing tests and completed code lead to awaiting owner acceptance; owner acceptance is
 required before advancing to the next milestone. Corrections remain in the current
 milestone unless a scope change is explicitly agreed.
 
@@ -140,11 +140,12 @@ before merge. Do not automatically merge implementation PRs.
 | PR 1: dedicated amendment review | `master` | Immutable base/proposed comparisons, changed-action navigation, complete field comparisons and existing decision recovery. Player changes only a revision link and visible rejection reason. No policy, schema, confirmation or full player-state changes. |
 | PR 2: effective-version history | `master` | New migration after 0005; append-only mechanism/user/time records; preserving backfill from first submissions and accepted decisions; transactional events for existing initial/acceptance paths. Backup compatibility and upgrade/restore docs. No policy, confirmation or UI changes. |
 | PR 3a: command hardening | `master` | Activated size fallback before PR 3: post-lock time/authorization and authorized completion replay for submit/amend/decide. No policy change; the observable retry, timestamp and revocation changes are documented in contracts.md. |
-| PR 3: B-18 service policy | `milestone/1u-2` | Expected effective version/deadline/consequence, no-write/no-key-claim `confirmation_required`, immediate versus approval-required revisions, immediate-revision events and pending-submission blocking. Extend backup.py `_verify_effective_history`'s expected set for immediate revisions and test backup → restore with one present. No player lifecycle UI. |
+| PR 3.1: confirmation contract | `milestone/1u-2` | Expected effective version/deadline/consequence/late status, no-write/no-key-claim `confirmation_required`, explicit ordinary/enhanced confirmation, legacy replay and stored completion facts. Current policy: all amendments require acceptance. No migration, immediate events or full lifecycle UI. |
+| PR 3.2: B-18 policy and recovery | `milestone/1u-2` | Immediate revisions strictly before the stored deadline; approval at/after it; transactional immediate-revision events and recovery. Extend backup.py `_verify_effective_history`'s expected event set and explicitly check version contiguity; backup → restore with an immediate revision. No full player lifecycle UI. |
 | PR 4: player lifecycle | `milestone/1u-2` | Deliberate revision entry preserving saved draft changes; states, package review/confirmation, Submit revision wording, ordinary/enhanced forms, frozen uncertain commands, renewed confirmation and replay-accurate feedback. No extra policy, migration or automatic teammate refresh. |
 | Milestone PR | `milestone/1u-2` → `master` | Integrated regression/walkthrough evidence and final verification record; owner acceptance before merge and before 1U-3. |
 
-Create `milestone/1u-2` from master after PR 3a merges (the branch does not yet exist).
+The owner created `milestone/1u-2` from master after merging PR 3a.
 While PRs 3–4 are open,
 merge master changes into it promptly; review and test conflict resolutions on the
 open PRs so the milestone PR contains no unreviewed resolution. Preparatory PRs 1–2
@@ -162,12 +163,27 @@ PR 3a to master: read authoritative time after locks, recheck authorization afte
 locks and recognize completed matching retries before re-evaluation on existing
 submit/amend/decide paths. Make no submission-policy change; document intended
 observable hardening changes. PR 3 retains B-18
-policy, extended command expectations and `confirmation_required`; do not re-plan
-the sequence from scratch. Bring the merged hardening into the milestone branch.
+policy, extended command expectations and `confirmation_required`, now split into
+PRs 3.1 and 3.2 as approved below.
 This fallback was activated
 for PR 3a: combined PR 3 projected ~900 non-test changed lines; PR 3a projected ~405.
 Concurrency evidence uses real PostgreSQL waits and a test-controlled clock, with
 bounded lock/wait timeouts. PR 3 must retain that test method for deadline policy.
+
+**Approved remaining split:** PR 3.1 establishes a usable confirmation contract under
+current policy; PR 3.2 switches policy and adds immediate-event recovery. Both target
+the milestone branch and must pass the full suite independently, without xfails or
+automatically preconfirmed forms. PR 3.1's minimal consequence/deadline/baseline
+confirmation will be developed into full package review in PR 4. Original projection:
+about 700 non-test changed lines for PR 3.1 and 283 for PR 3.2; record actual size.
+
+**PR 3.2 version rule:** next version = greatest existing + 1; SubmissionVersions
+remain contiguous, including rejected proposals (0006's `version_sequence`
+invariant depends on this). Only effective-event history skips rejected/pending
+versions. The updated restore verifier must explicitly check that contiguity, in
+addition to the expected event set including `immediate_revision`. Test rejected →
+immediate revision, missing content versions, and backup → restore with an immediate
+revision. Keep real lock waits with a controlled clock for before/at/after policy.
 
 **PR 1 sizing decisions:** extract macros first (done); defer word-level highlighting.
 Changed-field markers with complete original/proposed values satisfy this increment.
@@ -186,7 +202,7 @@ Comparison content is server-rendered and template-escaped; no new authored-cont
   append-only enforcement, transaction/retry integrity and backup/restore round trip.
   Before merge, also run the upgrade against a restored copy of the current development
   database and record results. Never migrate the original as the dry run.
-- PR 3: service and HTTP coverage before/at/after deadline, including a real lock wait
+- PRs 3.1–3.2: service and HTTP coverage before/at/after deadline, including a real lock wait
   across it; changed authority/expectations, stale versions, pending draft editing,
   zero writes/key claims on renewed confirmation and replay before deadline evaluation.
 - PR 4: browser lifecycle/recovery coverage in enhanced and ordinary forms plus keyboard,
@@ -196,9 +212,37 @@ Comparison content is server-rendered and template-escaped; no new authored-cont
   Append evidence in each PR; finalize the same record at the gate. Separate automated
   results from human acceptance and retain the no-JavaScript reload limitation.
 
+#### Final 1U-2 milestone gate — 2026-09-25
+
+Delivery PRs #2–#9 are merged into their agreed bases; the milestone branch contains
+all reviewed increments. The [acceptance traceability and finding-ownership tables](verification-1u-2.md#milestone-acceptance-traceability)
+are the basis for the owner's recorded final decision. The combined PR 4 walkthrough
+and the [final owner smoke on `e1d0ca5`](verification-1u-2.md#final-owner-acceptance--2026-09-25)
+are complete; **1U-2 is Accepted**, before the owner-managed merge.
+
+The owner-approved final acceptance scope applies only if the final branch differs
+from `bdcce4c` solely in documentation: a smoke run on the final tested commit using
+a fresh database, one immediate revision, one approval-required revision with an
+adjudicator decision, and one JavaScript-disabled check, plus an owner decision
+against the traceability tables. Any non-documentation change requires re-scoping
+the walkthrough. The owner passed the final smoke on `e1d0ca5`, including UX-38
+conflict actions, and accepted the traceability and partial dispositions as recorded.
+
+Merge `master` changes into the milestone branch before final checks and independently
+review any conflict resolution. Publish the milestone PR only after full tests,
+lint/types and code review pass. Merge into `master` only after explicit owner
+acceptance, using a **merge commit**, preserving the individual reviewed PR squashes.
+The approved merge message is recorded in the verification record.
+
+Acceptance and the **1U-3 prerequisite met** record are complete before merge.
+The owner will perform the merge; the only remaining post-merge actions are deleting
+`milestone/1u-2` and creating an annotated `v0.5.0` tag on the merge commit.
+1U-3 remains proposed; meeting its prerequisite does not start its implementation.
+
 ### 1U-3 — Support realistic action volume and collaboration
 
-**Prerequisite:** 1U-2 accepted; reuse editor and operation-state contracts.
+**Prerequisite met:** 1U-2 accepted on 2026-09-25; reuse editor and operation-state
+contracts. Implementation remains proposed until its bounded plan is approved.
 
 **Deliver:** Compact searchable action navigation, readable view/edit modes,
 independent summaries, scoped Save/Cancel, previous/next and context-preserving

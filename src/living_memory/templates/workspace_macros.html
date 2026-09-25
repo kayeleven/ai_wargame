@@ -10,3 +10,38 @@
 <p><strong>Overall intention</strong></p><div class="authored">{{ package.overall_intention }}</div>
 {% for action in package.actions %}<article class="card"><h4>{{ loop.index }}. {{ action.body.title }}{% if action.removed %} (removed){% endif %}</h4><dl>{% for label, value in [('Description', action.body.description), ('Intent of Action', action.body.intent), ('Anticipated reaction', action.body.anticipated_reaction)] %}<dt>{{ label }}</dt><dd class="authored">{{ value }}</dd>{% endfor %}</dl><p>Responsible teammate: {% for person in view.people if person.id == action.owner_user_id %}{{ person.name }}{% else %}{{ 'Former teammate' if action.owner_user_id else 'Unassigned' }}{% endfor %}</p></article>{% endfor %}
 {% endmacro %}
+{% macro compare_field(field, anchor, original_label='Original', proposed_label='Proposed') %}
+<section id="{{ anchor }}" class="comparison-field{% if field.changed %} is-changed{% endif %}" tabindex="-1">
+  <h4>{{ field.label }} — {{ 'changed' if field.changed else 'unchanged' }}</h4>
+  <div class="comparison-columns">
+    <div><h5>{{ original_label }}</h5><div class="authored">{{ '(not present)' if field.original is none else ('(empty)' if field.original == '' else field.original) }}</div></div>
+    <div><h5>{{ proposed_label }}</h5><div class="authored">{{ '(not present)' if field.proposed is none else ('(cleared)' if field.proposed == '' and field.changed else ('(empty)' if field.proposed == '' else field.proposed)) }}</div></div>
+  </div>
+</section>
+{% endmacro %}
+{% macro compare_action(action, index, prefix='comparison', original_label='Original', proposed_label='Proposed') %}
+<article class="card" id="{{ prefix }}-action-{{ index }}" tabindex="-1">
+  <h3>{{ action.title }} — {{ action.status }}</h3>
+  <p>{{ original_label }} position: {{ action.original_position or 'Not present' }} · {{ proposed_label }} position: {{ action.proposed_position or 'Not present' }}{% if action.reordered %} · Order changed{% endif %}</p>
+  {% if action.status != 'unchanged' %}
+  <ul aria-label="Changed fields">
+    {% for field in action.fields if field.changed %}<li><a href="#{{ prefix }}-action-{{ index }}-{{ field.name }}">{{ field.label }} changed</a></li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% for field in action.fields %}{{ compare_field(field, prefix ~ '-action-' ~ index ~ '-' ~ field.name, original_label, proposed_label) }}{% endfor %}
+</article>
+{% endmacro %}
+{% macro show_comparison(comparison, prefix='comparison', original_label='Original', proposed_label='Proposed') %}
+<p>{% for status, count in comparison.counts.items() if count %}{{ count }} {{ status }}{% if not loop.last %} · {% endif %}{% else %}No actions in either version.{% endfor %}</p>
+<nav aria-label="Changed actions">
+  <a href="#{{ prefix }}-intention">Overall intention — {{ 'changed' if comparison.intention.changed else 'unchanged' }}</a>
+  <ul>{% for action in comparison.actions %}{% if action.status != 'unchanged' %}<li><a href="#{{ prefix }}-action-{{ loop.index }}">{{ action.title }} — {{ action.status }}{% if action.reordered %} (order changed){% endif %}</a></li>{% endif %}{% endfor %}</ul>
+</nav>
+{{ compare_field(comparison.intention, prefix ~ '-intention', original_label, proposed_label) }}
+{% for action in comparison.actions %}{% if action.status != 'unchanged' %}{{ compare_action(action, loop.index, prefix, original_label, proposed_label) }}{% endif %}{% endfor %}
+{% if comparison.counts.unchanged %}
+<details><summary>Unchanged actions ({{ comparison.counts.unchanged }})</summary>
+  {% for action in comparison.actions %}{% if action.status == 'unchanged' %}{{ compare_action(action, loop.index, prefix, original_label, proposed_label) }}{% endif %}{% endfor %}
+</details>
+{% endif %}
+{% endmacro %}
