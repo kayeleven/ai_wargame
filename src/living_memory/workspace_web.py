@@ -14,7 +14,11 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
 
 from living_memory.administration import AdminGame, governing_configuration
-from living_memory.amendment_review import compare_amendment
+from living_memory.amendment_review import (
+    PackageComparison,
+    compare_amendment,
+    compare_packages,
+)
 from living_memory.config import Settings
 from living_memory.db import Database, run_retryable
 from living_memory.forms import csrf_token
@@ -31,6 +35,7 @@ from living_memory.workspace import (
 from living_memory.workspace_service import (
     ActionText,
     Command,
+    Confirmation,
     ConfirmationRequired,
     Conflict,
     Package,
@@ -39,6 +44,9 @@ from living_memory.workspace_service import (
     get_draft,
     get_submission,
     package,
+    package_at_version,
+    require_submitter,
+    submission_snapshot,
 )
 
 
@@ -144,6 +152,81 @@ def _refresh_url(
     page = "adjudicate" if review else "play"
     url = f"/{page}?game_id={game_id}&team_id={team_id}&turn={turn}"
     return f"{url}&mode=revise" if revision_mode and not review else url
+
+
+def _expectation_label(value: str) -> str:
+    return (
+        "take effect immediately"
+        if value == "immediate"
+        else "require adjudicator acceptance"
+    )
+
+
+def _effective_version_label(value: int | None) -> str:
+    return "none" if value is None else str(value)
+
+
+def _confirmation_change_summary(
+    command: Command, current: Confirmation
+) -> tuple[bool, list[str], str]:
+    renewed = all(
+        value is not None
+        for value in (
+            command.expected_deadline,
+            command.expected_consequence,
+            command.expected_late,
+        )
+    )
+    if not renewed:
+        return (
+            False,
+            [],
+            "Review the saved package and current submission consequence, then confirm.",
+        )
+
+    changes: list[str] = []
+    if command.effective_version != current.effective_version:
+        changes.append(
+            "The effective version changed from "
+            f"{_effective_version_label(command.effective_version)} to "
+            f"{_effective_version_label(current.effective_version)}."
+        )
+    # Compare aware datetime values as instants. Formatting happens only for a real change,
+    # so equivalent offsets do not produce a misleading renewal explanation.
+    if command.expected_deadline != current.expected_deadline:
+        assert command.expected_deadline is not None
+        changes.append(
+            f"The deadline changed from {command.expected_deadline.isoformat()} to "
+            f"{current.expected_deadline.isoformat()}."
+        )
+    if command.expected_consequence != current.expected_consequence:
+        assert command.expected_consequence is not None
+        changes.append(
+            "The consequence changed from revisions that "
+            f"{_expectation_label(command.expected_consequence)} to revisions that "
+            f"{_expectation_label(current.expected_consequence)}."
+        )
+    if command.expected_late != current.expected_late:
+        assert command.expected_late is not None
+        if (
+            command.expected_deadline == current.expected_deadline
+            and not command.expected_late
+            and current.expected_late
+        ):
+            changes.append("The deadline passed while you were confirming.")
+        else:
+            previous = (
+                "at or after the deadline"
+                if command.expected_late
+                else "before the deadline"
+            )
+            now = "at or after the deadline" if current.expected_late else "before the deadline"
+            changes.append(f"The deadline status changed from {previous} to {now}.")
+    announcement = (
+        "Submission details changed. Nothing was submitted by this attempt. "
+        "Confirming again is required."
+    )
+    return True, changes, announcement
 
 
 def _field_error(field: str, message: str) -> dict[str, str]:
@@ -508,6 +591,58 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                 } if review else {},
             )
 
+    def confirmation_review(
+        request: Request,
+        game_id: str,
+        team_id: str,
+        turn: int,
+        command: Command,
+        expectations: Confirmation,
+    ) -> tuple[Package, PackageComparison | None]:
+        """Read only the immutable versions named by the confirmed command state."""
+        uid = identity(request)
+        now = request.app.state.clock.now()
+        with db.transaction() as session:
+            authorize(session, uid, game_id, team_id, now)
+            require_submitter(session, uid, game_id, team_id)
+            draft = get_draft(session, game_id, team_id, turn)
+            reviewed = submission_snapshot(
+                package_at_version(session, draft, command.expected_version)
+            )
+            if expectations.effective_version is None:
+                return reviewed, None
+            submission = get_submission(session, game_id, team_id, turn)
+            if submission is None:
+                raise LookupError("Not found")
+            effective_row = session.scalar(
+                select(SubmissionVersion).where(
+                    SubmissionVersion.submission_id == submission.id,
+                    SubmissionVersion.game_id == game_id,
+                    SubmissionVersion.team_id == team_id,
+                    SubmissionVersion.version == expectations.effective_version,
+                )
+            )
+            if effective_row is None:
+                raise LookupError("Not found")
+            effective = Package.model_validate(effective_row.snapshot)
+            owner_ids = {
+                item.owner_user_id
+                for value in (effective, reviewed)
+                for item in value.actions
+                if item.owner_user_id is not None
+            }
+            owners = {
+                user.id: user.display_name
+                for user in session.scalars(select(User).where(User.id.in_(owner_ids)))
+            }
+            return reviewed, compare_packages(
+                expectations.effective_version,
+                command.expected_version,
+                effective,
+                reviewed,
+                owners,
+            )
+
     def render(
         request: Request,
         game_id: str,
@@ -784,6 +919,20 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
         except PermissionError as exc:
             raise HTTPException(403, str(exc)) from None
         except ConfirmationRequired as exc:
+            try:
+                view = read(request, game_id, team_id, turn, False)
+                reviewed_package, confirmation_comparison = confirmation_review(
+                    request, game_id, team_id, turn, command, exc.expectations
+                )
+            except LookupError:
+                raise HTTPException(404, "Not found") from None
+            except PermissionError as review_error:
+                raise HTTPException(403, str(review_error)) from None
+            except Conflict as review_error:
+                raise HTTPException(409, str(review_error)) from None
+            renewed, confirmation_changes, confirmation_announcement = (
+                _confirmation_change_summary(command, exc.expectations)
+            )
             expectations = exc.expectations.model_dump(mode="json")
             confirmed = command.model_copy(update={**exc.expectations.model_dump(), "key": uuid4()})
             # Only scalar fields used by submit/amend; retain the exact draft baseline.
@@ -792,6 +941,12 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
             values.pop("order")
             context = {
                 "request": request,
+                "view": view,
+                "reviewed_package": reviewed_package,
+                "comparison": confirmation_comparison,
+                "renewed_confirmation": renewed,
+                "confirmation_changes": confirmation_changes,
+                "confirmation_announcement": confirmation_announcement,
                 "expectations": expectations,
                 "values": values,
                 "workspace_id": f"{game_id}:{team_id}:{turn}",

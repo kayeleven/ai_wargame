@@ -483,3 +483,29 @@ rule: before the deadline revisions take effect immediately; at or after it they
 require adjudicator acceptance. These hints are advisory and may be stale;
 confirmation remains authoritative. The 1U-1 protected-input, frozen-command retry,
 scoped storage and no-JavaScript reload limitations continue to apply.
+
+### Reviewed package and renewed confirmation (1U-2 PR 4b)
+
+Confirmation reviews the immutable saved draft revision named by the command, using
+exactly the submission snapshot projection: live actions only, in submitted order,
+with complete authored values. Submission persistence uses the same projection.
+Removed actions may appear in the effective-version comparison, but never as content
+of the reviewed submission package. The comparison uses the effective content version
+named by the server's confirmation expectations, not a later effective version.
+Missing immutable source content fails closed. A draft edit between validation and
+review rendering cannot substitute newer content; confirming an outdated draft still
+requires the existing conflict/review path.
+
+A renewed prompt compares the command's previous expectations with the server's
+current expectations and describes every change in effective version, deadline,
+consequence and late status. Equivalent datetime offsets do not invent a changed
+deadline. The prompt explicitly states that this attempt submitted nothing and that
+confirming again is required. Initial review is distinguished from renewed review.
+Ordinary and enhanced forms use the same escaped server-rendered explanation and
+complete comparisons; enhanced forms announce the changes and focus the review.
+
+Confirmation remains a no-write/no-request-key-claim outcome with an explicit fresh
+confirmation key and unchanged draft baseline. Unknown outcomes must first reconcile
+the exact frozen original command. Authorized completion replay retains the original
+result and consequence before deadline evaluation. No service policy, schema,
+command fingerprint or automatic teammate refresh changes are introduced.

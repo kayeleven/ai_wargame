@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from living_memory.amendment_review import compare_amendment
+from living_memory.amendment_review import compare_amendment, compare_packages
 from living_memory.workspace_service import ActionText, ActionView, Package
 
 
@@ -74,3 +74,24 @@ def test_ownership_uses_identity_even_with_identical_display_names():
     result = compare(Package(), Package(actions=[action("unassigned")]))
     assert result.actions[0].fields[-1].original is None
     assert result.actions[0].fields[-1].proposed == "Unassigned"
+
+
+def test_generic_comparison_projects_removed_draft_actions_but_keeps_effective_removals():
+    effective = action("effective", "Effective action")
+    live_draft = action("live", "Live draft action")
+    removed_draft = action("discarded", "Removed draft action", removed=True)
+
+    comparison = compare_packages(
+        4,
+        9,
+        Package(actions=[effective]),
+        Package(actions=[live_draft, removed_draft]),
+        {},
+    )
+
+    assert comparison.base_version == 4 and comparison.proposed_version == 9
+    assert [(item.identity, item.status) for item in comparison.actions] == [
+        ("live", "added"),
+        ("effective", "removed"),
+    ]
+    assert all(item.identity != "discarded" for item in comparison.actions)

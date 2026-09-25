@@ -1,31 +1,10 @@
 {% extends "base.html" %}
-{% from "workspace_macros.html" import hidden, field_error, show_conflict, show_package with context %}
+{% from "workspace_macros.html" import hidden, field_error, show_comparison, show_conflict, show_package with context %}
 {% set page_query = '?game_id=' ~ view.game_id ~ '&team_id=' ~ view.team_id ~ '&turn=' ~ view.turn %}
 {% set review_url = '/adjudicate' ~ page_query %}
 {% set a = selected_amendment %}
 {% set selected_url = review_url ~ ('&amendment_id=' ~ a.id if a else '') %}
 {% set endpoint = '/workspace/' ~ view.game_id ~ '/' ~ view.team_id ~ '/' ~ view.turn ~ '/form' %}
-{% macro compare_field(field, anchor) %}
-<section id="{{ anchor }}" class="comparison-field{% if field.changed %} is-changed{% endif %}" tabindex="-1">
-  <h4>{{ field.label }} — {{ 'changed' if field.changed else 'unchanged' }}</h4>
-  <div class="comparison-columns">
-    <div><h5>Original</h5><div class="authored">{{ '(not present)' if field.original is none else ('(empty)' if field.original == '' else field.original) }}</div></div>
-    <div><h5>Proposed</h5><div class="authored">{{ '(not present)' if field.proposed is none else ('(cleared)' if field.proposed == '' and field.changed else ('(empty)' if field.proposed == '' else field.proposed)) }}</div></div>
-  </div>
-</section>
-{% endmacro %}
-{% macro compare_action(action, index) %}
-<article class="card" id="comparison-action-{{ index }}" tabindex="-1">
-  <h3>{{ action.title }} — {{ action.status }}</h3>
-  <p>Original position: {{ action.original_position or 'Not present' }} · Proposed position: {{ action.proposed_position or 'Not present' }}{% if action.reordered %} · Order changed{% endif %}</p>
-  {% if action.status != 'unchanged' %}
-  <ul aria-label="Changed fields">
-    {% for field in action.fields if field.changed %}<li><a href="#comparison-action-{{ index }}-{{ field.name }}">{{ field.label }} changed</a></li>{% endfor %}
-  </ul>
-  {% endif %}
-  {% for field in action.fields %}{{ compare_field(field, 'comparison-action-' ~ index ~ '-' ~ field.name) }}{% endfor %}
-</article>
-{% endmacro %}
 {% block context %}
 <section class="context-bar" aria-label="Current context">
   <strong>{{ view.title }}</strong><span>{{ view.team_names.get(view.team_id, view.team_id) }}</span><span>Turn {{ view.turn }}</span><span>Amendment review</span>
@@ -76,18 +55,7 @@
     <h2>Version {{ a.version }} proposed against version {{ a.base_version }} — {{ a.status }}</h2>
     {% if comparison %}
     <p>Original: version {{ comparison.base_version }} · Proposed: version {{ comparison.proposed_version }}</p>
-    <p>{% for status, count in comparison.counts.items() if count %}{{ count }} {{ status }}{% if not loop.last %} · {% endif %}{% else %}No actions in either version.{% endfor %}</p>
-    <nav aria-label="Changed actions">
-      <a href="#comparison-intention">Overall intention — {{ 'changed' if comparison.intention.changed else 'unchanged' }}</a>
-      <ul>{% for action in comparison.actions %}{% if action.status != 'unchanged' %}<li><a href="#comparison-action-{{ loop.index }}">{{ action.title }} — {{ action.status }}{% if action.reordered %} (order changed){% endif %}</a></li>{% endif %}{% endfor %}</ul>
-    </nav>
-    {{ compare_field(comparison.intention, 'comparison-intention') }}
-    {% for action in comparison.actions %}{% if action.status != 'unchanged' %}{{ compare_action(action, loop.index) }}{% endif %}{% endfor %}
-    {% if comparison.counts.unchanged %}
-    <details><summary>Unchanged actions ({{ comparison.counts.unchanged }})</summary>
-      {% for action in comparison.actions %}{% if action.status == 'unchanged' %}{{ compare_action(action, loop.index) }}{% endif %}{% endfor %}
-    </details>
-    {% endif %}
+    {{ show_comparison(comparison) }}
     {% else %}<p class="notice error">Comparison unavailable: an immutable submission version is missing. A decision cannot be entered on this page.</p>{% endif %}
     {% else %}
     {% for version in view.submissions if version.version == view.effective_version %}<h2>Effective package</h2>{{ show_package(version.package) }}{% endfor %}
