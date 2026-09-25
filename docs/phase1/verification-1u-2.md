@@ -648,7 +648,7 @@ Python Ruff/type checks and Jinja rendering cover their respective sources. Node
 not installed, so there is no standalone JavaScript lint result; Chromium exercises
 the changed script. There are no CSS changes. Human acceptance is separate below.
 
-### Owner walkthrough — pending
+### Owner walkthrough — completed in combined PR 4 review
 
 Run in both enhanced and ordinary form modes, using keyboard-only navigation and a
 375px-wide viewport. Automated evidence does not substitute for owner acceptance.
@@ -665,7 +665,8 @@ Run in both enhanced and ordinary form modes, using keyboard-only navigation and
    recovery with enhanced forms; verify ordinary validation/conflict retention.
 
 No-JavaScript reload still cannot offer an application-controlled dirty warning.
-Screen-reader and human owner acceptance remain pending unless recorded separately.
+Owner observations and manual exclusions are recorded in the
+[combined PR 4 owner manual review](#pr-4-combined-owner-manual-review-4a--4b).
 
 ### PR 4a owner-review corrections — 2026-09-25
 
@@ -683,9 +684,9 @@ checks the effective overview without losing the rejection history.
 PR 4a merged into `milestone/1u-2` on 2026-09-25 as squash commit `5b46b62`
 ([PR #8](https://github.com/kayeleven/ai_wargame/pull/8)), following owner code
 review of `f1d42f6` and automated evidence. Its manual owner walkthrough was
-**not performed**: the owner explicitly deferred it to one combined PR 4 (4a + 4b)
-walkthrough after 4b is complete and before the milestone PR. That combined
-walkthrough remains **pending**; this merge does not record manual acceptance.
+deferred at merge and is now **complete**, as recorded in the
+[combined PR 4 owner manual review](#pr-4-combined-owner-manual-review-4a--4b).
+This completes PR 4 acceptance only; final milestone end-to-end acceptance remains pending.
 
 Full suite after both corrections: **310 passed, 2 existing dependency deprecation
 warnings in 237.92s**, including PostgreSQL, backup/restore and Chromium. Focused
@@ -728,30 +729,10 @@ Original/Proposed labels in confirmation. The shared macro now uses the configur
 version labels while preserving adjudication defaults. The affected browser flow
 passed again in both modes (**2 tests**); repository lint/type checks were repeated.
 
-### Rebased PR 4b verification — 2026-09-25
+### Original combined PR 4 walkthrough checklist
 
-Rebased from `c8a7708` onto the merged milestone commit `5b46b62`. The only
-conflict was this verification record; both increments' evidence was retained.
-The commit comparison confirmed the original 4b code patch was unchanged, with
-4a's history visibility and superseded-rejection fixes inherited from the base.
-The PR diff contains only 4b changes and the requested delivery documentation.
-
-- `make check`: passed (Ruff and mypy, 21 source files).
-- `make test`: **248 passed**, 2 existing deprecation warnings, 115.79s.
-- `make test-browser`: **79 passed**, 2 existing deprecation warnings, 137.44s.
-- Total: **327 tests passed** on the rebased branch.
-- Codex-tooling Ruff and whitespace checks passed. Chromium exercises JavaScript
-  and template rendering; standalone JavaScript lint remains unavailable (no Node).
-
-Actual non-test size against `origin/milestone/1u-2`, counting additions plus
-deletions and including documentation: **425 lines**. No schema or policy changes.
-PR 4b remains for owner review; its combined manual walkthrough is pending below.
-
-### Combined PR 4 owner walkthrough — pending
-
-The owner will perform one combined walkthrough of PR 4a and PR 4b after 4b is
-complete, before the milestone PR. It has not been performed and remains pending.
-Include the PR 4a lifecycle checklist above and the confirmation checks below.
+The checklist below was the original plan. Actual observations and exclusions are
+recorded in the completed owner review below; unperformed checks are not implied.
 Run both enhanced and ordinary forms, with keyboard navigation and a 375px viewport.
 
 1. Review a first submission and a revision containing added, changed, reordered and
@@ -769,5 +750,74 @@ Run both enhanced and ordinary forms, with keyboard navigation and a 375px viewp
    original command is reconciled, its original success meaning is retained across
    the deadline, and no duplicate submission appears. Recheck dirty input protection.
 
-Owner and screen-reader acceptance remain pending until separately recorded. The
-no-JavaScript application-controlled dirty warning on reload remains unavailable.
+PR 4 owner acceptance is complete as recorded below; screen-reader output was not
+checked manually. The no-JavaScript application-controlled dirty warning on reload
+remains unavailable.
+
+### Rebased PR 4b verification — 2026-09-25
+
+Rebased from `c8a7708` onto the merged milestone commit `5b46b62`. The only
+conflict was this verification record; both increments' evidence was retained.
+The commit comparison confirmed the original 4b code patch was unchanged, with
+4a's history visibility and superseded-rejection fixes inherited from the base.
+The PR diff contains only 4b changes and the requested delivery documentation.
+
+- `make check`: passed (Ruff and mypy, 21 source files).
+- `make test`: **248 passed**, 2 existing deprecation warnings, 115.79s.
+- `make test-browser`: **79 passed**, 2 existing deprecation warnings, 137.44s.
+- Total: **327 tests passed** on the rebased branch.
+- Codex-tooling Ruff and whitespace checks passed. Chromium exercises JavaScript
+  and template rendering; standalone JavaScript lint remains unavailable (no Node).
+
+At rebased verification, non-test size against `origin/milestone/1u-2`, counting
+additions plus deletions and including documentation, was **425 lines**. No schema or policy changes.
+PR 4b is owner-approved; the completed combined manual review is recorded below.
+
+Merge-readiness confirmation after the documentation-only owner approval update:
+**327 tests passed**, 2 existing dependency warnings, 251.36s. `make check`,
+Codex-tooling Ruff and whitespace checks passed; no runtime code changed.
+
+## PR 4 combined owner manual review (4a + 4b)
+
+Reviewer: project owner · Date: 2026-09-25 · Environment: [browser + version], [OS],
+local development server on the rebased PR 4b branch (schema 0006, application 0.5.0).
+Two test games were used: one with a turn 1 deadline several days away, and one with a
+turn 1 deadline about 15 minutes after the start of testing, so both B-18 paths and a
+deadline crossing could be exercised. This completes the PR 4a walkthrough that was
+deferred at its merge.
+
+Automated results are recorded above; this section records manual observations only.
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Before first submission: overview shows "Not submitted" and the deadline | Pass |
+| 2 | After first submission: effective package first; Discussion and Draft history visible | Pass |
+| 3 | Revise saved draft: existing saved content intact, `mode=revise` preserved across saves | Pass |
+| 4 | Pending revision: "Revision pending", Submit disabled with explanation, draft editing available | Pass |
+| 5 | Rejection → correction → acceptance: rejected state and notice clear after acceptance | Pass |
+| 6 | Historical turn: effective package, Discussion and Draft history visible; no revise entry | Pass |
+| 7 | Non-submitter can edit but sees "Only the designated submitter can submit revisions." | Pass |
+| 8 | First-submission confirmation shows the complete package, with no comparison | Pass |
+| 9 | Revision confirmation shows the package and "Changes from effective version N" with correct change labels | Pass |
+| 10 | Removed action excluded from the reviewed package and shown as removed in the comparison | Pass |
+| 11 | Deadline crossed during confirmation: "Confirm submission again", changes listed including "The deadline passed while you were confirming.", nothing submitted until confirmed again | Pass |
+| 12 | Teammate saves during confirmation: Confirm produces a conflict; prompt never shows the newer draft | Pass |
+| 13 | JavaScript disabled: standalone confirmation page shows equivalent package review and renewed-confirmation content | Pass |
+| 14 | Keyboard only and 375px width: focus on the prompt, comparison navigable, long text wraps, no horizontal page scrolling | Pass |
+
+The PR 3.2 owner finding (renewed confirmation did not explain what changed) is
+resolved by check 11. Not checked manually: screen-reader output, lost responses,
+concurrent retries and restore behavior (covered by automated tests only).
+
+### Findings and follow-ups
+
+- No blocking findings.
+- Polish follow-up (not blocking, for a later milestone): deadlines in confirmation
+  change descriptions and elsewhere are shown as raw ISO timestamps
+  (e.g. `2026-09-30T18:00:00+00:00`). Consider a human-readable UTC format.
+
+### Decision
+
+PR 4 (4a and 4b) approved. PR 4b approved for merge into `milestone/1u-2`. This
+completes the PR 4a walkthrough deferred at its merge. It is not milestone
+acceptance; the milestone PR's end-to-end acceptance remains required.
