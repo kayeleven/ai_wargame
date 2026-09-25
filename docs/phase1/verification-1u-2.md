@@ -680,8 +680,12 @@ which a rejected amendment precedes a later immediate revision. The historical
 amendment and its reason remain available. A regression creates that sequence and
 checks the effective overview without losing the rejection history.
 
-Owner walkthrough remains pending. After PR 4a merges, rebase PR 4b onto the updated
-`milestone/1u-2` before opening its PR.
+PR 4a merged into `milestone/1u-2` on 2026-09-25 as squash commit `5b46b62`
+([PR #8](https://github.com/kayeleven/ai_wargame/pull/8)), following owner code
+review of `f1d42f6` and automated evidence. Its manual owner walkthrough was
+**not performed**: the owner explicitly deferred it to one combined PR 4 (4a + 4b)
+walkthrough after 4b is complete and before the milestone PR. That combined
+walkthrough remains **pending**; this merge does not record manual acceptance.
 
 Full suite after both corrections: **310 passed, 2 existing dependency deprecation
 warnings in 237.92s**, including PostgreSQL, backup/restore and Chromium. Focused
@@ -706,7 +710,7 @@ by this attempt, and requires confirmation again. It handles effective version,
 deadline, consequence and late status changes, while distinguishing initial review.
 Workspace deadline hints remain advisory rules; confirmation remains authoritative.
 
-Final full suite: **324 passed, 2 existing dependency deprecation warnings in
+Pre-rebase full suite: **324 passed, 2 existing dependency deprecation warnings in
 247.62s**, including PostgreSQL, backup/restore and Chromium. Focused regressions
 cover actual reviewed template content equal to the committed snapshot with a
 removed action, immutable draft read races, every expectation change and equivalent
@@ -717,16 +721,37 @@ keyboard focus/live feedback, literal authored content and 375px comparison layo
 Ruff (project and Codex tooling), mypy (21 source files) and whitespace checks passed.
 Jinja templates render in the tests; Chromium exercises the changed JavaScript.
 Node is unavailable, so there is no standalone JavaScript lint result. No CSS changed.
-Actual non-test additions plus deletions, including documentation: **396 lines**.
+Pre-rebase non-test additions plus deletions, including documentation: **396 lines**.
 
 After the full run, independent review found position captions still used generic
 Original/Proposed labels in confirmation. The shared macro now uses the configured
 version labels while preserving adjudication defaults. The affected browser flow
 passed again in both modes (**2 tests**); repository lint/type checks were repeated.
 
-### Owner walkthrough — pending
+### Rebased PR 4b verification — 2026-09-25
 
-Automated evidence must be recorded separately; these are human acceptance checks.
+Rebased from `c8a7708` onto the merged milestone commit `5b46b62`. The only
+conflict was this verification record; both increments' evidence was retained.
+The commit comparison confirmed the original 4b code patch was unchanged, with
+4a's history visibility and superseded-rejection fixes inherited from the base.
+The PR diff contains only 4b changes and the requested delivery documentation.
+
+- `make check`: passed (Ruff and mypy, 21 source files).
+- `make test`: **248 passed**, 2 existing deprecation warnings, 115.79s.
+- `make test-browser`: **79 passed**, 2 existing deprecation warnings, 137.44s.
+- Total: **327 tests passed** on the rebased branch.
+- Codex-tooling Ruff and whitespace checks passed. Chromium exercises JavaScript
+  and template rendering; standalone JavaScript lint remains unavailable (no Node).
+
+Actual non-test size against `origin/milestone/1u-2`, counting additions plus
+deletions and including documentation: **425 lines**. No schema or policy changes.
+PR 4b remains for owner review; its combined manual walkthrough is pending below.
+
+### Combined PR 4 owner walkthrough — pending
+
+The owner will perform one combined walkthrough of PR 4a and PR 4b after 4b is
+complete, before the milestone PR. It has not been performed and remains pending.
+Include the PR 4a lifecycle checklist above and the confirmation checks below.
 Run both enhanced and ordinary forms, with keyboard navigation and a 375px viewport.
 
 1. Review a first submission and a revision containing added, changed, reordered and
