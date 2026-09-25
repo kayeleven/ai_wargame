@@ -71,10 +71,31 @@
     return { values, authored: formValues(form), editor: editorId(form), operation: form.elements.namedItem("operation")?.value, key: form.elements.namedItem("key")?.value, action: form.action };
   }
   function fillFrozen(form, frozen) { Object.entries(frozen.values).forEach(([name, value]) => { const item = form.elements.namedItem(name); if (item) item.value = value; }); }
+  function showDraftRecoveryOffer() {
+    if (document.querySelector("[data-draft-recovery-offer]")) return;
+    const revise = document.querySelector("[data-preserve-draft-recovery]");
+    if (!revise) return;
+    const panel = document.createElement("section"); panel.className = "notice"; panel.dataset.draftRecoveryOffer = "true";
+    panel.innerHTML = "<p>Unsaved draft text is retained. Revise the saved draft to review or continue editing it.</p>";
+    const link = revise.cloneNode(true); panel.append(link); document.querySelector("[data-revision-overview]")?.after(panel);
+  }
+  function revealDraftWorkspace(form) {
+    const draft = form?.closest("[data-draft-workspace]");
+    if (draft) draft.hidden = false;
+    document.querySelector("[data-draft-recovery-offer]")?.remove();
+  }
+  function enterRevisionMode(link) {
+    const draft = document.querySelector("[data-draft-workspace]"); if (!draft) return;
+    draft.hidden = false; document.querySelector("[data-draft-recovery-offer]")?.remove();
+    const destination = new URL(link.href, location.href); history.replaceState(null, "", destination);
+    draft.querySelectorAll("a[href]").forEach(item => { const target = new URL(item.href, location.href); if (target.origin === location.origin && target.pathname === "/play") { target.searchParams.set("mode", "revise"); item.href = target; } });
+    draft.querySelectorAll("form[data-workspace-form]").forEach(form => { const target = new URL(form.action, location.href); target.searchParams.set("mode", "revise"); form.action = target; });
+    const heading = draft.querySelector("h2"); if (heading) { heading.tabIndex = -1; heading.focus(); } draft.scrollIntoView({block:"start"});
+  }
   function restore(form) {
     const saved = read(keyFor(form)), pending = read(stateKey(form));
-    if (saved?.authored) { applyValues(form, saved.authored); const version = form.elements.namedItem("expected_version"); if (version && saved.expectedVersion) version.value = saved.expectedVersion; mark(form); }
-    if (pending) { form.dataset.pending = "true"; workspace().dataset.unresolved = "true"; const button = form.querySelector("button[type=submit],button:not([type])"); if (button) button.textContent = "Retry save"; announce("A previous save has an unknown outcome. Retry uses the exact original save.", "notice error", true); }
+    if (saved?.authored) { applyValues(form, saved.authored); const version = form.elements.namedItem("expected_version"); if (version && saved.expectedVersion) version.value = saved.expectedVersion; mark(form); if (form.closest("[data-draft-workspace]")?.hidden) showDraftRecoveryOffer(); }
+    if (pending) { revealDraftWorkspace(form); form.dataset.pending = "true"; workspace().dataset.unresolved = "true"; const button = form.querySelector("button[type=submit],button:not([type])"); if (button) button.textContent = "Retry save"; announce("A previous save has an unknown outcome. Retry uses the exact original save.", "notice error", true); }
   }
   function clearPending(form) { erase(stateKey(form)); const unresolved = read(unresolvedKey()); if (!unresolved || unresolved.state === stateKey(form)) erase(unresolvedKey()); form.dataset.pending = ""; const button = form.querySelector("button[type=submit],button:not([type])"); if (button?.dataset.defaultLabel) button.textContent = button.dataset.defaultLabel; }
   function retainPending(form, frozen) { save(stateKey(form), frozen); save(unresolvedKey(), { state: stateKey(form), frozen }); }
@@ -82,7 +103,7 @@
     const unresolved = read(unresolvedKey()); if (!unresolved?.frozen || document.querySelector("form[data-pending-recovery]")) return;
     const frozen = unresolved.frozen;
     const matching = [...document.querySelectorAll("form[data-workspace-form]")].find(form => form.elements.namedItem("operation")?.value === frozen.operation && stateKey(form) === unresolved.state);
-    if (matching) return;
+    if (matching) { revealDraftWorkspace(matching); return; }
     const panel = document.createElement("section"); panel.className = "notice error"; panel.dataset.pendingRecovery = "true"; panel.setAttribute("role", "alert");
     const message = document.createElement("p"); message.textContent = `A previous ${String(frozen.operation).replaceAll("_", " ")} has an unknown outcome.`; panel.append(message);
     const form = document.createElement("form"); form.method = "post"; form.action = frozen.action; form.dataset.workspaceForm = "true"; form.dataset.packageCommand = "true"; form.dataset.pendingRecovery = "true"; form.dataset.pending = "true";
@@ -137,6 +158,8 @@
       });
       current.replaceWith(replacement);
     });
+    const draft = document.querySelector("[data-draft-workspace]"), incomingDraft = parsed.querySelector("[data-draft-workspace]");
+    if (draft && incomingDraft && !dirty.length && workspace()?.dataset.unresolved !== "true") draft.hidden = incomingDraft.hidden;
     dirty.filter(form => !grafted.has(form)).forEach(form => {
       const destination = document.querySelector(`[data-workspace-region="${CSS.escape(origins.get(form) || "")}"]`);
       if (destination) { addUnavailableRecovery(form); destination.append(form); grafted.add(form); }
@@ -297,6 +320,7 @@
       if (form.dataset.pendingRecovery) form.closest("section[data-pending-recovery]")?.remove();
       if (document.querySelector("[data-confirmation-page]")) { location.replace(`${payload.refresh}&saved=${encodeURIComponent(payload.saved || frozen.operation)}`); return; }
       document.querySelector("[data-submission-confirmation]")?.remove();
+      if (["submit", "amend"].includes(frozen.operation)) history.replaceState(null, "", payload.refresh);
       announce(payload?.message || success(payload.saved || frozen.operation)); await refresh(form, payload?.refresh || location.href);
     } catch { retainPending(form, frozen); form.dataset.pending = "true"; workspace().dataset.unresolved = "true"; announce("Save outcome unknown. Retry will use the exact original save; other saves are paused.", "notice error", true); }
     finally { workspace().dataset.inflight = ""; form.dataset.inflight = ""; form.removeAttribute("aria-busy"); form.querySelectorAll("button[type=submit],button:not([type])").forEach(button => { button.disabled = Boolean(form.querySelector("[data-unavailable-recovery]")); if (form.dataset.pending) button.textContent = "Retry save"; }); }
@@ -310,7 +334,7 @@
     try { return Boolean(document.getElementById(decodeURIComponent(target.hash.slice(1)))); }
     catch { return false; }
   }
-  document.addEventListener("click", event => { const cancel = event.target.closest("[data-cancel-editor]"); if (cancel) { const form = cancel.closest("form[data-editor]"); if (form?.dataset.dirty === "true") { event.preventDefault(); choice(cancel, `Discard unsaved changes in ${editorLabel(form)}?`, () => { discardToAuthoritative(form); form.querySelector("[data-conflict]")?.remove(); form.querySelector("textarea,input,select")?.focus(); }); } return; } const link = event.target.closest("a[href]"); if (link && !isLocalFragment(link) && (dirtyEditors().length || dirtyAdminForms().length) && !link.dataset.cancelEditor) { event.preventDefault(); choice(link, "Leaving will discard unsaved changes.", () => { discardDirtyRecovery(); location.href = link.href; }); } });
+  document.addEventListener("click", event => { const revise = event.target.closest("a[data-preserve-draft-recovery]"); if (revise) { event.preventDefault(); enterRevisionMode(revise); return; } const cancel = event.target.closest("[data-cancel-editor]"); if (cancel) { const form = cancel.closest("form[data-editor]"); if (form?.dataset.dirty === "true") { event.preventDefault(); choice(cancel, `Discard unsaved changes in ${editorLabel(form)}?`, () => { discardToAuthoritative(form); form.querySelector("[data-conflict]")?.remove(); form.querySelector("textarea,input,select")?.focus(); }); } return; } const link = event.target.closest("a[href]"); if (link && !isLocalFragment(link) && (dirtyEditors().length || dirtyAdminForms().length) && !link.dataset.cancelEditor) { event.preventDefault(); choice(link, "Leaving will discard unsaved changes.", () => { discardDirtyRecovery(); location.href = link.href; }); } });
   window.addEventListener("beforeunload", event => { if (dirtyEditors().length || dirtyAdminForms().length || workspace()?.dataset.unresolved === "true") { event.preventDefault(); event.returnValue = ""; } });
   document.querySelectorAll('form[action^="/admin"]:not([data-workspace-form])').forEach(form => { form.dataset.adminForm = "true"; form.dataset.baseline = JSON.stringify(formValues(form)); form.dataset.dirty = "false"; });
   clearForOtherUser(); initialize();

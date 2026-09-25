@@ -606,3 +606,86 @@ PR 3.2 approved for merge into `milestone/1u-2`. This approves PR 3.2 only; it i
 milestone acceptance. The B-18 service policy, confirmation contract, effective-version
 history and recovery compatibility are now complete on the milestone branch. PR 4
 (player lifecycle presentation) is the remaining implementation increment.
+
+## PR 4a — Player lifecycle and deliberate revision entry
+
+PR 4 was split at the owner-approved seam before implementation. Estimated non-test
+additions plus deletions, including documentation: PR 4a 350; PR 4b 690. Both target
+`milestone/1u-2`; each must be independently functional and green. PR 4b owns package
+review, effective-version comparison and the PR 3.2 renewed-confirmation finding.
+
+PR 4a presents effective, saved draft, pending and rejected states, preserves the
+existing draft through explicit `mode=revise` entry, and uses **Submit revision**.
+Consequence hints state the deadline rule rather than promising a current outcome.
+Confirmation and the command service remain authoritative. No policy or schema change.
+
+### Automated verification
+
+Coverage adds explicit revision entry without writes, retained saved/unsaved draft
+content, pending editing, rejected → corrected → accepted flow, advisory deadline
+wording, member/current-turn restrictions, and keyboard/375px long-content checks
+in ordinary and enhanced modes. Existing original-key replay and recovery assertions
+remain, with entry/wording updates for the new lifecycle view.
+
+Review found an overview-refresh edge case: a removed dirty editor could be detached
+before fallback recovery was inserted, allowing its wrapper to become hidden. The
+visibility decision now considers all dirty editors, including detached ones. A
+browser regression verifies lost committed response → teammate removal → same-key
+replay retains visible copy/discard controls, authored text and its baseline, with
+only one durable submission. The focused recovery/correction rerun passed **4 tests**.
+
+Independent review also caught the adjudicator's strict-after late label at the
+exact deadline. Both role templates now use the inclusive boundary. A new regression
+submits through the real service at the deadline, verifies the stored timestamps,
+and checks the late label in both authorized views; its focused run passed.
+
+Final full suite: **307 passed, 2 existing dependency deprecation warnings in
+233.01s**, including isolated PostgreSQL, backup/restore and Chromium checks.
+Ruff (project and Codex tooling), mypy (21 source files) and whitespace checks passed.
+Actual non-test additions plus deletions, including this record: **187 lines**.
+
+Python Ruff/type checks and Jinja rendering cover their respective sources. Node is
+not installed, so there is no standalone JavaScript lint result; Chromium exercises
+the changed script. There are no CSS changes. Human acceptance is separate below.
+
+### Owner walkthrough — pending
+
+Run in both enhanced and ordinary form modes, using keyboard-only navigation and a
+375px-wide viewport. Automated evidence does not substitute for owner acceptance.
+
+1. Submit a first package, then open **Revise saved draft**. Verify saved changes are
+   intact and the effective package is clearly separate from the editable draft.
+2. Save a correction, inspect the deadline rule and submit an immediate revision;
+   repeat at/after the deadline for a revision requiring adjudicator acceptance.
+3. While a revision is pending, edit the draft but verify another submission is not
+   offered. Reject with a reason, correct and resubmit, then accept. Check state and
+   success feedback throughout and confirm the rejection reason remains discoverable.
+4. Check visible focus, keyboard access, long-content wrapping and usable controls
+   on a narrow screen. Exercise Cancel, navigation, reload and uncertain-operation
+   recovery with enhanced forms; verify ordinary validation/conflict retention.
+
+No-JavaScript reload still cannot offer an application-controlled dirty warning.
+Screen-reader and human owner acceptance remain pending unless recorded separately.
+
+### PR 4a owner-review corrections — 2026-09-25
+
+Discussion and Draft history now remain visible in the overview on every turn,
+including historical and completed turns opened without `mode=revise`. Only the
+saved-draft editing area is hidden until revision entry; its recovery behavior is
+unchanged. A browser regression checks actual visibility in both form modes.
+
+An effective version newer than the latest rejected amendment now supersedes the
+rejection notice and rejected overview state. This handles pre-B-18 histories in
+which a rejected amendment precedes a later immediate revision. The historical
+amendment and its reason remain available. A regression creates that sequence and
+checks the effective overview without losing the rejection history.
+
+Owner walkthrough remains pending. After PR 4a merges, rebase PR 4b onto the updated
+`milestone/1u-2` before opening its PR.
+
+Full suite after both corrections: **310 passed, 2 existing dependency deprecation
+warnings in 237.92s**, including PostgreSQL, backup/restore and Chromium. Focused
+checks also passed: legacy rejection/immediate-revision HTTP case (1 test) and
+current/historical/completed overview visibility in both browser modes (2 tests).
+Project and Codex-tooling Ruff, mypy (21 source files), Jinja parsing and whitespace
+checks passed. No JavaScript or CSS changed in this correction.

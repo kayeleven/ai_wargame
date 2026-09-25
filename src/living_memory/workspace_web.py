@@ -94,6 +94,8 @@ class WorkspaceView(BaseModel):
     submission_status: str | None = None
     submitted_at: datetime | None = None
     deadline: datetime | None = None
+    governing_deadline: datetime
+    viewed_at: datetime
     historical_owners: dict[UUID, str] = {}
 
 
@@ -136,9 +138,12 @@ def _editor_identity(values: Command | dict[str, Any]) -> str | None:
     return None
 
 
-def _refresh_url(game_id: str, team_id: str, turn: int, review: bool) -> str:
+def _refresh_url(
+    game_id: str, team_id: str, turn: int, review: bool, *, revision_mode: bool = False
+) -> str:
     page = "adjudicate" if review else "play"
-    return f"/{page}?game_id={game_id}&team_id={team_id}&turn={turn}"
+    url = f"/{page}?game_id={game_id}&team_id={team_id}&turn={turn}"
+    return f"{url}&mode=revise" if revision_mode and not review else url
 
 
 def _field_error(field: str, message: str) -> dict[str, str]:
@@ -467,6 +472,7 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                             decided_at=decision.created_at if decision else None,
                         )
                     )
+            selected_turn_config = next(t for t in config.turns if t.number == selected_turn)
             return WorkspaceView(
                 game_id=game_id,
                 title=game.title,
@@ -490,6 +496,8 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                 submission_status=submission.status if submission else None,
                 submitted_at=submission.submitted_at if submission else None,
                 deadline=submission.deadline if submission else None,
+                governing_deadline=selected_turn_config.submission_deadline,
+                viewed_at=now,
                 historical_owners={
                     u.id: u.display_name for u in session.scalars(
                         select(User).where(User.id.in_({
@@ -524,6 +532,14 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
             selected_editor = _editor_identity(attempted)
         if selected_editor is None and raw is not None:
             selected_editor = _editor_identity(raw)
+        revision_mode = bool(
+            not review
+            and view.effective_version is not None
+            and (
+                request.query_params.get("mode") == "revise"
+                or selected_editor is not None
+            )
+        )
         selected_amendment = None
         comparison = None
         revision = request.query_params.get("revision") if not review else None
@@ -560,6 +576,16 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                     )
         # A pending correction does not supersede the latest completed decision.
         latest_decision = next((a for a in view.amendments if a.status != "pending"), None)
+        latest_rejection = (
+            latest_decision
+            if latest_decision
+            and latest_decision.status == "rejected"
+            and (
+                view.effective_version is None
+                or view.effective_version <= latest_decision.version
+            )
+            else None
+        )
         return templates.TemplateResponse(
             request=request,
             name="adjudicate.html" if review else "play.html",
@@ -568,10 +594,7 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                 "selected_amendment": selected_amendment,
                 "comparison": comparison,
                 "selected_revision": int(revision) if revision else None,
-                "latest_rejection": (
-                    latest_decision if latest_decision and latest_decision.status == "rejected"
-                    else None
-                ),
+                "latest_rejection": latest_rejection,
                 "shell": shell_context(request, db, settings),
                 "csrf": csrf_token(request),
                 "new_key": lambda: str(uuid4()),
@@ -590,6 +613,15 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                     else None
                 ),
                 "editor": selected_editor,
+                "revision_mode": revision_mode,
+                "effective_package": next(
+                    (
+                        item
+                        for item in view.submissions
+                        if item.version == view.effective_version
+                    ),
+                    None,
+                ),
                 "saved_message": SUCCESS_MESSAGES.get(request.query_params.get("saved", "")),
                 "conflict_base": (
                     Package.model_validate(conflict.base)
@@ -632,7 +664,10 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
     ) -> Response:
         uid = identity(request)
         review = command.operation == "decide"
-        refresh = _refresh_url(game_id, team_id, turn, review)
+        revision_mode = request.query_params.get("mode") == "revise" and not review
+        refresh = _refresh_url(
+            game_id, team_id, turn, review, revision_mode=revision_mode
+        )
         if review:
             refresh += f"&amendment_id={command.amendment_id}"
 
@@ -760,7 +795,10 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                 "expectations": expectations,
                 "values": values,
                 "workspace_id": f"{game_id}:{team_id}:{turn}",
-                "endpoint": f"/workspace/{game_id}/{team_id}/{turn}/form",
+                "endpoint": (
+                    f"/workspace/{game_id}/{team_id}/{turn}/form"
+                    f"{'?mode=revise' if revision_mode else ''}"
+                ),
                 "refresh": refresh,
                 "csrf": csrf_token(request),
                 "shell": shell_context(request, db, settings),
@@ -868,7 +906,15 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                     "operation": command.operation,
                     "key": str(command.key),
                     "editor": result.get("editor"),
-                    "refresh": refresh if review else result["redirect"],
+                    "refresh": (
+                        refresh
+                        if review
+                        or (
+                            revision_mode
+                            and command.operation not in {"submit", "amend"}
+                        )
+                        else result["redirect"]
+                    ),
                     "committed_draft_version": result.get("committed_draft_version"),
                     **({"completion": result["completion"]} if "completion" in result else {}),
                 },
@@ -878,7 +924,12 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                     "Vary": "Accept, X-Workspace-Enhanced",
                 },
             )
-        destination = refresh if review else result["redirect"]
+        destination = (
+            refresh
+            if review
+            or (revision_mode and command.operation not in {"submit", "amend"})
+            else result["redirect"]
+        )
         return RedirectResponse(f"{destination}&saved={saved}", status_code=303)
 
     @router.post("/workspace/{game_id}/{team_id}/{turn}/form")
@@ -923,7 +974,15 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                     "operation": values.get("operation"),
                     "key": values.get("key"),
                     "editor": _editor_identity(values),
-                    "refresh": _refresh_url(game_id, team_id, turn, review),
+                    "refresh": _refresh_url(
+                        game_id,
+                        team_id,
+                        turn,
+                        review,
+                        revision_mode=(
+                            request.query_params.get("mode") == "revise" and not review
+                        ),
+                    ),
                     "errors": errors,
                     "values": values,
                     "html": bytes(rendered.body).decode("utf-8"),

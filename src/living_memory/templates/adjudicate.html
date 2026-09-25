@@ -59,7 +59,7 @@
     {% if not view.editable %}<p class="notice">This turn is read-only.</p>{% endif %}
     {% if view.effective_version %}
     <p>Effective version {{ view.effective_version }} · {{ view.submission_status }}.</p>
-    <p>Submitted {{ view.submitted_at }}; deadline {{ view.deadline }}.{% if view.submitted_at > view.deadline %} <strong>Late submission</strong>{% endif %}</p>
+    <p>Submitted {{ view.submitted_at }}; deadline {{ view.deadline }}.{% if view.submitted_at >= view.deadline %} <strong>Late submission</strong>{% endif %}</p>
     {% else %}<p>No package has been submitted.</p>{% endif %}
   </section>
   <nav data-workspace-region="amendment-navigation" aria-label="Amendments">

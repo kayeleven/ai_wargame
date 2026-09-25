@@ -11,7 +11,7 @@ from test_workspace import BODY, GAME, NOW, ready, run, world  # noqa: F401
 from living_memory.app import create_app
 from living_memory.clocks import FixedClock
 from living_memory.identity import issue_session
-from living_memory.workspace import Amendment, DraftAction
+from living_memory.workspace import Amendment, DraftAction, Submission
 
 pytestmark = pytest.mark.integration
 
@@ -189,6 +189,123 @@ def test_submission_view_stays_frozen(world):
     page = client.get(f"/adjudicate?game_id={GAME}")
     assert "Unsubmitted draft" not in page.text
     assert "A careful overall intention" in page.text and "Late submission" in page.text
+
+
+def test_exact_deadline_first_submission_is_late_in_player_and_adjudicator_views(world):
+    """The service stores and both views display the inclusive deadline boundary."""
+    from test_admin_database import config
+
+    from living_memory.administration import ConfigurationRevision
+    from living_memory.workspace import Submission
+
+    ready(world)
+    with world[0].transaction() as session:
+        previous = session.scalar(
+            select(ConfigurationRevision).where(ConfigurationRevision.game_id == GAME)
+        )
+        revised = config().model_dump(mode="json")
+        revised["turns"][0]["submission_deadline"] = NOW.isoformat()
+        session.add(
+            ConfigurationRevision(
+                game_id=GAME,
+                sequence=previous.sequence + 1,
+                effective_turn=1,
+                recorded_at=NOW,
+                configuration=revised,
+                supersedes_revision_id=previous.id,
+                author_user_id=world[2]["admin"],
+            )
+        )
+    # run() executes the confirmed command with FixedClock(NOW), so this is a
+    # real first submission at the configured stored deadline.
+    run(world, "submit")
+    with world[0].transaction() as session:
+        submission = session.scalar(select(Submission))
+        assert submission.submitted_at == submission.deadline == NOW
+
+    assert "Late submission" in client_for(world).get(f"/play?game_id={GAME}").text
+    assert "Late submission" in client_for(world, "judge").get(
+        f"/adjudicate?game_id={GAME}"
+    ).text
+
+
+def test_effective_overview_enters_revision_mode_without_changing_saved_draft(world):
+    """Revision entry is a read-only transition until a player saves or submits."""
+    from test_workspace import counts
+
+    ready(world)
+    run(world, "submit")
+    run(world, "intention", overall_intention="Saved revision draft")
+    client = client_for(world)
+    before = counts(world[0])
+
+    overview = client.get(f"/play?game_id={GAME}")
+    assert overview.status_code == 200
+    assert "Effective package" in overview.text
+    assert "Revise saved draft" in overview.text
+    assert "mode=revise" in overview.text
+    assert counts(world[0]) == before
+
+    revision = client.get(f"/play?game_id={GAME}&mode=revise")
+    assert revision.status_code == 200
+    assert 'name="overall_intention">Saved revision draft</textarea>' in revision.text
+    assert "Submit revision" in revision.text
+    assert counts(world[0]) == before
+
+
+def test_revision_consequence_hint_is_a_rule_and_members_cannot_submit(world):
+    from datetime import timedelta
+
+    from living_memory.administration import AdminGame
+    from living_memory.workspace_service import get_submission
+
+    ready(world)
+    run(world, "submit")
+    with world[0].transaction() as session:
+        get_submission(session, GAME, "team-0", 1).deadline = NOW + timedelta(minutes=5)
+
+    submitter = client_for(world)
+    page = submitter.get(f"/play?game_id={GAME}&mode=revise")
+    assert "Before the deadline, revisions take effect immediately." in page.text
+    assert "At or after the deadline, revisions require adjudicator acceptance." in page.text
+    assert "This revision will take effect immediately" not in page.text
+
+    member = client_for(world, "teammate")
+    member_page = member.get(f"/play?game_id={GAME}&mode=revise")
+    assert "Submit revision" not in member_page.text
+    assert "Only the designated submitter can submit revisions." in member_page.text
+
+    with world[0].transaction() as session:
+        session.get(AdminGame, GAME).current_turn = 2
+    historical = submitter.get(f"/play?game_id={GAME}&turn=1&mode=revise")
+    assert "This turn is read-only." in historical.text
+    assert "Submit revision" not in historical.text
+
+
+def test_pending_revision_allows_saved_draft_edits_but_not_another_submission(world):
+    ready(world)
+    run(world, "submit")
+    run(world, "amend", effective_version=1)
+    client = client_for(world)
+    csrf = workspace_csrf(client)
+
+    page = client.get(f"/play?game_id={GAME}&mode=revise")
+    assert "Amendment pending" in page.text
+    assert re.search(r"<button[^>]*disabled[^>]*>Submit revision</button>", page.text)
+    response = client.post(
+        f"/workspace/{GAME}/team-0/1/form?mode=revise",
+        data={
+            "csrf_token": csrf,
+            "operation": "intention",
+            "expected_version": 2,
+            "key": str(uuid4()),
+            "overall_intention": "Correction while pending",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "mode=revise" in response.headers["location"]
+    assert "Correction while pending" in client.get(response.headers["location"]).text
 
 
 def test_enhanced_success_acknowledges_commit_and_legacy_form_redirects(world):
@@ -601,7 +718,7 @@ def test_rejected_then_pending_retains_rejection_notice(world):
     assert "Revision 2 rejected" in notice
     assert "Preserved rejection reason" in notice
     assert "revision=2#submission-2" in notice
-    assert "amendment_pending" in page.text
+    assert "Effective version 1 · Amendment pending." in page.text
 
 
 def test_rejected_then_accepted_clears_notice_without_erasing_history(world):
@@ -624,9 +741,45 @@ def test_rejected_then_accepted_clears_notice_without_erasing_history(world):
     # A further pending revision must not revive the superseded rejection.
     run(world, "amend", effective_version=3)
     page = player.get(f"/play?game_id={GAME}")
-    assert "amendment_pending" in page.text
+    assert "Effective version 3 · Amendment pending." in page.text
     assert "View rejected revision" not in page.text
     assert "Preserved rejection reason" in page.text
+
+
+def test_newer_immediate_effective_revision_supersedes_rejected_overview_state(world):
+    """Pre-B-18 rejected history must not describe the later effective package as rejected."""
+    from datetime import timedelta
+
+    from living_memory.workspace_service import get_submission
+
+    ready(world)
+    run(world, "submit")
+    run(world, "intention", overall_intention="Rejected revision")
+    run(world, "amend", effective_version=1)
+    with world[0].transaction() as session:
+        rejected_id = session.scalar(select(Amendment.id))
+        version = get_submission(session, GAME, "team-0", 1).version
+    run(
+        world,
+        "decide",
+        version,
+        who="judge",
+        amendment_id=rejected_id,
+        decision="rejected",
+        reason="Pre-B-18 rejection reason",
+    )
+
+    # Legacy rows can have a rejection before a later revision became immediately effective.
+    with world[0].transaction() as session:
+        session.scalar(select(Submission)).deadline = NOW + timedelta(minutes=5)
+    run(world, "intention", overall_intention="Later immediately effective revision")
+    run(world, "amend", effective_version=1)
+
+    page = client_for(world).get(f"/play?game_id={GAME}")
+    assert "Effective version 3 · Effective." in page.text
+    assert "Revision rejected." not in page.text
+    assert "View rejected revision" not in page.text
+    assert "Pre-B-18 rejection reason" in page.text
 
 
 def test_new_rejection_replaces_previous_notice(world):
