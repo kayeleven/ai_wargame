@@ -31,6 +31,37 @@ verify a new 0.5.0 backup/restore round trip before adopting the upgrade. Once
 immediate revisions exist, do not run 0.4.0 against that database; rollback uses the
 original 0.4.0 archive and matching application in a fresh empty target.
 
+### Future environment upgrade: 0.4.0 → 0.5.0
+
+An environment already running 0.4.0 on schema **0006** needs an application upgrade,
+not a schema migration. This procedure is for future environments; it is not a
+claim that additional environments were deployed or upgraded during 1U-2.
+
+1. Record the environment, operator/date, running application version/commit and
+   actual database schema head. If the database is below 0006, stop and use the
+   appropriate preserving migration procedure first; do not assume a merged PR
+   upgraded the database and do not reset valuable data.
+2. Stop writers and take a backup using the existing 0.4.0 application. Retain its
+   checksum and matching application/restore tooling. Rehearse restore into an
+   empty disposable target before changing the environment.
+3. Install the 0.5.0 application and locked dependencies. Schema remains 0006; no
+   migration is required for this version step. Verify readiness, then smoke-test
+   a first submission, an immediate revision, and an approval-required revision
+   with an adjudicator decision on appropriate test data.
+4. Create a new backup with **0.5.0**, restore it to an empty target using **0.5.0**,
+   and verify the effective history. Backups require the exact matching application
+   version; an old 0.4.0 archive must first be restored with 0.4.0, then upgraded.
+5. Record the before/after application commit/version, schema, readiness and smoke
+   results, backup checksum and restore outcome for each environment actually
+   upgraded. Reload pre-upgrade browser tabs: old clients can show
+   `confirmation_required` as a generic conflict without writing; reload obtains
+   the explicit confirmation flow. Do not run 0.4.0 against data containing new
+   immediate revisions; rollback uses the retained old archive in a fresh target.
+
+The schema-mismatch write-refusal follow-up remains open as
+[issue #10](https://github.com/kayeleven/ai_wargame/issues/10). Readiness detects a
+mismatch, but ordinary writes do not yet receive the proposed clear refusal.
+
 The following historical 0.3.0 → 0.4.0 procedure installs migration 0006.
 For that preserving upgrade, stop the application and all writers:
 

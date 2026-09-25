@@ -35,15 +35,15 @@ this document without the intermediate reviews.
 | Milestone | Outcome | Status | Verification |
 | --- | --- | --- | --- |
 | 1U-1 | Protected input, shared navigation and fixture recovery | Accepted | [Verification](verification-1u-1.md) |
-| 1U-2 | Coherent submission/revision and dedicated amendment review | Implementing (PR 1 only) | [Verification](verification-1u-2.md) |
+| 1U-2 | Coherent submission/revision and dedicated amendment review | Awaiting owner acceptance | [Verification](verification-1u-2.md) |
 | 1U-3 | Practical action volume and safe automatic saved updates | Proposed | Not yet produced |
 | 1U-4 | Account management and participant placement | Proposed | Not yet produced |
 | 1U-5 | Guided configuration and activation | Proposed | Not yet produced |
 | 1U-6 | Integrated usability acceptance and deferred checks | Proposed | Not yet produced |
 
-Status progression: **proposed → ready → implementing → awaiting review → accepted**.
+Status progression: **proposed → ready → implementing → awaiting owner acceptance → accepted**.
 Ready means the bounded implementation plan and prerequisites are established.
-Passing tests and completed code lead to awaiting review; owner acceptance is
+Passing tests and completed code lead to awaiting owner acceptance; owner acceptance is
 required before advancing to the next milestone. Corrections remain in the current
 milestone unless a scope change is explicitly agreed.
 
@@ -211,6 +211,30 @@ Comparison content is server-rendered and template-escaped; no new authored-cont
   submission/rejection/correction/acceptance walkthrough including both deadline paths.
   Append evidence in each PR; finalize the same record at the gate. Separate automated
   results from human acceptance and retain the no-JavaScript reload limitation.
+
+#### Final 1U-2 milestone gate — 2026-09-25
+
+Delivery PRs #2–#9 are merged into their agreed bases; the milestone branch contains
+all reviewed increments. The [acceptance traceability and finding-ownership tables](verification-1u-2.md#milestone-acceptance-traceability)
+are the basis for the owner's final decision. The combined PR 4 owner walkthrough
+is complete; it is not final milestone acceptance.
+
+The owner-approved final acceptance scope applies only if the final branch differs
+from `bdcce4c` solely in documentation: a smoke run on the final tested commit using
+a fresh database, one immediate revision, one approval-required revision with an
+adjudicator decision, and one JavaScript-disabled check, plus an owner decision
+against the traceability tables. Any non-documentation change requires re-scoping
+the walkthrough. This final smoke run and owner decision are **pending**.
+
+Merge `master` changes into the milestone branch before final checks and independently
+review any conflict resolution. Publish the milestone PR only after full tests,
+lint/types and code review pass. Merge into `master` only after explicit owner
+acceptance, using a **merge commit**, preserving the individual reviewed PR squashes.
+The approved merge message is recorded in the verification record.
+
+After acceptance and merge: delete `milestone/1u-2`, create an annotated `v0.5.0` tag
+on the merge commit, set 1U-2 to **Accepted**, and record that the 1U-3 prerequisite
+is met. Until then, 1U-3 remains proposed and its prerequisite is not yet satisfied.
 
 ### 1U-3 — Support realistic action volume and collaboration
 

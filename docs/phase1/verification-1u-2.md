@@ -1,9 +1,10 @@
 # Phase 1U-2 verification
 
-Status: **PR 1 owner-approved; full-suite merge condition satisfied; milestone still implementing**. The full milestone is
-not delivered or accepted. The agreed PR sequence, boundaries and gates are in
+Status: **Awaiting owner acceptance**. The agreed PR sequence, boundaries and gates are in
 [usability alignment](usability-alignment.md#agreed-1u-2-pr-delivery-sequence--2026-09-23).
-Append later PR evidence here; finalize this same record at the milestone gate.
+The [acceptance traceability and finding dispositions](#milestone-acceptance-traceability)
+are the owner decision basis. Historical increment evidence remains below; the
+milestone is neither accepted nor merged to `master`.
 
 ## Prerequisite — macro extraction
 
@@ -821,3 +822,115 @@ concurrent retries and restore behavior (covered by automated tests only).
 PR 4 (4a and 4b) approved. PR 4b approved for merge into `milestone/1u-2`. This
 completes the PR 4a walkthrough deferred at its merge. It is not milestone
 acceptance; the milestone PR's end-to-end acceptance remains required.
+
+## Milestone acceptance traceability
+
+Status: **Awaiting owner acceptance**. This section consolidates reviewed historical
+evidence; it does not turn a PR-level approval or an automated result into final
+milestone acceptance. Test links name tests present at the milestone baseline
+`bdcce4c`; a manual check reference points only to the numbered observation in the
+combined PR 4 record above. “Automated only” means no manual result is claimed.
+
+### Delivery PR index
+
+| Delivery increment | GitHub PR | Merged evidence / role in this milestone |
+| --- | --- | --- |
+| Macro prerequisite | [#2](https://github.com/kayeleven/ai_wargame/pull/2) | Shared template-macro extraction. |
+| PR 1: amendment review | [#3](https://github.com/kayeleven/ai_wargame/pull/3) | Immutable adjudicator comparisons and decisions. |
+| PR 2: effective history | [#4](https://github.com/kayeleven/ai_wargame/pull/4) | 0006 effective-version provenance and preserving backfill. |
+| PR 3a: command hardening | [#5](https://github.com/kayeleven/ai_wargame/pull/5) | Post-lock time, authority and completed-command replay. |
+| PR 3.1: confirmation | [#6](https://github.com/kayeleven/ai_wargame/pull/6) | No-write explicit confirmation contract. |
+| PR 3.2: B-18 | [#7](https://github.com/kayeleven/ai_wargame/pull/7) | Before-deadline immediate revisions and at/after-deadline approval path. |
+| PR 4a: lifecycle | [#8](https://github.com/kayeleven/ai_wargame/pull/8) | Player lifecycle presentation. |
+| PR 4b: package review | [#9](https://github.com/kayeleven/ai_wargame/pull/9) | Exact package review and renewed-confirmation explanation. |
+
+### 1U-2 acceptance criteria
+
+| Criterion and complete scope | Delivery / automated evidence | Manual evidence and limit |
+| --- | --- | --- |
+| **1. Members, current turn and late first submissions.** Ordinary members can draft but cannot submit; only the active current turn is writable; a late first submission remains allowed and visibly late. | Retained baseline [`test_draft_history_submission_amendment`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace.py#L175), [`test_member_cannot_submit_or_decide_and_foreign_action_is_hidden`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace.py#L349), and [`test_inactive_noncurrent_mutations_and_replays_leave_no_writes`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace.py#L687) cover drafting and turn/member restrictions. [#8](https://github.com/kayeleven/ai_wargame/pull/8): [`test_exact_deadline_first_submission_is_late_in_player_and_adjudicator_views`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_web.py#L194) covers the late label. | Combined PR 4 checks **1** (pre-submit state/deadline), **7** (a non-submitter can edit but cannot submit), and **11** (deadline crossing). Late first submission itself is **automated-only** in this manual record. |
+| **2. B-18 revision paths and pending state.** A revision strictly before the stored deadline becomes effective without a decision; at/after it needs acceptance; an existing pending amendment still needs a decision; pending blocks another submission while draft editing remains available. | [#7](https://github.com/kayeleven/ai_wargame/pull/7): [`test_deadline_policy_and_replay`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_immediate_revisions.py#L47), [`test_real_wait_deadline_policy`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_immediate_revisions.py#L76), and [`test_legacy_pending_before_deadline_still_blocks_submission`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_immediate_revisions.py#L303). Retained baseline [`test_draft_history_submission_amendment`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace.py#L175) decides pending amendments; [#8](https://github.com/kayeleven/ai_wargame/pull/8) [`test_pending_revision_still_allows_editing_but_not_resubmission`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L226) covers editing/blocking presentation. | Combined PR 4 checks **4**, **5**, and **11** cover pending editing, rejection/correction/acceptance, and deadline crossing. |
+| **3. Lock-time confirmation.** Server time is read after mutation locks; requests waiting across a deadline, stale effective versions and changed confirmation expectations are exercised; `confirmation_required` writes nothing and does not claim its request key. | [#5](https://github.com/kayeleven/ai_wargame/pull/5): [`test_timestamp_is_read_after_real_lock_wait`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_command_hardening.py#L141). [#6](https://github.com/kayeleven/ai_wargame/pull/6): [`test_clock_crossing_during_real_lock_wait_reprompts`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_confirmation.py#L97), [`test_missing_or_stale_confirmation_writes_nothing`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_confirmation.py#L52), and [`test_read_only_confirmation_does_not_claim_original_key`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_confirmation.py#L151). [#9](https://github.com/kayeleven/ai_wargame/pull/9): [`test_renewed_confirmation_lists_each_changed_expectation`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_confirmation.py#L197). | Combined PR 4 checks **11** and **12** observe renewed confirmation and a stale-draft conflict. Real lock waits and key-claim assertions are **automated-only**. |
+| **4. Replay and uncertain operations.** An authorized matching completed retry returns its original result before deadline re-evaluation; a lost response cannot duplicate or change meaning; renewed confirmation uses a new key only after the uncertain original operation is resolved. | [#5](https://github.com/kayeleven/ai_wargame/pull/5): [`test_completed_result_precedes_fresh_write_checks`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_command_hardening.py#L215). [#6](https://github.com/kayeleven/ai_wargame/pull/6): [`test_delayed_original_cannot_apply_after_fresh_confirmation`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_confirmation.py#L70), [`test_http_confirmation_and_completion_replay`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_confirmation.py#L128), and [`test_confirmation_409_is_not_a_conflict_and_clears_recovery`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L1950). [#7](https://github.com/kayeleven/ai_wargame/pull/7): [`test_http_success_and_replay`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_immediate_revisions.py#L99). Retained 1U-1 baseline [`test_unknown_outcome_retries_frozen_command_once`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L448). [#9](https://github.com/kayeleven/ai_wargame/pull/9): [`test_deadline_crossing_renews_confirmation_without_submission`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L2000). The #6/#9 cases reconcile the original no-write/uncertain operation before a new-key confirmation. | Lost responses and concurrent retries are explicitly listed as **not checked manually** in the combined PR 4 review; this criterion’s manual evidence is therefore **automated-only**. |
+| **5. Effective-version provenance and preserving backfill.** Every effective-version change records mechanism, user and time; backfill is traceable to immutable data, preserves versions, decisions and pending amendments, and invents no historical events. | [#4](https://github.com/kayeleven/ai_wargame/pull/4): [`test_preserving_backfill_tied_times_inactive_actor_and_repeat`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_effective_history.py#L107), [`test_each_invariant_aborts_without_changes`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_effective_history.py#L146), [`test_events_replay_and_rollback`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_effective_history.py#L169), and [`test_migrated_history_backup_restore`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_effective_history.py#L296). [#7](https://github.com/kayeleven/ai_wargame/pull/7): [`test_rejected_then_immediate_and_restore`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_immediate_revisions.py#L167). | Provenance, backfill and restore are **automated-only**; restore is explicitly excluded from the combined PR 4 manual review. |
+| **6. Coherent player/adjudicator workflow and comparison.** Players and adjudicators complete submission, rejection, correction and acceptance with visible state and next steps; comparisons cover changed, added and removed actions, cleared fields, long replacements and unchanged context without sequential rereading. | [#3](https://github.com/kayeleven/ai_wargame/pull/3): [`test_complete_values_clearing_whitespace_and_hostile_text`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_amendment_review.py#L42) and [`test_review_added_removed_and_unchanged_context`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L1850). [#8](https://github.com/kayeleven/ai_wargame/pull/8): [`test_rejected_revision_can_be_corrected_and_accepted_from_lifecycle_view`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L298). [#9](https://github.com/kayeleven/ai_wargame/pull/9): [`test_generic_comparison_projects_removed_draft_actions_but_keeps_effective_removals`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_amendment_review.py#L79) and [`test_confirmation_review_shows_live_package_and_removed_effective_action`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L2081). | Combined PR 4 checks **2–5**, **8–10**, and **14** cover state/next steps, comparison labels, removed actions, keyboard navigation and long-text narrow layout. Cleared fields are **automated-only** in this manual record. |
+
+### UX finding disposition
+
+| Finding | Disposition and bounded rationale | Evidence |
+| --- | --- | --- |
+| UX-38 | **Partial.** Conflict handling retains attempted input and offers recovery in automated coverage; the combined owner walkthrough observed stale-draft conflict without silent submission, but did not manually record every current/mine/combined resolution action. Final owner acceptance remains pending. | [`test_package_conflict_requires_review_before_renewal`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L1103), [`test_use_current_loads_authoritative_conflict_value`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L887), and [`test_action_use_current_and_intention_save_combined`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L910); combined PR 4 check **12**. |
+| UX-43 | **Partial.** Effective/submitted status and package are shown in the workspace and confirmation flow. Automatic teammate status refresh is a **1U-3** scope item and is not claimed here. | [#8](https://github.com/kayeleven/ai_wargame/pull/8); combined PR 4 checks **1–2** and **8**. |
+| UX-44 | **Resolved.** Explicit revise mode separates effective content, saved draft and pending/rejected state. | [`test_effective_overview_keyboard_enters_revision_mode_without_writing`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L167); combined PR 4 checks **3–5**. |
+| UX-45 | **Resolved.** “Submit revision” and its rule-based consequence/status explain immediate versus adjudicator-reviewed outcomes. | [`test_revision_consequence_hint_is_a_rule_and_members_cannot_submit`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_web.py#L256); combined PR 4 checks **4**, **5**, and **11**. |
+| UX-46 | **Resolved through B-18 semantics, not a late-submission ban.** The active turn remains writable for late first submissions; revisions are immediate strictly before the stored deadline and require acceptance at/after it, with confirmation authoritative after a stale page or deadline crossing. | [`test_real_wait_deadline_policy`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_immediate_revisions.py#L76), [`test_exact_deadline_first_submission_is_late_in_player_and_adjudicator_views`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_web.py#L194); combined PR 4 check **11**. |
+| UX-49 | **Resolved.** Immutable side-by-side comparison exposes changed, added, removed, cleared and unchanged context, with changed-action navigation. Word-level diff remains deliberately deferred. | [`test_review_added_removed_and_unchanged_context`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L1850); combined PR 4 checks **9**, **10**, and **14**. |
+| UX-50 | **Resolved.** Rejection state/reason and a correction route appear in the workspace; historical reason remains discoverable after later state changes. | [`test_rejected_revision_can_be_corrected_and_accepted_from_lifecycle_view`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L298), [`test_rejected_then_accepted_clears_notice_without_erasing_history`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_web.py#L724); combined PR 4 check **5**. |
+| UX-51 | **Partial.** The delivered submit → review → reject/revise or accept path is covered, but final cross-role owner smoke and the milestone acceptance decision are still pending. Automatic teammate refresh and selected-action layout are explicitly **1U-3** scope items, not delivered by 1U-2. | Combined PR 4 checks **2–5**, **8–12**, **14**; [#3](https://github.com/kayeleven/ai_wargame/pull/3), [#8](https://github.com/kayeleven/ai_wargame/pull/8), and [#9](https://github.com/kayeleven/ai_wargame/pull/9). |
+
+### Environment, follow-up and remaining acceptance
+
+The only environment record is owner evidence: during PR 3.1 review, the development
+database was recreated from disposable data at **0.5.0**. No per-environment test,
+backup, upgrade, or restoration receipt is asserted here. The preserving future
+0.4.0 → 0.5.0 procedure remains in [development.md](../development.md#future-environment-upgrade-040--050),
+including its no-0006-migration and exact-version constraints.
+
+[Issue #10](https://github.com/kayeleven/ai_wargame/issues/10) remains open as the
+schema-mismatch write-refusal follow-up; it is not implemented by this milestone.
+The stale pre-upgrade-tab `confirmation_required` behavior is a recorded compatibility
+limitation, not evidence of a new runtime change.
+
+The final acceptance decision is pending. If the diff from `bdcce4c` remains
+documentation-only, the owner acceptance is narrowed to smoke on the final tested
+commit with a fresh database, one immediate revision, one approval-required revision
+plus adjudicator decision, one JavaScript-disabled check, and a decision against this
+traceability. Any non-documentation change requires re-scoping before acceptance.
+The final automated run is recorded below. The milestone PR head identifies the
+commit for the pending owner smoke; do not substitute an earlier delivery commit.
+
+### Conditional post-merge record
+
+Only after owner acceptance and a merge of `milestone/1u-2` to `master` using a
+**merge commit (not squash)**: delete the milestone branch; create annotated tag
+`v0.5.0` on that merge commit; then mark 1U-2 Accepted and the 1U-3 prerequisite
+met. None of these post-merge actions has occurred.
+
+### Final milestone preparation and automated verification — 2026-09-25
+
+Fetched `master` at `d5cf8a3` and merged it into the milestone branch before final
+checks: already up to date, with no conflict resolutions. The preparation diff
+from `bdcce4c` changes only five Markdown documents; runtime code, schema and tests
+are unchanged. The narrowed owner smoke scope above therefore applies. The final
+commit is the milestone PR head; the owner must record that SHA with the smoke
+results and acceptance decision, which remain **pending**.
+
+| Check | Final preparation result |
+| --- | --- |
+| `make check` | Pass: Ruff and mypy, 21 source files. |
+| `make test` | 248 passed, 2 existing dependency warnings, 115.64s. |
+| `make test-browser` | 79 passed, 2 existing dependency warnings, 136.93s. |
+| Total | 327 tests passed; automated evidence does not replace owner acceptance. |
+| Additional checks | Codex-tooling Ruff, whitespace and local documentation-link targets passed; 41 pinned test references checked against actual definitions; supplied PR 4 manual record unchanged. |
+
+Chromium exercises JavaScript and Jinja rendering; standalone JavaScript lint
+remains unavailable because Node is absent. No runtime file changed during this
+preparation. No deployment, development-database recreation or manual smoke was
+performed as part of preparing this PR.
+
+### Approved merge commit message
+
+Use a merge commit to preserve the individual reviewed delivery PR squashes.
+Do not squash the milestone. The approved message is:
+
+```text
+Complete submission and amendment usability alignment (1U-2)
+
+Add dedicated amendment comparisons, effective-version provenance, and player lifecycle and package review. Harden command timing, authorization and retry recovery. Require explicit confirmation, explain changed expectations, and apply B-18 revision timing while preserving 1U-1 guarantees.
+
+Advance application and backup compatibility to 0.5.0 on schema 0006, with documented environment upgrades, restore compatibility and stale-tab limitations.
+```
+
+The annotated `v0.5.0` tag must name that merge commit, not a later documentation
+commit. The post-merge acceptance/status record must state that 1U-3's prerequisite
+is met; none of those actions is authorized before the pending owner acceptance.
