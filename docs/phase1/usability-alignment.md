@@ -35,7 +35,7 @@ this document without the intermediate reviews.
 | Milestone | Outcome | Status | Verification |
 | --- | --- | --- | --- |
 | 1U-1 | Protected input, shared navigation and fixture recovery | Accepted | [Verification](verification-1u-1.md) |
-| 1U-2 | Coherent submission/revision and dedicated amendment review | Awaiting owner acceptance | [Verification](verification-1u-2.md) |
+| 1U-2 | Coherent submission/revision and dedicated amendment review | Accepted | [Verification](verification-1u-2.md) |
 | 1U-3 | Practical action volume and safe automatic saved updates | Proposed | Not yet produced |
 | 1U-4 | Account management and participant placement | Proposed | Not yet produced |
 | 1U-5 | Guided configuration and activation | Proposed | Not yet produced |
@@ -216,15 +216,17 @@ Comparison content is server-rendered and template-escaped; no new authored-cont
 
 Delivery PRs #2–#9 are merged into their agreed bases; the milestone branch contains
 all reviewed increments. The [acceptance traceability and finding-ownership tables](verification-1u-2.md#milestone-acceptance-traceability)
-are the basis for the owner's final decision. The combined PR 4 owner walkthrough
-is complete; it is not final milestone acceptance.
+are the basis for the owner's recorded final decision. The combined PR 4 walkthrough
+and the [final owner smoke on `e1d0ca5`](verification-1u-2.md#final-owner-acceptance--2026-09-25)
+are complete; **1U-2 is Accepted**, before the owner-managed merge.
 
 The owner-approved final acceptance scope applies only if the final branch differs
 from `bdcce4c` solely in documentation: a smoke run on the final tested commit using
 a fresh database, one immediate revision, one approval-required revision with an
 adjudicator decision, and one JavaScript-disabled check, plus an owner decision
 against the traceability tables. Any non-documentation change requires re-scoping
-the walkthrough. This final smoke run and owner decision are **pending**.
+the walkthrough. The owner passed the final smoke on `e1d0ca5`, including UX-38
+conflict actions, and accepted the traceability and partial dispositions as recorded.
 
 Merge `master` changes into the milestone branch before final checks and independently
 review any conflict resolution. Publish the milestone PR only after full tests,
@@ -232,13 +234,15 @@ lint/types and code review pass. Merge into `master` only after explicit owner
 acceptance, using a **merge commit**, preserving the individual reviewed PR squashes.
 The approved merge message is recorded in the verification record.
 
-After acceptance and merge: delete `milestone/1u-2`, create an annotated `v0.5.0` tag
-on the merge commit, set 1U-2 to **Accepted**, and record that the 1U-3 prerequisite
-is met. Until then, 1U-3 remains proposed and its prerequisite is not yet satisfied.
+Acceptance and the **1U-3 prerequisite met** record are complete before merge.
+The owner will perform the merge; the only remaining post-merge actions are deleting
+`milestone/1u-2` and creating an annotated `v0.5.0` tag on the merge commit.
+1U-3 remains proposed; meeting its prerequisite does not start its implementation.
 
 ### 1U-3 — Support realistic action volume and collaboration
 
-**Prerequisite:** 1U-2 accepted; reuse editor and operation-state contracts.
+**Prerequisite met:** 1U-2 accepted on 2026-09-25; reuse editor and operation-state
+contracts. Implementation remains proposed until its bounded plan is approved.
 
 **Deliver:** Compact searchable action navigation, readable view/edit modes,
 independent summaries, scoped Save/Cancel, previous/next and context-preserving

@@ -1,10 +1,11 @@
 # Phase 1U-2 verification
 
-Status: **Awaiting owner acceptance**. The agreed PR sequence, boundaries and gates are in
+Status: **Accepted** by the project owner on `e1d0ca5`; awaiting the owner-managed merge.
+The agreed PR sequence, boundaries and gates are in
 [usability alignment](usability-alignment.md#agreed-1u-2-pr-delivery-sequence--2026-09-23).
 The [acceptance traceability and finding dispositions](#milestone-acceptance-traceability)
 are the owner decision basis. Historical increment evidence remains below; the
-milestone is neither accepted nor merged to `master`.
+milestone acceptance is [recorded below](#final-owner-acceptance--2026-09-25), before merge to `master`.
 
 ## Prerequisite — macro extraction
 
@@ -687,7 +688,8 @@ PR 4a merged into `milestone/1u-2` on 2026-09-25 as squash commit `5b46b62`
 review of `f1d42f6` and automated evidence. Its manual owner walkthrough was
 deferred at merge and is now **complete**, as recorded in the
 [combined PR 4 owner manual review](#pr-4-combined-owner-manual-review-4a--4b).
-This completes PR 4 acceptance only; final milestone end-to-end acceptance remains pending.
+This completed PR 4 acceptance only; the subsequent [final milestone acceptance](#final-owner-acceptance--2026-09-25)
+is now recorded below.
 
 Full suite after both corrections: **310 passed, 2 existing dependency deprecation
 warnings in 237.92s**, including PostgreSQL, backup/restore and Chromium. Focused
@@ -825,11 +827,11 @@ acceptance; the milestone PR's end-to-end acceptance remains required.
 
 ## Milestone acceptance traceability
 
-Status: **Awaiting owner acceptance**. This section consolidates reviewed historical
-evidence; it does not turn a PR-level approval or an automated result into final
-milestone acceptance. Test links name tests present at the milestone baseline
-`bdcce4c`; a manual check reference points only to the numbered observation in the
-combined PR 4 record above. “Automated only” means no manual result is claimed.
+Status: **Accepted** against these tables by the project owner; see the
+[final owner acceptance](#final-owner-acceptance--2026-09-25). This decision is separate from earlier
+PR-level approvals and automated results. Test links name tests present at the milestone baseline
+`bdcce4c`; numbered manual check references point to the combined PR 4 record above,
+with the final owner smoke cited separately below. “Automated only” means no manual result is claimed.
 
 ### Delivery PR index
 
@@ -859,14 +861,14 @@ combined PR 4 record above. “Automated only” means no manual result is claim
 
 | Finding | Disposition and bounded rationale | Evidence |
 | --- | --- | --- |
-| UX-38 | **Partial.** Conflict handling retains attempted input and offers recovery in automated coverage; the combined owner walkthrough observed stale-draft conflict without silent submission, but did not manually record every current/mine/combined resolution action. Final owner acceptance remains pending. | [`test_package_conflict_requires_review_before_renewal`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L1103), [`test_use_current_loads_authoritative_conflict_value`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L887), and [`test_action_use_current_and_intention_save_combined`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L910); combined PR 4 check **12**. |
-| UX-43 | **Partial.** Effective/submitted status and package are shown in the workspace and confirmation flow. Automatic teammate status refresh is a **1U-3** scope item and is not claimed here. | [#8](https://github.com/kayeleven/ai_wargame/pull/8); combined PR 4 checks **1–2** and **8**. |
+| UX-38 | **Resolved.** The owner passed Use current, Save mine and Edit combined value in the [final smoke](#final-owner-acceptance--2026-09-25), completing the earlier conflict-recovery evidence. | [`test_package_conflict_requires_review_before_renewal`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L1103), [`test_use_current_loads_authoritative_conflict_value`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L887), and [`test_action_use_current_and_intention_save_combined`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L910); combined PR 4 check **12**. |
+| UX-43 | **Partial, accepted as recorded.** Effective/submitted status and package are shown in the workspace and confirmation flow. Automatic teammate status refresh is a **1U-3** scope item and is not claimed here. | [#8](https://github.com/kayeleven/ai_wargame/pull/8); combined PR 4 checks **1–2** and **8**. |
 | UX-44 | **Resolved.** Explicit revise mode separates effective content, saved draft and pending/rejected state. | [`test_effective_overview_keyboard_enters_revision_mode_without_writing`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L167); combined PR 4 checks **3–5**. |
 | UX-45 | **Resolved.** “Submit revision” and its rule-based consequence/status explain immediate versus adjudicator-reviewed outcomes. | [`test_revision_consequence_hint_is_a_rule_and_members_cannot_submit`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_web.py#L256); combined PR 4 checks **4**, **5**, and **11**. |
 | UX-46 | **Resolved through B-18 semantics, not a late-submission ban.** The active turn remains writable for late first submissions; revisions are immediate strictly before the stored deadline and require acceptance at/after it, with confirmation authoritative after a stale page or deadline crossing. | [`test_real_wait_deadline_policy`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_immediate_revisions.py#L76), [`test_exact_deadline_first_submission_is_late_in_player_and_adjudicator_views`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_web.py#L194); combined PR 4 check **11**. |
 | UX-49 | **Resolved.** Immutable side-by-side comparison exposes changed, added, removed, cleared and unchanged context, with changed-action navigation. Word-level diff remains deliberately deferred. | [`test_review_added_removed_and_unchanged_context`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L1850); combined PR 4 checks **9**, **10**, and **14**. |
 | UX-50 | **Resolved.** Rejection state/reason and a correction route appear in the workspace; historical reason remains discoverable after later state changes. | [`test_rejected_revision_can_be_corrected_and_accepted_from_lifecycle_view`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/browser/test_workspace_browser.py#L298), [`test_rejected_then_accepted_clears_notice_without_erasing_history`](https://github.com/kayeleven/ai_wargame/blob/bdcce4c/tests/test_workspace_web.py#L724); combined PR 4 check **5**. |
-| UX-51 | **Partial.** The delivered submit → review → reject/revise or accept path is covered, but final cross-role owner smoke and the milestone acceptance decision are still pending. Automatic teammate refresh and selected-action layout are explicitly **1U-3** scope items, not delivered by 1U-2. | Combined PR 4 checks **2–5**, **8–12**, **14**; [#3](https://github.com/kayeleven/ai_wargame/pull/3), [#8](https://github.com/kayeleven/ai_wargame/pull/8), and [#9](https://github.com/kayeleven/ai_wargame/pull/9). |
+| UX-51 | **Partial, accepted as recorded.** The delivered submit → review → reject/revise or accept path and final owner smoke are complete. Automatic teammate refresh and selected-action layout remain **1U-3** scope items, not delivered by 1U-2. | Combined PR 4 checks **2–5**, **8–12**, **14**; [#3](https://github.com/kayeleven/ai_wargame/pull/3), [#8](https://github.com/kayeleven/ai_wargame/pull/8), and [#9](https://github.com/kayeleven/ai_wargame/pull/9). |
 
 ### Environment, follow-up and remaining acceptance
 
@@ -881,29 +883,28 @@ schema-mismatch write-refusal follow-up; it is not implemented by this milestone
 The stale pre-upgrade-tab `confirmation_required` behavior is a recorded compatibility
 limitation, not evidence of a new runtime change.
 
-The final acceptance decision is pending. If the diff from `bdcce4c` remains
-documentation-only, the owner acceptance is narrowed to smoke on the final tested
-commit with a fresh database, one immediate revision, one approval-required revision
-plus adjudicator decision, one JavaScript-disabled check, and a decision against this
-traceability. Any non-documentation change requires re-scoping before acceptance.
-The final automated run is recorded below. The milestone PR head identifies the
-commit for the pending owner smoke; do not substitute an earlier delivery commit.
+The owner completed the narrowed smoke on `e1d0ca5`, with a fresh development
+database, an immediate revision, an approval-required revision and adjudicator
+decision, a JavaScript-disabled check, and UX-38 conflict actions. The owner accepted
+1U-2 against this traceability; the exact [acceptance record](#final-owner-acceptance--2026-09-25)
+is appended below. The 1U-3 prerequisite is met. Any subsequent non-documentation
+change requires re-scoping the walkthrough; this acceptance-record update is docs-only.
 
 ### Conditional post-merge record
 
-Only after owner acceptance and a merge of `milestone/1u-2` to `master` using a
-**merge commit (not squash)**: delete the milestone branch; create annotated tag
-`v0.5.0` on that merge commit; then mark 1U-2 Accepted and the 1U-3 prerequisite
-met. None of these post-merge actions has occurred.
+Owner acceptance, 1U-2 **Accepted** status and the 1U-3 prerequisite are recorded
+**before the merge**. The owner will merge `milestone/1u-2` into `master` using a
+**merge commit (not squash)**. The only remaining post-merge actions are deleting
+`milestone/1u-2` and creating annotated tag `v0.5.0` on that merge commit.
+Neither post-merge action has occurred; this documentation update does not merge.
 
 ### Final milestone preparation and automated verification — 2026-09-25
 
 Fetched `master` at `d5cf8a3` and merged it into the milestone branch before final
 checks: already up to date, with no conflict resolutions. The preparation diff
 from `bdcce4c` changes only five Markdown documents; runtime code, schema and tests
-are unchanged. The narrowed owner smoke scope above therefore applies. The final
-commit is the milestone PR head; the owner must record that SHA with the smoke
-results and acceptance decision, which remain **pending**.
+are unchanged. The owner subsequently completed the narrowed smoke on the tested
+milestone PR head `e1d0ca5`; its results and acceptance decision are recorded below.
 
 | Check | Final preparation result |
 | --- | --- |
@@ -932,5 +933,22 @@ Advance application and backup compatibility to 0.5.0 on schema 0006, with docum
 ```
 
 The annotated `v0.5.0` tag must name that merge commit, not a later documentation
-commit. The post-merge acceptance/status record must state that 1U-3's prerequisite
-is met; none of those actions is authorized before the pending owner acceptance.
+commit. Acceptance and the 1U-3 prerequisite are already recorded before merge;
+only branch deletion and this tag remain post-merge actions for the owner-managed merge.
+
+## Final owner acceptance — 2026-09-25
+
+Reviewer: project owner. Tested commit: `e1d0ca5` (milestone PR head), fresh development
+database, schema 0006, application 0.5.0.
+
+| Smoke check | Result |
+|---|---|
+| Immediate revision before the deadline | Pass |
+| Approval-required revision after the deadline, with adjudicator decision | Pass |
+| JavaScript-disabled submission/confirmation | Pass |
+| UX-38 conflict actions: Use current, Save mine, Edit combined value | Pass |
+
+Decision: **1U-2 accepted** against the acceptance traceability and finding-disposition
+tables above. Partial dispositions are accepted as recorded: UX-43 and UX-51 remainders
+are 1U-3 scope; UX-38 resolved by the smoke check above.
+Open follow-ups: issue #10 (schema-mismatch write refusal); human-readable deadline formatting.
