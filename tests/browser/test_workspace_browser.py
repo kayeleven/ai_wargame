@@ -247,6 +247,52 @@ def test_pending_revision_still_allows_editing_but_not_resubmission(
 
 
 @pytest.mark.parametrize("javascript", [False, True])
+def test_current_historical_and_completed_overviews_keep_discussion_and_draft_history_visible(
+    workspace_server, world, javascript
+):
+    """Read-only overview pages retain collaboration history without entering revision mode."""
+    from test_workspace import ready, run
+
+    from living_memory.administration import AdminGame
+
+    ready(world)
+    run(world, "comment", comment="Historical package discussion")
+    run(world, "submit")
+    url, tokens = workspace_server
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = page_for(browser, url, tokens, "player", javascript)
+
+        page.goto(f"{url}/play?game_id={GAME}")
+        expect(page).not_to_have_url(re.compile(r"[?&]mode=revise(?:&|$)"))
+        expect(page.get_by_role("heading", name="Discussion", exact=True)).to_be_visible()
+        expect(page.get_by_text("Historical package discussion", exact=True)).to_be_visible()
+        expect(page.get_by_role("heading", name="Draft history", exact=True)).to_be_visible()
+        expect(page.get_by_text(re.compile(r"Revision 2 .*"))).to_be_visible()
+
+        with world[0].transaction() as session:
+            session.get(AdminGame, GAME).current_turn = 2
+        page.goto(f"{url}/play?game_id={GAME}&turn=1")
+        expect(page).not_to_have_url(re.compile(r"[?&]mode=revise(?:&|$)"))
+        expect(page.get_by_text("This turn is read-only.", exact=True)).to_be_visible()
+        expect(page.get_by_role("heading", name="Discussion", exact=True)).to_be_visible()
+        expect(page.get_by_text("Historical package discussion", exact=True)).to_be_visible()
+        expect(page.get_by_role("heading", name="Draft history", exact=True)).to_be_visible()
+        expect(page.get_by_text(re.compile(r"Revision 2 .*"))).to_be_visible()
+
+        with world[0].transaction() as session:
+            game = session.get(AdminGame, GAME)
+            game.status, game.current_turn = "completed", 1
+        page.goto(f"{url}/play?game_id={GAME}&turn=1")
+        expect(page).not_to_have_url(re.compile(r"[?&]mode=revise(?:&|$)"))
+        expect(page.get_by_role("heading", name="Discussion", exact=True)).to_be_visible()
+        expect(page.get_by_text("Historical package discussion", exact=True)).to_be_visible()
+        expect(page.get_by_role("heading", name="Draft history", exact=True)).to_be_visible()
+        expect(page.get_by_text(re.compile(r"Revision 2 .*"))).to_be_visible()
+        browser.close()
+
+
+@pytest.mark.parametrize("javascript", [False, True])
 def test_rejected_revision_can_be_corrected_and_accepted_from_lifecycle_view(
     workspace_server, world, javascript
 ):

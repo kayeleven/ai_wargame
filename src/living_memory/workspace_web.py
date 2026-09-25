@@ -576,6 +576,16 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                     )
         # A pending correction does not supersede the latest completed decision.
         latest_decision = next((a for a in view.amendments if a.status != "pending"), None)
+        latest_rejection = (
+            latest_decision
+            if latest_decision
+            and latest_decision.status == "rejected"
+            and (
+                view.effective_version is None
+                or view.effective_version <= latest_decision.version
+            )
+            else None
+        )
         return templates.TemplateResponse(
             request=request,
             name="adjudicate.html" if review else "play.html",
@@ -584,10 +594,7 @@ def workspace_router(db: Database, templates: Jinja2Templates, settings: Setting
                 "selected_amendment": selected_amendment,
                 "comparison": comparison,
                 "selected_revision": int(revision) if revision else None,
-                "latest_rejection": (
-                    latest_decision if latest_decision and latest_decision.status == "rejected"
-                    else None
-                ),
+                "latest_rejection": latest_rejection,
                 "shell": shell_context(request, db, settings),
                 "csrf": csrf_token(request),
                 "new_key": lambda: str(uuid4()),

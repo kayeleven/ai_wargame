@@ -666,3 +666,26 @@ Run in both enhanced and ordinary form modes, using keyboard-only navigation and
 
 No-JavaScript reload still cannot offer an application-controlled dirty warning.
 Screen-reader and human owner acceptance remain pending unless recorded separately.
+
+### PR 4a owner-review corrections — 2026-09-25
+
+Discussion and Draft history now remain visible in the overview on every turn,
+including historical and completed turns opened without `mode=revise`. Only the
+saved-draft editing area is hidden until revision entry; its recovery behavior is
+unchanged. A browser regression checks actual visibility in both form modes.
+
+An effective version newer than the latest rejected amendment now supersedes the
+rejection notice and rejected overview state. This handles pre-B-18 histories in
+which a rejected amendment precedes a later immediate revision. The historical
+amendment and its reason remain available. A regression creates that sequence and
+checks the effective overview without losing the rejection history.
+
+Owner walkthrough remains pending. After PR 4a merges, rebase PR 4b onto the updated
+`milestone/1u-2` before opening its PR.
+
+Full suite after both corrections: **310 passed, 2 existing dependency deprecation
+warnings in 237.92s**, including PostgreSQL, backup/restore and Chromium. Focused
+checks also passed: legacy rejection/immediate-revision HTTP case (1 test) and
+current/historical/completed overview visibility in both browser modes (2 tests).
+Project and Codex-tooling Ruff, mypy (21 source files), Jinja parsing and whitespace
+checks passed. No JavaScript or CSS changed in this correction.

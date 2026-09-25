@@ -11,7 +11,7 @@ from test_workspace import BODY, GAME, NOW, ready, run, world  # noqa: F401
 from living_memory.app import create_app
 from living_memory.clocks import FixedClock
 from living_memory.identity import issue_session
-from living_memory.workspace import Amendment, DraftAction
+from living_memory.workspace import Amendment, DraftAction, Submission
 
 pytestmark = pytest.mark.integration
 
@@ -744,6 +744,42 @@ def test_rejected_then_accepted_clears_notice_without_erasing_history(world):
     assert "Effective version 3 · Amendment pending." in page.text
     assert "View rejected revision" not in page.text
     assert "Preserved rejection reason" in page.text
+
+
+def test_newer_immediate_effective_revision_supersedes_rejected_overview_state(world):
+    """Pre-B-18 rejected history must not describe the later effective package as rejected."""
+    from datetime import timedelta
+
+    from living_memory.workspace_service import get_submission
+
+    ready(world)
+    run(world, "submit")
+    run(world, "intention", overall_intention="Rejected revision")
+    run(world, "amend", effective_version=1)
+    with world[0].transaction() as session:
+        rejected_id = session.scalar(select(Amendment.id))
+        version = get_submission(session, GAME, "team-0", 1).version
+    run(
+        world,
+        "decide",
+        version,
+        who="judge",
+        amendment_id=rejected_id,
+        decision="rejected",
+        reason="Pre-B-18 rejection reason",
+    )
+
+    # Legacy rows can have a rejection before a later revision became immediately effective.
+    with world[0].transaction() as session:
+        session.scalar(select(Submission)).deadline = NOW + timedelta(minutes=5)
+    run(world, "intention", overall_intention="Later immediately effective revision")
+    run(world, "amend", effective_version=1)
+
+    page = client_for(world).get(f"/play?game_id={GAME}")
+    assert "Effective version 3 · Effective." in page.text
+    assert "Revision rejected." not in page.text
+    assert "View rejected revision" not in page.text
+    assert "Pre-B-18 rejection reason" in page.text
 
 
 def test_new_rejection_replaces_previous_notice(world):
